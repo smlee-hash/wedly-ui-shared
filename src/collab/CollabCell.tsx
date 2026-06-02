@@ -28,6 +28,32 @@ export function ColoredCell({
   if (content.kind === "text") {
     return <span>{content.text}</span>;
   }
+  if (content.kind === "files") {
+    return (
+      <span className="inline-flex flex-wrap gap-1">
+        {content.files.map((f, i) =>
+          f.url ? (
+            <a
+              key={`${f.name}-${i}`}
+              href={f.url}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-wedly-accent hover:underline truncate max-w-[140px]"
+            >
+              <span aria-hidden>📎</span>
+              <span className="truncate">{f.name}</span>
+            </a>
+          ) : (
+            <span key={`${f.name}-${i}`} className="inline-flex items-center gap-1 text-wedly-muted truncate max-w-[140px]">
+              <span aria-hidden>📎</span>
+              <span className="truncate">{f.name}</span>
+            </span>
+          ),
+        )}
+      </span>
+    );
+  }
   // chips
   if (content.chips.length === 1) {
     const c = content.chips[0];
