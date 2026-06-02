@@ -82,4 +82,10 @@ export {
 } from "./collab/collab-table-core";
 export type { RowData, CellValue, SortConfig } from "./collab/collab-table-core";
 
-export const __MODULE_VERSION__ = "0.20.0";
+// 상태별 필터 탭 — 순수 로직 + 표시 부품
+export { matchesFilter, matchesTab, filterRowsByTab } from "./collab/collab-filters";
+export type { FilterOperator, FilterCondition, ViewTab } from "./collab/collab-filters";
+export { FilterTabs } from "./collab/FilterTabs";
+export type { FilterTabsProps } from "./collab/FilterTabs";
+
+export const __MODULE_VERSION__ = "0.21.0";
