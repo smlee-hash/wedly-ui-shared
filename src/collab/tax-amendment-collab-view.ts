@@ -12,7 +12,7 @@ import type { RowData } from "./collab-table-core";
 //  - 정부지원금리포트: 다른 앱(정부지원금) 데이터 → 경정청구엔 값 없음(빈 자리, 추후 연결).
 export const TAX_AMENDMENT_EXTRA_COLUMNS: ColumnDef[] = [
   { key: "환급금여부", label: "환급금 여부", type: "select", defaultVisible: false, width: 90 },
-  { key: "정부지원금리포트", label: "정부지원금 리포트", type: "select", defaultVisible: false, width: 120 },
+  { key: "정부지원금리포트", label: "정부지원금 리포트", type: "file", defaultVisible: false, width: 120 }, // 파일 첨부 칸
 ];
 
 // 하이브 '전체' 탭의 보이는 컬럼·순서 (팀장·팀원 제외).
