@@ -8,12 +8,13 @@ function col(type: ColumnDef["type"], extra: Partial<ColumnDef> = {}): ColumnDef
 }
 
 const STATUS = { 인용완료: "bg-wedly-bg-purple text-wedly-purple", 계약완료: "bg-wedly-bg-green text-wedly-green" };
-const BADGE = { 개인사업자: "bg-wedly-bg-blue text-wedly-accent" };
+const BADGE = { 개인사업자: "bg-wedly-bg-blue text-wedly-accent", 있음: "bg-wedly-bg-green text-wedly-green" };
 
-describe("cellChips — 글자 vs 색깔 딱지 판정", () => {
-  it("빈 값은 기본 표시(—) 글자", () => {
-    expect(cellChips(col("select"), null, { statusColors: STATUS })).toEqual({ kind: "text", text: "—" });
-    expect(cellChips(col("select"), "", { statusColors: STATUS })).toEqual({ kind: "text", text: "—" });
+describe("cellChips — 하이브 표 셀과 동일한 표시 판정", () => {
+  it("빈 값은 하이브와 동일하게 '-'", () => {
+    expect(cellChips(col("select"), null, { statusColors: STATUS })).toEqual({ kind: "text", text: "-" });
+    expect(cellChips(col("select"), "", { statusColors: STATUS })).toEqual({ kind: "text", text: "-" });
+    expect(cellChips(col("text"), null)).toEqual({ kind: "text", text: "-" });
   });
 
   it("select + 매핑된 상태값 → 매핑 색 딱지 1개", () => {
@@ -38,10 +39,10 @@ describe("cellChips — 글자 vs 색깔 딱지 판정", () => {
     if (r.kind === "chips") expect(r.chips[0].className).toBe("bg-wedly-bg-gray text-wedly-t1");
   });
 
-  it("badgeColors 도 색칠에 쓰인다(statusColors 에 없을 때)", () => {
-    const r = cellChips(col("select"), "개인사업자", { statusColors: STATUS, badgeColors: BADGE });
+  it("badgeColors 도 색칠에 쓰인다(환급금여부 '있음'=초록 등)", () => {
+    const r = cellChips(col("select"), "있음", { statusColors: STATUS, badgeColors: BADGE });
     expect(r.kind).toBe("chips");
-    if (r.kind === "chips") expect(r.chips[0].className).toBe("bg-wedly-bg-blue text-wedly-accent");
+    if (r.kind === "chips") expect(r.chips[0].className).toBe("bg-wedly-bg-green text-wedly-green");
   });
 
   it("multi_select 은 콤마로 쪼개 딱지 여러 개", () => {
@@ -54,16 +55,28 @@ describe("cellChips — 글자 vs 색깔 딱지 판정", () => {
     }
   });
 
-  it("multi_select 빈 조각(콤마만)은 걸러져 글자 —", () => {
-    expect(cellChips(col("multi_select"), " , ", { statusColors: STATUS })).toEqual({ kind: "text", text: "—" });
+  it("multi_select 빈 조각(콤마만)은 걸러져 '-'", () => {
+    expect(cellChips(col("multi_select"), " , ", { statusColors: STATUS })).toEqual({ kind: "text", text: "-" });
   });
 
-  it("number/currency, date 등은 색칠 없이 기본 글자", () => {
+  it("통화(currency)·formula 숫자는 통화 형식(kind=currency)", () => {
     const money = cellChips(col("number", { format: "currency" }), 1234567, {});
-    expect(money.kind).toBe("text");
+    expect(money.kind).toBe("currency");
+    if (money.kind === "currency") expect(money.text).toMatch(/1[,.]?2/);
+    const f = cellChips(col("formula"), 5000, {});
+    expect(f.kind).toBe("currency");
+  });
+
+  it("날짜는 글자(형식 적용), 일반 텍스트·전화는 그대로", () => {
     const d = cellChips(col("date"), "2026-06-02", {});
     expect(d.kind).toBe("text");
-    const t = cellChips(col("text"), "메모", {});
-    expect(t).toEqual({ kind: "text", text: "메모" });
+    expect(cellChips(col("text"), "메모", {})).toEqual({ kind: "text", text: "메모" });
+    expect(cellChips(col("phone_number"), "010-1234-5678", {})).toEqual({ kind: "text", text: "010-1234-5678" });
+  });
+
+  it("checkbox 는 ✓ / - , person 은 이메일 떼고 이름만", () => {
+    expect(cellChips(col("checkbox"), true, {})).toEqual({ kind: "text", text: "✓" });
+    expect(cellChips(col("checkbox"), false, {})).toEqual({ kind: "text", text: "-" });
+    expect(cellChips(col("person"), "김혜나 <hn@wedly.kr>", {})).toEqual({ kind: "text", text: "김혜나" });
   });
 });

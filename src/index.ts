@@ -93,4 +93,12 @@ export { cellChips } from "./collab/collab-cell";
 export type { CellColorMaps, CellChip, CellContent } from "./collab/collab-cell";
 export { ColoredCell, createColoredFieldRenderer } from "./collab/CollabCell";
 
-export const __MODULE_VERSION__ = "0.22.0";
+// 통합 협업 — 경정청구 뷰 프리셋(공용): 새 공용 컬럼 2개 + 하이브식 배치 + 파생 규칙
+export {
+  TAX_AMENDMENT_EXTRA_COLUMNS,
+  TAX_AMENDMENT_COLLAB_VISIBLE,
+  TAX_AMENDMENT_COLLAB_COLORS,
+  deriveRefundFlag,
+} from "./collab/tax-amendment-collab-view";
+
+export const __MODULE_VERSION__ = "0.23.0";

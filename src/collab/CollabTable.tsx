@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { cn } from "../lib/cn";
 import { DesktopTable } from "../components/DesktopTable";
 import { MobileCardList } from "../components/MobileCardList";
 import { TopControls } from "../components/TopControls";
@@ -54,6 +55,10 @@ export type CollabTableProps = {
   getColAccent?: (col: ColumnDef) => { dotClass: string; headerTint: string } | null;
   /** 상태별 필터 탭(생략 시 탭 없음 — 기존과 100% 동일). 각 앱이 자기 목록을 넣어준다. */
   tabs?: ViewTab[];
+  /** 저장값이 없을 때 처음 보일 컬럼 키들(앱이 하이브식 배치 지정). 생략 시 columns.defaultVisible */
+  defaultVisibleColumns?: string[];
+  /** 저장값이 없을 때 컬럼 순서(앱이 하이브식 배치 지정). 생략 시 columns 원래 순서 */
+  defaultColumnOrder?: string[];
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -79,6 +84,8 @@ export function CollabTable({
   renderFieldValue,
   getColAccent: getColAccentProp,
   tabs,
+  defaultVisibleColumns,
+  defaultColumnOrder,
 }: CollabTableProps) {
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
@@ -106,14 +113,19 @@ export function CollabTable({
   // 레이아웃(브라우저 저장)
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
     const saved = loadJson<string[] | null>(VISIBLE_COLS_KEY, null);
-    return new Set(Array.isArray(saved) ? saved : columns.filter((c) => c.defaultVisible).map((c) => c.key));
+    if (Array.isArray(saved)) return new Set(saved);
+    if (defaultVisibleColumns && defaultVisibleColumns.length) return new Set(defaultVisibleColumns);
+    return new Set(columns.filter((c) => c.defaultVisible).map((c) => c.key));
   });
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     const defaults: Record<string, number> = {};
     columns.forEach((c) => (defaults[c.key] = c.width || 120));
     return { ...defaults, ...loadJson<Record<string, number>>(COL_WIDTHS_KEY, {}) };
   });
-  const [colOrder, setColOrder] = useState<string[]>(() => loadJson<string[]>(COL_ORDER_KEY, []));
+  const [colOrder, setColOrder] = useState<string[]>(() => {
+    const saved = loadJson<string[]>(COL_ORDER_KEY, []);
+    return saved.length ? saved : (defaultColumnOrder ?? []);
+  });
   const [colLabelOverrides, setColLabelOverrides] = useState<Record<string, string>>(() =>
     loadJson<Record<string, string>>(COL_LABELS_KEY, {}),
   );
@@ -243,25 +255,60 @@ export function CollabTable({
   const mobileTitleKey = mobile?.titleKey ?? titleCol?.key ?? columns[0]?.key ?? "";
   const mobileStatusClass = mobile?.getStatusClass ?? (() => "bg-wedly-bg-gray text-wedly-t2");
 
-  // 행 그리기(읽기 전용). 제목 칸은 클릭 시 상세 열기.
+  // 행 그리기(읽기 전용) — 하이브 표 행과 동일 스타일(글자 13px·여백 px-4·한 줄 말줄임·hover 파란빛).
+  // 제목 칸 = 밑줄 링크 + ↗아이콘 + 댓글수 버튼, 클릭 시 상세 열기.
   const renderRow = useCallback((row: RowData, virtualIndex: number) => {
     const id = String(row[rowIdKey] ?? "");
+    const commentCount = typeof row._commentCount === "number" ? (row._commentCount as number) : 0;
     return (
-      <tr key={id || virtualIndex} className="border-t border-wedly-bd hover:bg-wedly-bg-gray">
-        <td className="sticky left-0 z-10 bg-white px-2 py-2 align-top" style={{ width: 40 }}>
-          <input type="checkbox" checked={checkedIds.has(id)} onChange={() => toggleCheck(id)} />
+      <tr
+        key={id || virtualIndex}
+        className={cn("border-t border-slate-100 hover:bg-blue-50/30", checkedIds.has(id) && "bg-wedly-bg-blue/30")}
+      >
+        <td className="py-2 px-3 w-10 text-center sticky left-0 z-10 bg-white">
+          <input
+            type="checkbox"
+            checked={checkedIds.has(id)}
+            onChange={() => toggleCheck(id)}
+            className="rounded border-wedly-bd text-wedly-accent focus:ring-wedly-accent/20"
+          />
         </td>
         {activeColumns.map((col) => {
-          const stickyStyle = col.sticky
-            ? { position: "sticky" as const, left: (stickyOffsets[col.key] ?? 0) + 40, zIndex: 5, background: "#fff" }
-            : undefined;
+          const isSticky = col.sticky;
           const v = (row[col.key] ?? null) as CellValue;
           return (
-            <td key={col.key} data-col={col.key} className="px-3 py-2 text-sm text-wedly-t2 align-top" style={stickyStyle}>
+            <td
+              key={col.key}
+              data-col={col.key}
+              className={cn(
+                "py-2 px-4 text-[13px] whitespace-nowrap text-ellipsis overflow-hidden",
+                isSticky && "sticky z-10 bg-white",
+                col.type === "title" && "font-medium text-wedly-navy",
+              )}
+              style={{ minWidth: 40, ...(isSticky ? { left: (stickyOffsets[col.key] ?? 0) + 40 } : {}) }}
+            >
               {col.type === "title" ? (
-                <button onClick={() => onOpenRow(row)} className="text-left font-medium text-wedly-accent hover:underline">
-                  {v != null && v !== "" ? String(v) : "(제목 없음)"}
-                </button>
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="cursor-pointer text-wedly-accent underline decoration-wedly-accent/30 underline-offset-2 hover:decoration-wedly-accent transition-colors inline-flex items-center gap-1"
+                    onClick={() => onOpenRow(row)}
+                  >
+                    {v != null && v !== "" ? String(v) : "-"}
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="opacity-40">
+                      <path d="M4.5 2.5h5v5M9.5 2.5L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onOpenRow(row); }}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue transition-colors text-[11px]"
+                    title="히스토리"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                      <path d="M2 3h12v8a1 1 0 01-1 1H5l-3 3V3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                    </svg>
+                    {commentCount > 0 && <span className="tabular-nums font-medium">{commentCount}</span>}
+                  </button>
+                </span>
               ) : renderFieldValue ? (
                 renderFieldValue(col, v, row)
               ) : (

@@ -1,6 +1,6 @@
 {
   "name": "@wedly/ui-shared",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "WEDLY 하이브·ERP 공용 부품 보관함 — 상세 모달·세부 섹션·표·셀 입력기·페이지 위쪽 컨트롤·공통 모달·레이아웃 등 양쪽 앱이 공유하는 모든 화면 부품을 모음",
   "private": true,
   "type": "module",
