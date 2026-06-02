@@ -101,4 +101,4 @@ export {
   deriveRefundFlag,
 } from "./collab/tax-amendment-collab-view";
 
-export const __MODULE_VERSION__ = "0.23.0";
+export const __MODULE_VERSION__ = "0.25.0";
