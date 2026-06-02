@@ -8,6 +8,7 @@
  * 빈 상태, 검색 결과 없음, 오류 상태 처리 포함.
  */
 
+import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
 import type { ColumnDef } from "../types/columns";
 import { formatDate } from "../lib/utils";
@@ -40,6 +41,9 @@ type Props = {
   // 빈/오류 상태 메시지
   error: string | null;
   searchQuery: string;
+  // (선택) 셀 값 렌더러 — 앱이 표 셀과 동일한 형식·색으로 그려 넘기면 카드도 100% 같게 표시.
+  // 없으면 기존 텍스트 방식으로 표시(렌더러를 안 넘기는 다른 앱 호환).
+  renderFieldValue?: (col: ColumnDef, value: string | number | boolean | null, row: RowData) => ReactNode;
 };
 
 export function MobileCardList({
@@ -58,6 +62,7 @@ export function MobileCardList({
   subtitleRightKey,
   error,
   searchQuery,
+  renderFieldValue,
 }: Props) {
   return (
     <div className={cn("md:hidden space-y-2", mobileViewMode === "table" && "hidden")}>
@@ -140,20 +145,8 @@ export function MobileCardList({
                       }
                     }
                     if (v == null || v === "") return null;
-                    let display: string;
-                    if (Array.isArray(v)) {
-                      const items = v.map((x) => (x == null ? "" : String(x))).filter(Boolean);
-                      if (items.length === 0) return null;
-                      display = items.join(", ");
-                    } else if (typeof v === "object") {
-                      return null;
-                    } else if (col?.type === "number" && !isNaN(Number(v))) {
-                      display = Number(v).toLocaleString() + (col.format === "currency" ? "원" : "");
-                    } else if ((col?.type === "date" || col?.type === "last_edited_time") && typeof v === "string") {
-                      display = formatDate(v);
-                    } else {
-                      display = String(v);
-                    }
+                    if (typeof v === "object" && !Array.isArray(v)) return null;
+                    // 라벨
                     let label: string;
                     if (col) {
                       label = getColLabel(col);
@@ -164,10 +157,51 @@ export function MobileCardList({
                     } else {
                       label = k;
                     }
-                    return { key: k, label, display };
+                    // 표시 문자열(렌더러 미제공 앱용 기존 동작) + 렌더러용 원본값
+                    let display: string;
+                    let rawValue: string | number | boolean | null;
+                    if (Array.isArray(v)) {
+                      const items = v.map((x) => (x == null ? "" : String(x))).filter(Boolean);
+                      if (items.length === 0) return null;
+                      display = items.join(", ");
+                      rawValue = display;
+                    } else if (col?.type === "number" && !isNaN(Number(v))) {
+                      display = Number(v).toLocaleString() + (col.format === "currency" ? "원" : "");
+                      rawValue = v as string | number | boolean;
+                    } else if ((col?.type === "date" || col?.type === "last_edited_time") && typeof v === "string") {
+                      display = formatDate(v);
+                      rawValue = v;
+                    } else {
+                      display = String(v);
+                      rawValue = v as string | number | boolean;
+                    }
+                    // 렌더러용 컬럼 — 매칭 컬럼이 없으면(팀장/팀원 fallback 키) 라벨로 사람 컬럼 합성
+                    const effectiveCol: ColumnDef = col ?? ({ key: k, label, type: "person" } as ColumnDef);
+                    return { key: k, label, display, col: effectiveCol, rawValue };
                   })
-                  .filter((x): x is { key: string; label: string; display: string } => !!x);
+                  .filter(
+                    (x): x is { key: string; label: string; display: string; col: ColumnDef; rawValue: string | number | boolean } => !!x,
+                  );
                 if (visible.length === 0) return null;
+
+                // 새 방식: 앱이 셀 렌더러를 넘기면 표 셀과 100% 같은 형식·색으로, 줄마다 한 항목(세로 목록)으로 표시.
+                // 팀원이 1명이든 여러 명이든 줄 구조가 같아 카드가 항상 균일.
+                if (renderFieldValue) {
+                  return (
+                    <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-slate-100">
+                      {visible.map((v) => (
+                        <div key={v.key} className="flex items-start justify-between gap-3 text-xs">
+                          <span className="text-wedly-muted/70 flex-shrink-0">{v.label}</span>
+                          <span className="min-w-0 text-right text-wedly-t2">
+                            {renderFieldValue(v.col, v.rawValue, row)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+
+                // 기존 방식(렌더러 미제공 앱 — 일루아·ERP 등): 가로 흐름 그대로 유지
                 return (
                   <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-wedly-muted mt-1.5 pt-1.5 border-t border-slate-100">
                     {visible.map((v) => {
