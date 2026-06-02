@@ -67,4 +67,19 @@ export type { PanelKind, PanelEditorAddPayload, CustomPanelItem } from "./compon
 // 통합 보기 공용 로직 — 묶음·탭 계산, 탭 순서·이름 적용, 앱별 설정 틀 (순수 함수/타입)
 export * from "./unified";
 
-export const __MODULE_VERSION__ = "0.19.0";
+export { CollabTable } from "./collab/CollabTable";
+export type { CollabTableProps } from "./collab/CollabTable";
+export {
+  filterRowsBySearch,
+  sortRows,
+  nextSortConfig,
+  orderColumns,
+  computeStickyOffsets,
+  paginate,
+  totalPageCount,
+  reorderList,
+  defaultFormatCellValue,
+} from "./collab/collab-table-core";
+export type { RowData, CellValue, SortConfig } from "./collab/collab-table-core";
+
+export const __MODULE_VERSION__ = "0.20.0";
