@@ -20,6 +20,8 @@ import {
   type CellValue,
   type SortConfig,
 } from "./collab-table-core";
+import { filterRowsByTab, type ViewTab } from "./collab-filters";
+import { FilterTabs } from "./FilterTabs";
 
 export type CollabTableProps = {
   /** 브라우저 저장 키 앞에 붙는 고유 접두어(페이지마다 다르게). 예: "unified-collab:tax-amendment" */
@@ -50,6 +52,8 @@ export type CollabTableProps = {
   renderFieldValue?: (col: ColumnDef, value: CellValue, row: RowData) => ReactNode;
   /** 컬럼 강조(점·머리색). 생략 시 없음 */
   getColAccent?: (col: ColumnDef) => { dotClass: string; headerTint: string } | null;
+  /** 상태별 필터 탭(생략 시 탭 없음 — 기존과 100% 동일). 각 앱이 자기 목록을 넣어준다. */
+  tabs?: ViewTab[];
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -74,11 +78,13 @@ export function CollabTable({
   mobile,
   renderFieldValue,
   getColAccent: getColAccentProp,
+  tabs,
 }: CollabTableProps) {
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
   const COL_ORDER_KEY = `${storagePrefix}:col-order`;
   const COL_LABELS_KEY = `${storagePrefix}:col-labels`;
+  const ACTIVE_TAB_KEY = `${storagePrefix}:active-tab`;
 
   // 표 상태
   const [searchInput, setSearchInput] = useState("");
@@ -88,6 +94,14 @@ export function CollabTable({
   const [pageSize, setPageSize] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+
+  // 활성 필터 탭(탭이 있을 때만). 브라우저에 기억. 저장값이 현재 탭 목록에 없으면 첫 탭.
+  const [activeTabId, setActiveTabId] = useState<string>(() => {
+    if (!tabs || tabs.length === 0) return "";
+    const saved = loadJson<string | null>(ACTIVE_TAB_KEY, null);
+    if (saved && tabs.some((t) => t.id === saved)) return saved;
+    return tabs[0].id;
+  });
 
   // 레이아웃(브라우저 저장)
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
@@ -125,18 +139,27 @@ export function CollabTable({
   const activeColumns = useMemo(() => orderedColumns.filter((c) => visibleColumns.has(c.key)), [orderedColumns, visibleColumns]);
   const stickyOffsets = useMemo(() => computeStickyOffsets(activeColumns, colWidths), [activeColumns, colWidths]);
 
-  const searchedRows = useMemo(() => filterRowsBySearch(rows, debouncedSearch), [rows, debouncedSearch]);
+  const activeTab = useMemo(
+    () => (tabs && tabs.length ? tabs.find((t) => t.id === activeTabId) ?? null : null),
+    [tabs, activeTabId],
+  );
+  const tabbedRows = useMemo(() => filterRowsByTab(rows, activeTab), [rows, activeTab]);
+  const searchedRows = useMemo(() => filterRowsBySearch(tabbedRows, debouncedSearch), [tabbedRows, debouncedSearch]);
   const sortedRows = useMemo(() => sortRows(searchedRows, sortConfig), [searchedRows, sortConfig]);
   const totalPages = useMemo(() => totalPageCount(sortedRows.length, pageSize), [sortedRows.length, pageSize]);
   const pagedData = useMemo(() => paginate(sortedRows, currentPage, pageSize), [sortedRows, currentPage, pageSize]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, pageSize]);
+  }, [debouncedSearch, pageSize, activeTabId]);
 
   const getColLabel = useCallback((col: ColumnDef) => colLabelOverrides[col.key] || col.label || col.key, [colLabelOverrides]);
   const getColAccent = useCallback((col: ColumnDef) => (getColAccentProp ? getColAccentProp(col) : null), [getColAccentProp]);
   const handleSort = useCallback((key: string) => setSortConfig((p) => nextSortConfig(p, key)), []);
+  const selectTab = useCallback((id: string) => {
+    setActiveTabId(id);
+    try { localStorage.setItem(ACTIVE_TAB_KEY, id); } catch {}
+  }, [ACTIVE_TAB_KEY]);
 
   const persistVisible = useCallback((next: Set<string>) => {
     try { localStorage.setItem(VISIBLE_COLS_KEY, JSON.stringify([...next])); } catch {}
@@ -253,6 +276,9 @@ export function CollabTable({
 
   return (
     <div>
+      {tabs && tabs.length > 0 && (
+        <FilterTabs tabs={tabs} activeId={activeTabId} onSelect={selectTab} />
+      )}
       <TopControls
         isAdmin={false}
         onCreateNew={() => {}}
