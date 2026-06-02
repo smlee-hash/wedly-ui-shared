@@ -88,4 +88,9 @@ export type { FilterOperator, FilterCondition, ViewTab } from "./collab/collab-f
 export { FilterTabs } from "./collab/FilterTabs";
 export type { FilterTabsProps } from "./collab/FilterTabs";
 
-export const __MODULE_VERSION__ = "0.21.0";
+// 색깔 딱지 셀 — 순수 판정(cellChips) + 표시 부품/렌더러(상태·분류 색상)
+export { cellChips } from "./collab/collab-cell";
+export type { CellColorMaps, CellChip, CellContent } from "./collab/collab-cell";
+export { ColoredCell, createColoredFieldRenderer } from "./collab/CollabCell";
+
+export const __MODULE_VERSION__ = "0.22.0";
