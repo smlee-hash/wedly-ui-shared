@@ -190,9 +190,9 @@ export function MobileCardList({
                   return (
                     <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-slate-100">
                       {visible.map((v) => (
-                        <div key={v.key} className="flex items-start justify-between gap-3 text-xs">
+                        <div key={v.key} className="flex items-start gap-2 text-xs">
                           <span className="text-wedly-muted/70 flex-shrink-0">{v.label}</span>
-                          <span className="min-w-0 text-right text-wedly-t2">
+                          <span className="min-w-0 flex-1 text-wedly-t2">
                             {renderFieldValue(v.col, v.rawValue, row)}
                           </span>
                         </div>
