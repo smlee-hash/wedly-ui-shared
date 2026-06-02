@@ -14,18 +14,21 @@
     "README.md"
   ],
   "scripts": {
-    "lint": "echo 'lint pending'"
+    "lint": "echo 'lint pending'",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
+    "@tanstack/react-virtual": ">=3.0.0",
+    "@wedly/detail-modal-shared": "*",
     "next": ">=15.0.0",
     "react": ">=18.0.0",
-    "react-dom": ">=18.0.0",
-    "@tanstack/react-virtual": ">=3.0.0",
-    "@wedly/detail-modal-shared": "*"
+    "react-dom": ">=18.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.9"
   }
 }
