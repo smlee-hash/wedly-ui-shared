@@ -15,7 +15,8 @@ export type CellChip = { label: string; className: string };
 export type CellContent =
   | { kind: "text"; text: string }
   | { kind: "currency"; text: string }
-  | { kind: "chips"; chips: CellChip[] };
+  | { kind: "chips"; chips: CellChip[] }
+  | { kind: "files"; files: { name: string; url?: string }[] };
 
 // 색깔 딱지로 그리는 컬럼 종류 — select/status/multi_select.
 const CHIP_TYPES = new Set<ColumnDef["type"]>(["select", "status", "multi_select"]);
@@ -37,6 +38,22 @@ function personDisplayName(v: string): string {
  */
 export function cellChips(col: ColumnDef, value: CellValue, maps: CellColorMaps = {}): CellContent {
   if (value == null || value === "") return { kind: "text", text: "-" };
+
+  if (col.type === "file") {
+    let list: { name: string; url?: string }[] = [];
+    try {
+      const parsed = JSON.parse(String(value));
+      if (Array.isArray(parsed)) {
+        list = parsed
+          .map((f) => ({ name: String(f?.name ?? f?.fileName ?? ""), url: f?.url }))
+          .filter((f) => f.name);
+      }
+    } catch {
+      list = [];
+    }
+    if (list.length === 0) return { kind: "text", text: "-" };
+    return { kind: "files", files: list };
+  }
 
   if (CHIP_TYPES.has(col.type)) {
     const raw = String(value);
