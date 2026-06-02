@@ -1,0 +1,60 @@
+// 통합 협업 — 상태별 필터 탭 순수 로직.
+// 하이브 SubsidyClient.tsx 의 matchesFilter 동작을 글자 그대로 옮김(동작 동일성 보장).
+// DOM·React 없음 → 단위 시험 가능. 타입은 B1 범위로 단순화(columns/isPreset/viewMode 제외).
+import type { RowData } from "./collab-table-core";
+
+export type FilterOperator =
+  | "equals"
+  | "in"
+  | "is_empty"
+  | "is_not_empty"
+  | "contains"
+  | "on_or_before";
+
+export type FilterCondition = {
+  field: string;
+  operator: FilterOperator;
+  value?: string | string[];
+};
+
+export type ViewTab = {
+  id: string;
+  label: string;
+  filters: FilterCondition[];
+};
+
+/** 한 행이 한 조건에 맞는지 판정(하이브와 동일). */
+export function matchesFilter(row: RowData, filter: FilterCondition): boolean {
+  const rawVal = row[filter.field];
+  const strVal = rawVal != null ? String(rawVal) : "";
+  const isEmpty = rawVal === null || rawVal === undefined || rawVal === "";
+  switch (filter.operator) {
+    case "equals":
+      return strVal === String(filter.value || "");
+    case "in":
+      return Array.isArray(filter.value) && filter.value.includes(strVal);
+    case "is_empty":
+      return isEmpty;
+    case "is_not_empty":
+      return !isEmpty;
+    case "contains":
+      if (Array.isArray(filter.value)) return filter.value.some((v) => strVal.includes(v));
+      return strVal.includes(String(filter.value || ""));
+    case "on_or_before":
+      if (isEmpty || !filter.value) return false;
+      return strVal.split("T")[0] <= String(filter.value);
+    default:
+      return true;
+  }
+}
+
+/** 한 행이 한 탭(조건 여러 개의 AND)에 맞는지. 조건 없으면 true = 전체. */
+export function matchesTab(row: RowData, tab: ViewTab): boolean {
+  return tab.filters.every((f) => matchesFilter(row, f));
+}
+
+/** 탭으로 행 거르기. tab 이 null 이면 전체 반환. */
+export function filterRowsByTab(rows: RowData[], tab: ViewTab | null): RowData[] {
+  if (!tab) return rows;
+  return rows.filter((r) => matchesTab(r, tab));
+}
