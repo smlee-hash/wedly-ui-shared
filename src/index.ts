@@ -64,4 +64,7 @@ export type { SectionKind, SectionEditorAddPayload } from "./components/SectionE
 export { PanelEditorAddModal, PanelManagerModal } from "./components/PanelEditorModal";
 export type { PanelKind, PanelEditorAddPayload, CustomPanelItem } from "./components/PanelEditorModal";
 
-export const __MODULE_VERSION__ = "0.18.0";
+// 통합 보기 공용 로직 — 묶음·탭 계산, 탭 순서·이름 적용, 앱별 설정 틀 (순수 함수/타입)
+export * from "./unified";
+
+export const __MODULE_VERSION__ = "0.19.0";
