@@ -33,9 +33,11 @@ describe("경정청구 협업 뷰 프리셋", () => {
       "04연락처",
     ]);
   });
-  it("새 공용 컬럼 2개가 select 형식", () => {
+  it("새 공용 컬럼 2개 — 환급금여부=select, 정부지원금리포트=file", () => {
     const keys = TAX_AMENDMENT_EXTRA_COLUMNS.map((c) => c.key);
     expect(keys).toEqual(["환급금여부", "정부지원금리포트"]);
-    expect(TAX_AMENDMENT_EXTRA_COLUMNS.every((c) => c.type === "select")).toBe(true);
+    const types = Object.fromEntries(TAX_AMENDMENT_EXTRA_COLUMNS.map((c) => [c.key, c.type]));
+    expect(types["환급금여부"]).toBe("select");
+    expect(types["정부지원금리포트"]).toBe("file");
   });
 });

@@ -80,3 +80,27 @@ describe("cellChips — 하이브 표 셀과 동일한 표시 판정", () => {
     expect(cellChips(col("person"), "김혜나 <hn@wedly.kr>", {})).toEqual({ kind: "text", text: "김혜나" });
   });
 });
+
+const fileCol = { key: "정부지원금리포트", label: "정부지원금 리포트", type: "file" } as ColumnDef;
+
+describe("cellChips file", () => {
+  it("빈 값은 '-' 텍스트", () => {
+    expect(cellChips(fileCol, "")).toEqual({ kind: "text", text: "-" });
+    expect(cellChips(fileCol, null)).toEqual({ kind: "text", text: "-" });
+  });
+  it("JSON 배열 문자열을 파일 목록으로 파싱", () => {
+    const v = JSON.stringify([{ name: "리포트.pdf", url: "https://x/api/upload/1" }]);
+    expect(cellChips(fileCol, v)).toEqual({
+      kind: "files",
+      files: [{ name: "리포트.pdf", url: "https://x/api/upload/1" }],
+    });
+  });
+  it("깨진 JSON은 '-' 텍스트(throw 금지)", () => {
+    expect(cellChips(fileCol, "not-json")).toEqual({ kind: "text", text: "-" });
+  });
+  it("기존 select 동작은 불변(회귀)", () => {
+    const sel = { key: "s", label: "s", type: "select" } as ColumnDef;
+    const r = cellChips(sel, "있음", { badgeColors: { "있음": "c" } });
+    expect(r.kind).toBe("chips");
+  });
+});
