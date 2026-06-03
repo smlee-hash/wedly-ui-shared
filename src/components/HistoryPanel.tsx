@@ -76,7 +76,6 @@ export function HistoryPanel({
   categories,
   onAddCategory,
   onDeleteCategory,
-  scopePanelId,
   hiddenFallbackIds,
   onHideFallback,
   onUnhideFallback,
@@ -107,7 +106,6 @@ export function HistoryPanel({
   categories?: HistoryCategoryDef[];
   onAddCategory?: () => void;
   onDeleteCategory?: (categoryId: string) => void;
-  scopePanelId?: string;
   hiddenFallbackIds?: string[];
   onHideFallback?: (categoryId: string) => void;
   onUnhideFallback?: (categoryId: string) => void;
@@ -235,6 +233,7 @@ export function HistoryPanel({
       // R4: use adapter.remove
       const updated = await adapter.remove({ commentId });
       setComments(updated);
+      onCountChange?.(updated.length);
     } catch (err) {
       doAlert(err instanceof Error ? err.message : "삭제 실패", { title: "오류" });
     }
@@ -248,7 +247,8 @@ export function HistoryPanel({
 
   const handleShare = useCallback((commentId: string) => {
     if (typeof window === "undefined") return;
-    const url = `${window.location.origin}/share/${encodeURIComponent(pageId ?? "")}?commentId=${encodeURIComponent(commentId)}&panel=history`;
+    if (!pageId) { doAlert("공유 링크를 만들 수 없습니다(식별자 없음)."); return; }
+    const url = `${window.location.origin}/share/${encodeURIComponent(pageId)}?commentId=${encodeURIComponent(commentId)}&panel=history`;
     const onSuccess = () => {
       setCopiedId(commentId);
       setTimeout(() => setCopiedId((cur) => (cur === commentId ? null : cur)), 1800);
@@ -319,7 +319,7 @@ export function HistoryPanel({
         const file = item.getAsFile();
         if (file) {
           if (file.size > MAX_IMAGE_SIZE) {
-            window.alert(`이미지 크기가 10MB를 초과합니다: ${(file.size / (1024 * 1024)).toFixed(1)}MB`);
+            doAlert(`이미지 크기가 10MB를 초과합니다: ${(file.size / (1024 * 1024)).toFixed(1)}MB`, { title: "오류" });
             continue;
           }
           imageFiles.push(file);
@@ -334,7 +334,7 @@ export function HistoryPanel({
       ]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enableImagePaste]);
+  }, [enableImagePaste, doAlert]);
 
   const removePastedImage = (idx: number) => {
     setPastedImages((prev) => {
@@ -350,21 +350,30 @@ export function HistoryPanel({
     if ((!hasText && !hasImages) || sending || uploading) return;
     setSending(true);
     try {
-      let imageUrls: string[] = [];
-      if (enableImagePaste && pastedImages.length > 0 && adapter.uploadImage) {
-        setUploading(true);
-        for (const img of pastedImages) {
-          const url = await adapter.uploadImage(img.file);
-          imageUrls.push(url);
-          URL.revokeObjectURL(img.preview);
+      const imageUrls: string[] = [];
+      if (hasImages) {
+        const toRevoke = pastedImages.map((p) => p.preview);
+        try {
+          if (!adapter.uploadImage) {
+            doAlert("이미지 업로드가 지원되지 않습니다.", { title: "오류" });
+            return;
+          }
+          setUploading(true);
+          for (const img of pastedImages) {
+            imageUrls.push(await adapter.uploadImage(img.file));
+          }
+        } catch (err) {
+          doAlert(err instanceof Error ? err.message : "이미지 업로드에 실패했습니다.", { title: "오류" });
+          return;
+        } finally {
+          // 성공·실패 무관하게 미리보기 정리(메모리 누수 방지) + 첨부 비우기
+          toRevoke.forEach((u) => URL.revokeObjectURL(u));
+          setPastedImages([]);
+          setUploading(false);
         }
-        setPastedImages([]);
-        setUploading(false);
       }
-      // R9: appendImageLines from core
-      const text = enableImagePaste && imageUrls.length > 0
-        ? appendImageLines(draft, imageUrls)
-        : draft.trim();
+      // R9: appendImageLines from core (이미지 줄이 있으면 본문과 합침)
+      const text = imageUrls.length > 0 ? appendImageLines(draft, imageUrls) : draft.trim();
       if (!text) return;
 
       const submitCategory: CommentCategory = activeCategory === "all" ? "general" : activeCategory;
@@ -709,7 +718,7 @@ export function HistoryPanel({
                   {sourceBadge.isForeign(c.source) && (
                     <span
                       className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-wedly-bg-gray text-wedly-muted border border-wedly-bd"
-                      title={`${sourceBadge.label}에서 작성된 기록입니다. 하이브에서는 읽기 전용입니다.`}
+                      title={`${sourceBadge.label}에서 작성된 기록입니다. 여기서는 읽기 전용입니다.`}
                     >
                       {sourceBadge.label}
                     </span>
