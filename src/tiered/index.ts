@@ -270,8 +270,10 @@ export function evalFormulaForTier(
   tier: TierData,
   fields: FieldDef[],
   seen: ReadonlySet<string> = new Set<string>(),
+  conditionValues?: Record<string, unknown>,
 ): number | null {
-  const terms = field.formula;
+  const conditionValue = field.conditional ? conditionValues?.[field.conditional.conditionFieldKey] : undefined;
+  const terms = resolveConditionalFormula(field, conditionValue);
   if (!Array.isArray(terms) || terms.length === 0) return null;
   if (seen.has(field.key)) return null; // 순환 참조 차단
   const nextSeen = new Set(seen);
@@ -292,7 +294,7 @@ export function evalFormulaForTier(
     const ref = t.columnKey ? byKey.get(t.columnKey) : undefined;
     if (!ref) return { v: 0, has: false };
     if (ref.type === "formula") {
-      const r = evalFormulaForTier(ref, tier, fields, nextSeen);
+      const r = evalFormulaForTier(ref, tier, fields, nextSeen, conditionValues);
       return r === null ? { v: 0, has: false } : { v: r, has: true };
     }
     const raw = tier[ref.key];

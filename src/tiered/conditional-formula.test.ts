@@ -1,6 +1,6 @@
 // src/tiered/conditional-formula.test.ts
 import { describe, it, expect } from "vitest";
-import { resolveConditionalFormula, type FieldDef, type FormulaTerm } from "./index";
+import { resolveConditionalFormula, evalFormulaForTier, type FieldDef, type FormulaTerm } from "./index";
 
 const baseFormula: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "A" }];
 const hiveFormula: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "B" }];
@@ -40,5 +40,34 @@ describe("resolveConditionalFormula", () => {
   it("rules 비정상(빈배열/누락)이면 기본 formula", () => {
     const bad: FieldDef = { key: "f", label: "f", type: "formula", formula: baseFormula, conditional: { conditionFieldKey: "x", rules: [] } };
     expect(resolveConditionalFormula(bad, "하이브")).toBe(baseFormula);
+  });
+});
+
+import { evalFormulaForTier } from "./index";
+
+describe("evalFormulaForTier + conditionValues", () => {
+  // A=100. 기본식: A*0.1=10. 하이브식: A*0.2=20.
+  const fields: FieldDef[] = [
+    { key: "A", label: "A", type: "number" },
+    {
+      key: "fee", label: "fee", type: "formula",
+      formula: [{ op: "+", unit: "column", columnKey: "A" }, { op: "*", unit: "percent", value: 10 }],
+      conditional: {
+        conditionFieldKey: "54DB분류",
+        rules: [{ whenValue: "하이브", formula: [{ op: "+", unit: "column", columnKey: "A" }, { op: "*", unit: "percent", value: 20 }] }],
+      },
+    },
+  ];
+  const tier = { A: 100 };
+  const feeField = fields[1];
+
+  it("conditionValues 없으면 기본식(앞호환): 100*0.1=10", () => {
+    expect(evalFormulaForTier(feeField, tier, fields)).toBe(10);
+  });
+  it("기준값=하이브면 조건식: 100*0.2=20", () => {
+    expect(evalFormulaForTier(feeField, tier, fields, new Set(), { "54DB분류": "하이브" })).toBe(20);
+  });
+  it("기준값 매칭 안 되면 기본식: 100*0.1=10", () => {
+    expect(evalFormulaForTier(feeField, tier, fields, new Set(), { "54DB분류": "서월" })).toBe(10);
   });
 });
