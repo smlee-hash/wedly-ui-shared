@@ -24,6 +24,14 @@ export interface FieldDef {
   //   formulaResult: 계산 결과 표시 형식 (number=원, percent=%). 기본 number.
   formula?: FormulaTerm[];
   formulaResult?: FormulaResultFormat;
+  // ── type === "formula" 조건별 식 (선택적) ──
+  //   conditionFieldKey: 기준 필드(기본정보 평면 필드) 키. 예 "54DB분류"
+  //   rules: 기준 값별로 쓸 식. 먼저 맞는 규칙 우선. 매칭 없으면 formula(기본).
+  //   미설정 시 기존과 100% 동일(앞호환).
+  conditional?: {
+    conditionFieldKey: string;
+    rules: Array<{ whenValue: string; formula: FormulaTerm[] }>;
+  };
 }
 
 // 합계 스코어카드 정의 — 어드민이 카드 제목, 색, 계산식, 추가/삭제 모두 편집 가능.
@@ -227,6 +235,29 @@ export function generateFieldKey(label: string, existing: FieldDef[]): string {
 // 수식 컬럼이 참조로 쓸 수 있는 컬럼 타입인지 (글자·날짜 컬럼은 계산에 못 씀).
 export function isNumericFieldType(type: FieldType): boolean {
   return type === "number" || type === "percent" || type === "formula";
+}
+
+// 조건별 식 고르기 — field.conditional 가 있으면 conditionValue 에 맞는 규칙의 식을, 없거나 매칭 안 되면 field.formula 를 돌려준다.
+// 매칭: 단일 문자열은 일치, 배열/콤마 문자열(다중 선택)은 그 안에 whenValue 가 '포함'되면 일치. 먼저 맞는 규칙 우선.
+export function resolveConditionalFormula(
+  field: FieldDef,
+  conditionValue: unknown,
+): FormulaTerm[] | undefined {
+  const cond = field.conditional;
+  if (!cond || !Array.isArray(cond.rules) || cond.rules.length === 0) return field.formula;
+  const matches = (when: string): boolean => {
+    if (conditionValue === null || conditionValue === undefined) return false;
+    if (Array.isArray(conditionValue)) return conditionValue.some((v) => String(v).trim() === when);
+    const s = String(conditionValue).trim();
+    if (s === when) return true;
+    return s.split(/[,\n;]+/).map((x) => x.trim()).includes(when);
+  };
+  for (const rule of cond.rules) {
+    if (rule && typeof rule.whenValue === "string" && Array.isArray(rule.formula) && matches(rule.whenValue)) {
+      return rule.formula;
+    }
+  }
+  return field.formula;
 }
 
 // 한 차수(tier)에서 수식 컬럼(field)의 값을 계산한다.
