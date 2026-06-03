@@ -2,3 +2,6 @@
 export * from "./tab-config";
 export * from "./sections";
 export * from "./config";
+
+// 통합 상세창 "값 표시" 순수 로직(분기·포맷 디스크립터). JSX 부품은 components/UnifiedFieldDisplay.
+export * from "./field-display-core";
