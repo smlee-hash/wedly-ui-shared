@@ -5,3 +5,6 @@ export * from "./config";
 
 // 통합 상세창 "값 표시" 순수 로직(분기·포맷 디스크립터). JSX 부품은 components/UnifiedFieldDisplay.
 export * from "./field-display-core";
+
+// 공용 히스토리(상담기록) 순수 로직 — 본문 파싱·권한·분류 집계/필터. JSX 부품은 components/HistoryPanel.
+export * from "./history-core";
