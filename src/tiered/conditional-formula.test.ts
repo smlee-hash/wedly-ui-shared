@@ -43,8 +43,6 @@ describe("resolveConditionalFormula", () => {
   });
 });
 
-import { evalFormulaForTier } from "./index";
-
 describe("evalFormulaForTier + conditionValues", () => {
   // A=100. 기본식: A*0.1=10. 하이브식: A*0.2=20.
   const fields: FieldDef[] = [
@@ -69,5 +67,55 @@ describe("evalFormulaForTier + conditionValues", () => {
   });
   it("기준값 매칭 안 되면 기본식: 100*0.1=10", () => {
     expect(evalFormulaForTier(feeField, tier, fields, new Set(), { "54DB분류": "서월" })).toBe(10);
+  });
+});
+
+describe("resolveConditionalFormula — 보강", () => {
+  const base: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "A" }];
+  const hive: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "B" }];
+  it("whenValue 앞뒤 공백 무시하고 매칭", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base, conditional: { conditionFieldKey: "x", rules: [{ whenValue: " 하이브 ", formula: hive }] } };
+    expect(resolveConditionalFormula(f, "하이브")).toBe(hive);
+  });
+  it("빈 whenValue 는 매칭 안 함 → 기본식", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base, conditional: { conditionFieldKey: "x", rules: [{ whenValue: "", formula: hive }] } };
+    expect(resolveConditionalFormula(f, "")).toBe(base);
+  });
+  it("규칙에 formula 누락(비정상)이면 건너뛰고 기본식", () => {
+    const f = { key: "f", label: "f", type: "formula", formula: base, conditional: { conditionFieldKey: "x", rules: [{ whenValue: "하이브" } as unknown as { whenValue: string; formula: FormulaTerm[] }] } } as FieldDef;
+    expect(resolveConditionalFormula(f, "하이브")).toBe(base);
+  });
+  it("매칭된 규칙의 식이 빈 배열이면 resolve 는 [] 반환", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base, conditional: { conditionFieldKey: "x", rules: [{ whenValue: "하이브", formula: [] }] } };
+    expect(resolveConditionalFormula(f, "하이브")).toEqual([]);
+  });
+});
+
+describe("evalFormulaForTier — 조건별 재귀/순환", () => {
+  it("조건식이 다른 조건식 칸을 참조해도 conditionValues 전파", () => {
+    const fields: FieldDef[] = [
+      { key: "A", label: "A", type: "number" },
+      { key: "B", label: "B", type: "number" },
+      { key: "inner", label: "inner", type: "formula",
+        formula: [{ op: "+", unit: "column", columnKey: "A" }],
+        conditional: { conditionFieldKey: "54DB분류", rules: [{ whenValue: "하이브", formula: [{ op: "+", unit: "column", columnKey: "B" }] }] } },
+      { key: "outer", label: "outer", type: "formula", formula: [{ op: "+", unit: "column", columnKey: "inner" }] },
+    ];
+    const tier = { A: 100, B: 200 };
+    const outer = fields[3];
+    expect(evalFormulaForTier(outer, tier, fields)).toBe(100);
+    expect(evalFormulaForTier(outer, tier, fields, new Set(), { "54DB분류": "하이브" })).toBe(200);
+  });
+  it("조건 분기가 자기 자신을 참조해도 순환 차단(null)", () => {
+    const fields: FieldDef[] = [
+      { key: "self", label: "self", type: "formula",
+        formula: [{ op: "+", unit: "number", value: 1 }],
+        conditional: { conditionFieldKey: "x", rules: [{ whenValue: "loop", formula: [{ op: "+", unit: "column", columnKey: "self" }] }] } },
+    ];
+    expect(evalFormulaForTier(fields[0], {}, fields, new Set(), { x: "loop" })).toBe(null);
+  });
+  it("매칭된 규칙의 식이 빈 배열이면 계산값 null", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: [{ op: "+", unit: "number", value: 5 }], conditional: { conditionFieldKey: "x", rules: [{ whenValue: "하이브", formula: [] }] } };
+    expect(evalFormulaForTier(f, {}, [f], new Set(), { x: "하이브" })).toBe(null);
   });
 });

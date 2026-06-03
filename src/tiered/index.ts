@@ -239,6 +239,7 @@ export function isNumericFieldType(type: FieldType): boolean {
 
 // 조건별 식 고르기 — field.conditional 가 있으면 conditionValue 에 맞는 규칙의 식을, 없거나 매칭 안 되면 field.formula 를 돌려준다.
 // 매칭: 단일 문자열은 일치, 배열/콤마 문자열(다중 선택)은 그 안에 whenValue 가 '포함'되면 일치. 먼저 맞는 규칙 우선.
+// conditionValue 는 기준 필드의 '저장된 원본 값'(문자열 / 배열 / 콤마문자열) — 화면 표시용 가공값(칩 등)이 아니라 raw 값을 넘길 것.
 export function resolveConditionalFormula(
   field: FieldDef,
   conditionValue: unknown,
@@ -246,11 +247,13 @@ export function resolveConditionalFormula(
   const cond = field.conditional;
   if (!cond || !Array.isArray(cond.rules) || cond.rules.length === 0) return field.formula;
   const matches = (when: string): boolean => {
+    const w = when.trim();
+    if (w === "") return false; // 빈 기준값은 매칭 안 함(관리자 공백 실수로 규칙이 조용히 사라지는 것 방지)
     if (conditionValue === null || conditionValue === undefined) return false;
-    if (Array.isArray(conditionValue)) return conditionValue.some((v) => String(v).trim() === when);
+    if (Array.isArray(conditionValue)) return conditionValue.some((v) => String(v).trim() === w);
     const s = String(conditionValue).trim();
-    if (s === when) return true;
-    return s.split(/[,\n;]+/).map((x) => x.trim()).includes(when);
+    if (s === w) return true;
+    return s.split(/[,\n;]+/).map((x) => x.trim()).includes(w);
   };
   for (const rule of cond.rules) {
     if (rule && typeof rule.whenValue === "string" && Array.isArray(rule.formula) && matches(rule.whenValue)) {
