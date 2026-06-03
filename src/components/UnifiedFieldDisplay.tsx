@@ -56,12 +56,12 @@ export function renderUnifiedFieldValue(
 
     case "file":
       return (
-        <span className="inline-flex flex-col gap-1 min-w-0">
+        <span className="flex flex-col gap-1.5 min-w-0">
           {(d.files ?? []).map((f, i) => {
             const href = fileHref(f);
             const label = fileLabel(f);
             const base =
-              "inline-flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[14px] sm:text-[13px] text-wedly-t1 max-w-full";
+              "flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[14px] sm:text-[13px] text-wedly-t1 max-w-full";
             const inner = (
               <>
                 <span aria-hidden="true">📎</span>
@@ -128,7 +128,7 @@ export function UnifiedFieldDisplayRow({
 }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 py-3 sm:py-2 px-1 sm:min-h-[36px]">
-      <div className="w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal text-wedly-muted leading-tight sm:truncate">
+      <div className="w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] sm:text-[13px] font-medium sm:font-normal text-wedly-muted leading-tight sm:truncate">
         {field.label}
       </div>
       <div className="flex-1 text-[15px] sm:text-[13px] text-wedly-t1 min-w-0">
