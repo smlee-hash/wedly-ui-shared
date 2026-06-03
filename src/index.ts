@@ -108,4 +108,8 @@ export {
   deriveRefundFlag,
 } from "./collab/tax-amendment-collab-view";
 
-export const __MODULE_VERSION__ = "0.25.0";
+// 공용 히스토리(상담기록) 패널 — 하이브·ERP·일루아 공유
+export { HistoryPanel } from "./components/HistoryPanel";
+export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPanel";
+
+export const __MODULE_VERSION__ = "0.28.0";
