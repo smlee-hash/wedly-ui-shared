@@ -197,22 +197,37 @@ export type BasicFieldSpec = {
   format?: ColumnLite["format"];
 };
 
-// 표준 12칸 — 하이브(경정청구)·일루아(정부지원금) 양쪽 키를 후보로 함께 넣어 한 표로 공유한다.
-// 각 칸은 앞에서부터 "그 앱에 실제 있는" 첫 키로 연결되므로, 같은 표가 두 앱에서 모두 동작한다.
+// ─── 공통 10칸 (하이브·ERP 모두 공유) ───
+// 진행상태·팀장·팀원은 앱별로 다르므로 제외. 환급금여부는 공통 신규 추가.
+// 각 칸은 앞에서부터 "그 앱에 실제 있는" 첫 키로 연결되므로, 같은 표가 여러 앱에서 동작한다.
 // 종류(type)는 실제 컬럼 정의가 있으면 그 종류를 쓰고, 데이터에만 있는 키는 아래 type 를 보조로 쓴다.
-export const BASIC_FIELD_SPECS: BasicFieldSpec[] = [
+export const COMMON_BASIC_FIELD_SPECS: BasicFieldSpec[] = [
   { label: "DB분류",       keys: ["54DB분류", "16DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류", "분류"], type: "multi_select" },
-  { label: "진행상태",      keys: ["05경정계약진행상태", "05진행상태", "진행상태"],          type: "select" },
   { label: "대표자명",      keys: ["03대표자명", "02대표자명", "대표자명"],                 type: "text" },
   { label: "연락처",        keys: ["04연락처", "03대표연락처", "대표연락처", "연락처"],       type: "phone_number" },
   { label: "이메일",        keys: ["53이메일", "이메일"],                                type: "email" },
   { label: "사업자번호",     keys: ["15사업자번호", "04사업자번호", "사업자번호"],           type: "text" },
   { label: "사업장주소지",   keys: ["52사업장주소지", "27주소지", "사업장주소지", "주소지", "주소"], type: "text" },
   { label: "사업자유형",     keys: ["14사업자유형", "사업자유형"],                         type: "select" },
-  { label: "팀장",          keys: ["팀장", "담당 팀장", "담당팀장"],   labelAliases: ["팀장", "담당팀장", "담당사무장"], type: "person" },
-  { label: "팀원",          keys: ["팀원", "담당 팀원", "담당팀원"],   labelAliases: ["팀원", "담당팀원"],              type: "person" },
+  { label: "환급금여부",     keys: ["환급금여부"],                                        type: "select" },
   { label: "리포트",        keys: ["리포트", "검토보고서"],                              type: "file" },
   { label: "등록일시",       keys: ["_createdTime"],                                    type: "last_edited_time" },
+];
+
+// ─── 하이브 전용 2칸 ───
+// 팀장·팀원은 하이브(경정청구)에서만 쓰는 칸.
+export const HIVE_APP_BASIC_FIELDS: BasicFieldSpec[] = [
+  { label: "팀장",          keys: ["팀장", "담당 팀장", "담당팀장"],   labelAliases: ["팀장", "담당팀장", "담당사무장"], type: "person" },
+  { label: "팀원",          keys: ["팀원", "담당 팀원", "담당팀원"],   labelAliases: ["팀원", "담당팀원"],              type: "person" },
+];
+
+// ─── 기존 호환용 통짜 배열 (기존 사용처가 깨지지 않도록 유지) ───
+// 구성: 공통 10칸 + 하이브 전용 2칸. 진행상태가 빠지고 환급금여부가 들어간 변화에 주의.
+// 기존에 진행상태에 의존하던 곳이 있다면 COMMON_BASIC_FIELD_SPECS 에 직접 추가하거나
+// 앱별 specs 배열을 조합해 buildBasicSection 에 넘기는 방식을 쓴다.
+export const BASIC_FIELD_SPECS: BasicFieldSpec[] = [
+  ...COMMON_BASIC_FIELD_SPECS,
+  ...HIVE_APP_BASIC_FIELDS,
 ];
 
 /**

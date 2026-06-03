@@ -3,6 +3,9 @@ import {
   computeUnifiedSections,
   buildDomainSubTabs,
   buildBasicSection,
+  COMMON_BASIC_FIELD_SPECS,
+  HIVE_APP_BASIC_FIELDS,
+  BASIC_FIELD_SPECS,
   type BasicFieldSpec,
   type ColumnLite,
 } from "./sections";
@@ -63,6 +66,46 @@ describe("buildDomainSubTabs", () => {
     expect(buildDomainSubTabs(true, other, false, false).map((t) => t.id)).not.toContain("other");
     expect(buildDomainSubTabs(true, other, false, true).map((t) => t.id)).toContain("other");
     expect(buildDomainSubTabs(false, other, false, true).map((t) => t.id)).not.toContain("other");
+  });
+});
+
+// ── COMMON_BASIC_FIELD_SPECS / HIVE_APP_BASIC_FIELDS / BASIC_FIELD_SPECS ──
+describe("기본정보 사양 분리", () => {
+  it("COMMON_BASIC_FIELD_SPECS 는 10개다", () => {
+    expect(COMMON_BASIC_FIELD_SPECS).toHaveLength(10);
+  });
+
+  it("COMMON_BASIC_FIELD_SPECS 에 환급금여부가 포함된다", () => {
+    expect(COMMON_BASIC_FIELD_SPECS.map((s) => s.label)).toContain("환급금여부");
+  });
+
+  it("COMMON_BASIC_FIELD_SPECS 에 진행상태가 포함되지 않는다", () => {
+    expect(COMMON_BASIC_FIELD_SPECS.map((s) => s.label)).not.toContain("진행상태");
+  });
+
+  it("HIVE_APP_BASIC_FIELDS 는 2개(팀장·팀원)다", () => {
+    expect(HIVE_APP_BASIC_FIELDS).toHaveLength(2);
+    const labels = HIVE_APP_BASIC_FIELDS.map((s) => s.label);
+    expect(labels).toContain("팀장");
+    expect(labels).toContain("팀원");
+  });
+
+  it("BASIC_FIELD_SPECS 는 COMMON 10개 + HIVE 2개 = 12개다", () => {
+    expect(BASIC_FIELD_SPECS).toHaveLength(12);
+  });
+
+  it("BASIC_FIELD_SPECS 는 COMMON 뒤에 HIVE 가 붙은 순서다", () => {
+    const labels = BASIC_FIELD_SPECS.map((s) => s.label);
+    const commonLabels = COMMON_BASIC_FIELD_SPECS.map((s) => s.label);
+    const hiveLabels = HIVE_APP_BASIC_FIELDS.map((s) => s.label);
+    expect(labels.slice(0, 10)).toEqual(commonLabels);
+    expect(labels.slice(10)).toEqual(hiveLabels);
+  });
+
+  it("환급금여부 키가 ['환급금여부'] 이고 type 이 select 다", () => {
+    const spec = COMMON_BASIC_FIELD_SPECS.find((s) => s.label === "환급금여부");
+    expect(spec?.keys).toEqual(["환급금여부"]);
+    expect(spec?.type).toBe("select");
   });
 });
 
