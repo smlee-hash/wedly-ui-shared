@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   classifyUnifiedFieldValue,
   parseFiles,
+  cleanPersonName,
   type FieldDisplayOptions,
 } from "./field-display-core";
 
@@ -100,6 +101,26 @@ describe("classifyUnifiedFieldValue — 하이브 읽기 분기 동일", () => {
     const d = classifyUnifiedFieldValue({ key: "n", label: "대표자명", type: "text" }, "홍길동");
     expect(d.kind).toBe("text");
     expect(d.text).toBe("홍길동");
+  });
+});
+
+describe("cleanPersonName — 이메일 장식 제거(이름만)", () => {
+  it("'이름 <이메일>' → 이름", () => {
+    expect(cleanPersonName("홍길동 <a@b.com>")).toBe("홍길동");
+  });
+  it("'이름 | 이메일' → 이름", () => {
+    expect(cleanPersonName("홍길동 | a@b.com")).toBe("홍길동");
+  });
+  it("'이름 (이메일)' → 이름", () => {
+    expect(cleanPersonName("홍길동 (a@b.com)")).toBe("홍길동");
+  });
+  it("이메일 없으면 그대로", () => {
+    expect(cleanPersonName("홍길동")).toBe("홍길동");
+    expect(cleanPersonName("u123")).toBe("u123");
+  });
+  it("person-chip 분기에서 이메일 자동 제거(resolvePersonName 미지정)", () => {
+    const d = classifyUnifiedFieldValue({ key: "p", label: "팀장" }, "홍길동 <a@b.com>, 김철수 <c@d.com>");
+    expect(d.names).toEqual(["홍길동", "김철수"]);
   });
 });
 

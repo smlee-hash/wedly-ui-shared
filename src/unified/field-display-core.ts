@@ -87,6 +87,17 @@ function normLabel(label: string | undefined): string {
 }
 
 /**
+ * 사람값에 이메일이 붙어 있으면("이름 <a@b.com>" / "이름 | a@b.com" / "이름 (a@b.com)")
+ * 이름만 남긴다. resolvePersonName 이 없을 때의 안전 기본값 — 칩에 이메일이 노출되지 않도록.
+ * (하이브 unifyPersonDisplay 의 "이름만 표시" 동작과 동일한 방향.)
+ */
+export function cleanPersonName(raw: string): string {
+  const s = raw.trim();
+  const m = s.match(/^(.+?)\s*[<(|]\s*[^\s@]+@[^\s)>]+\)?>?\s*$/);
+  return m && m[1].trim() ? m[1].trim() : s;
+}
+
+/**
  * 하이브 읽기 분기와 동일한 순서로 표시 디스크립터를 만든다.
  * 순서: file → empty → 팀장/팀원칩 → last_edited_time → select/status → currency → date → ISO일시 → 기본텍스트.
  * (multi_select 별도 분기 없음 — 하이브와 동일하게 기본 텍스트로 떨어뜨림.)
@@ -118,7 +129,7 @@ export function classifyUnifiedFieldValue(
       .split(/[,;]/)
       .map((s) => s.trim())
       .filter(Boolean)
-      .map((s) => (resolvePersonName ? resolvePersonName(s) : s));
+      .map((s) => (resolvePersonName ? resolvePersonName(s) : cleanPersonName(s)));
     return { kind: "person-chip", names, isLeader };
   }
 
