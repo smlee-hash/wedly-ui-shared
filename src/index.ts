@@ -64,6 +64,13 @@ export type { SectionKind, SectionEditorAddPayload } from "./components/SectionE
 export { PanelEditorAddModal, PanelManagerModal } from "./components/PanelEditorModal";
 export type { PanelKind, PanelEditorAddPayload, CustomPanelItem } from "./components/PanelEditorModal";
 
+// 통합 상세창 — 읽기전용 표시 부품 (값·행·섹션) — 하이브 상세창과 100% 동일한 시각
+export {
+  renderUnifiedFieldValue,
+  UnifiedFieldDisplayRow,
+  UnifiedDisplaySection,
+} from "./components/UnifiedFieldDisplay";
+
 // 통합 보기 공용 로직 — 묶음·탭 계산, 탭 순서·이름 적용, 앱별 설정 틀 (순수 함수/타입)
 export * from "./unified";
 
