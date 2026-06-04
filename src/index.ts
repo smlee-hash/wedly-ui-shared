@@ -94,6 +94,8 @@ export { matchesFilter, matchesTab, filterRowsByTab } from "./collab/collab-filt
 export type { FilterOperator, FilterCondition, ViewTab } from "./collab/collab-filters";
 export { FilterTabs } from "./collab/FilterTabs";
 export type { FilterTabsProps, FilterTabsAdmin } from "./collab/FilterTabs";
+// 공용 탭 편집창 — 이름 + 표시형식(표/캘린더) + 거르기 조건. 하이브 편집창과 같은 방식.
+export { default as TabEditorModal } from "./collab/TabEditorModal";
 
 // 색깔 딱지 셀 — 순수 판정(cellChips) + 표시 부품/렌더러(상태·분류 색상)
 export { cellChips } from "./collab/collab-cell";
@@ -112,4 +114,4 @@ export {
 export { HistoryPanel } from "./components/HistoryPanel";
 export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPanel";
 
-export const __MODULE_VERSION__ = "0.28.0";
+export const __MODULE_VERSION__ = "0.29.0";
