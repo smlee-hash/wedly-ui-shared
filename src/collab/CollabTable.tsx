@@ -140,7 +140,9 @@ function CellSelectEditor({ value, options, columnKey, onSave, onClose, cfg }: {
 
   useEffect(() => {
     if (anchorRef.current) {
-      const rect = anchorRef.current.getBoundingClientRect();
+      // 칸(td) 전체 위치 기준으로 띄운다 — h-0 기준점만 재면 칸 위쪽에 떠서 가려진다.
+      const el = anchorRef.current.parentElement ?? anchorRef.current;
+      const rect = el.getBoundingClientRect();
       const dropH = 320;
       const spaceBelow = window.innerHeight - rect.bottom - 8;
       const top = spaceBelow >= dropH
@@ -516,6 +518,7 @@ export function CollabTable({
                 )
               ) : col.type === "checkbox" ? (
                 <button
+                  type="button"
                   onClick={editable ? (e) => { e.stopPropagation(); onCellEdit?.(row, col.key, !v); } : undefined}
                   className={editable ? "cursor-pointer" : undefined}
                 >
