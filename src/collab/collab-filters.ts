@@ -21,6 +21,8 @@ export type ViewTab = {
   id: string;
   label: string;
   filters: FilterCondition[];
+  /** 표시 형식(예: "table" | "calendar"). 생략 시 표 보기. 캘린더 탭 지원용(거르기 로직은 사용 안 함). */
+  viewMode?: string;
 };
 
 /** 한 행이 한 조건에 맞는지 판정(하이브와 동일). */

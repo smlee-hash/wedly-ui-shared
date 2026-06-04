@@ -24,6 +24,7 @@ import {
 } from "./collab-table-core";
 import { filterRowsByTab, type ViewTab } from "./collab-filters";
 import { FilterTabs, type FilterTabsAdmin } from "./FilterTabs";
+import { TextEditor } from "../components/Editors";
 
 export type CollabTableProps = {
   /** 브라우저 저장 키 앞에 붙는 고유 접두어(페이지마다 다르게). 예: "unified-collab:tax-amendment" */
@@ -93,6 +94,8 @@ export type CollabTableProps = {
   };
   /** 이 값이 바뀌면 선택(체크)을 모두 해제한다(일괄 작업 완료 후 부모가 1 증가시킴). */
   selectionResetKey?: number;
+  /** 표에서 제목 칸(상호명 등)을 더블클릭해 바로 고치는 콜백. 관리자이고 이게 주어질 때만 켜진다(생략 시 기존과 동일한 읽기 전용 링크). */
+  onCellEdit?: (row: RowData, columnKey: string, value: string) => void;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -124,6 +127,7 @@ export function CollabTable({
   selectionResetKey,
   defaultVisibleColumns,
   defaultColumnOrder,
+  onCellEdit,
 }: CollabTableProps) {
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
@@ -179,6 +183,10 @@ export function CollabTable({
 
   const [columnModalOpen, setColumnModalOpen] = useState(false);
 
+  // 제목 칸(상호명 등) 인라인 수정 — 한 번 클릭=상세 열기, 더블클릭=수정(관리자 + onCellEdit 있을 때만).
+  const [editingCell, setEditingCell] = useState<{ id: string; key: string } | null>(null);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // 검색어 디바운스(0.1초)
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim().toLowerCase()), 100);
@@ -201,6 +209,8 @@ export function CollabTable({
 
   // 관리자 도구모음 활성 여부 — isAdmin 이고 adminToolbar 가 주어질 때만.
   const adminEnabled = isAdmin && !!adminToolbar;
+  // 제목 칸(상호명 등) 직접 수정 가능 여부 — 관리자 + onCellEdit 가 주어질 때만.
+  const titleEditable = adminEnabled && !!onCellEdit;
   // 선택된 행들(관리자 일괄 작업 콜백에 넘김)
   const checkedRows = useMemo(
     () => (adminEnabled ? sortedRows.filter((r) => checkedIds.has(String(r[rowIdKey]))) : []),
@@ -374,10 +384,29 @@ export function CollabTable({
               style={{ minWidth: 40, ...(isSticky ? { left: (stickyOffsets[col.key] ?? 0) + 40 } : {}) }}
             >
               {col.type === "title" ? (
+                editingCell && editingCell.id === id && editingCell.key === col.key ? (
+                  <TextEditor
+                    value={v != null && v !== "" ? String(v) : ""}
+                    onSave={(nv) => {
+                      const cur = v != null && v !== "" ? String(v) : "";
+                      setEditingCell(null);
+                      if (nv !== cur) onCellEdit?.(row, col.key, nv);
+                    }}
+                  />
+                ) : (
                 <span className="inline-flex items-center gap-2">
                   <span
                     className="cursor-pointer text-wedly-accent underline decoration-wedly-accent/30 underline-offset-2 hover:decoration-wedly-accent transition-colors inline-flex items-center gap-1"
-                    onClick={() => onOpenRow(row)}
+                    onClick={() => {
+                      if (!titleEditable) { onOpenRow(row); return; }
+                      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+                      clickTimerRef.current = setTimeout(() => { clickTimerRef.current = null; onOpenRow(row); }, 220);
+                    }}
+                    onDoubleClick={titleEditable ? () => {
+                      if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
+                      setEditingCell({ id, key: col.key });
+                    } : undefined}
+                    title={titleEditable ? "클릭=상세 열기 · 더블클릭=이름 수정" : undefined}
                   >
                     {v != null && v !== "" ? String(v) : "-"}
                     <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="opacity-40">
@@ -395,6 +424,7 @@ export function CollabTable({
                     {commentCount > 0 && <span className="tabular-nums font-medium">{commentCount}</span>}
                   </button>
                 </span>
+                )
               ) : renderFieldValue ? (
                 renderFieldValue(col, v, row)
               ) : (
@@ -405,7 +435,7 @@ export function CollabTable({
         })}
       </tr>
     );
-  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, renderFieldValue]);
+  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, renderFieldValue, editingCell, titleEditable, onCellEdit]);
 
   return (
     <div>
