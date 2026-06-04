@@ -113,6 +113,31 @@ export type CollabTableProps = {
     colorFamilies?: { name: string; classes: string }[];
     allowDelete?: boolean;
   };
+  /**
+   * 칸 관리(추가/제목·타입 수정/삭제)를 소비 앱이 제공할 때 주는 묶음. 컬럼 설정 모달로 전달된다.
+   * 생략 시 컬럼 설정 모달은 보기/검색만(기존과 100% 동일). 제공 시 편집 기능이 켜진다.
+   * renameColumn 은 "저장" 콜백 — 소비 앱이 editColLabel(제목)·editColType(타입)을 함께 저장한다.
+   */
+  columnAdmin?: {
+    editingCol: string | null;
+    setEditingCol: (key: string | null) => void;
+    editColLabel: string;
+    setEditColLabel: (label: string) => void;
+    editColType?: string;
+    setEditColType?: (type: string) => void;
+    renameColumn: (key: string) => void;
+    deleteColumn: (key: string) => void;
+    showAddColumn: boolean;
+    setShowAddColumn: (show: boolean) => void;
+    newColLabel: string;
+    setNewColLabel: (label: string) => void;
+    newColType: string;
+    setNewColType: (type: string) => void;
+    addColumn: () => void;
+    canEditColumn?: (col: ColumnDef) => boolean;
+    canChangeType?: (col: ColumnDef) => boolean;
+    typeOptions?: { value: string; label: string }[];
+  };
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -212,6 +237,7 @@ export function CollabTable({
   defaultColumnOrder,
   onCellEdit,
   editConfig,
+  columnAdmin,
 }: CollabTableProps) {
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
@@ -680,19 +706,24 @@ export function CollabTable({
         toggleColumn={toggleColumn}
         getColLabel={getColLabel}
         getColAccent={getColAccent}
-        editingCol={null}
-        setEditingCol={() => {}}
-        editColLabel=""
-        setEditColLabel={() => {}}
-        renameColumn={() => {}}
-        deleteColumn={() => {}}
-        showAddColumn={false}
-        setShowAddColumn={() => {}}
-        newColLabel=""
-        setNewColLabel={() => {}}
-        newColType={"text" as ColumnDef["type"]}
-        setNewColType={() => {}}
-        addColumn={() => {}}
+        editingCol={columnAdmin?.editingCol ?? null}
+        setEditingCol={columnAdmin?.setEditingCol ?? (() => {})}
+        editColLabel={columnAdmin?.editColLabel ?? ""}
+        setEditColLabel={columnAdmin?.setEditColLabel ?? (() => {})}
+        renameColumn={columnAdmin?.renameColumn ?? (() => {})}
+        deleteColumn={columnAdmin?.deleteColumn ?? (() => {})}
+        showAddColumn={columnAdmin?.showAddColumn ?? false}
+        setShowAddColumn={columnAdmin?.setShowAddColumn ?? (() => {})}
+        newColLabel={columnAdmin?.newColLabel ?? ""}
+        setNewColLabel={columnAdmin?.setNewColLabel ?? (() => {})}
+        newColType={(columnAdmin?.newColType ?? "text") as ColumnDef["type"]}
+        setNewColType={columnAdmin?.setNewColType ?? (() => {})}
+        addColumn={columnAdmin?.addColumn ?? (() => {})}
+        editColType={columnAdmin?.editColType}
+        setEditColType={columnAdmin?.setEditColType}
+        canEditColumn={columnAdmin?.canEditColumn}
+        canChangeType={columnAdmin?.canChangeType}
+        typeOptions={columnAdmin?.typeOptions}
       />
     </div>
   );

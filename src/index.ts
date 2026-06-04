@@ -20,7 +20,7 @@ export type { ColumnDef, FormulaSpec } from "./types/columns";
 export * from "./tiered";
 
 // 부품 — 메인 페이지 영역
-export { ColumnToggleModal } from "./components/ColumnToggleModal";
+export { ColumnToggleModal, DEFAULT_COLUMN_TYPE_OPTIONS } from "./components/ColumnToggleModal";
 export type { ColumnToggleColumn } from "./components/ColumnToggleModal";
 
 export { SettingsDropdown } from "./components/SettingsDropdown";
@@ -114,4 +114,4 @@ export {
 export { HistoryPanel } from "./components/HistoryPanel";
 export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPanel";
 
-export const __MODULE_VERSION__ = "0.30.0";
+export const __MODULE_VERSION__ = "0.31.0";
