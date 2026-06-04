@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { ViewTab } from "./collab-filters";
 
 export type FilterTabsAdmin = {
@@ -18,12 +18,14 @@ export type FilterTabsProps = {
   onSelect: (id: string) => void;
   /** 관리자 편집 모드(생략 시 표시 전용 — 기존과 100% 동일) */
   admin?: FilterTabsAdmin;
+  /** 탭 줄 오른쪽 끝(＋추가 뒤)에 끼워 넣을 추가 버튼(예: "탭 관리"). 앱별 선택. */
+  trailing?: ReactNode;
 };
 
 /** 표 위에 그리는 상태별 필터 탭 한 줄. 하이브와 동일한 알약 모양 —
  *  회색 띠 위에 탭들이 놓이고, 활성 탭만 흰 알약+옅은 그림자로 떠 보임. 좁은 화면은 가로 스크롤.
  *  admin 이 주어지면(관리자) 끌어 옮기기·＋추가·더블클릭 편집이 켜진다. 없으면 표시 전용(기존과 동일). */
-export function FilterTabs({ tabs, activeId, onSelect, admin }: FilterTabsProps) {
+export function FilterTabs({ tabs, activeId, onSelect, admin, trailing }: FilterTabsProps) {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   if (!tabs || tabs.length === 0) return null;
 
@@ -67,6 +69,7 @@ export function FilterTabs({ tabs, activeId, onSelect, admin }: FilterTabsProps)
                 (admin ? " cursor-grab active:cursor-grabbing" : "")
               }
             >
+              {tab.viewMode === "calendar" && <span className="mr-1 text-[11px]">🗓</span>}
               {tab.label}
             </button>
           </div>
@@ -82,6 +85,7 @@ export function FilterTabs({ tabs, activeId, onSelect, admin }: FilterTabsProps)
           ＋
         </button>
       )}
+      {trailing}
     </div>
   );
 }
