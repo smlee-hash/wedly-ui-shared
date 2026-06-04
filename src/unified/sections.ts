@@ -202,7 +202,7 @@ export type BasicFieldSpec = {
 // 각 칸은 앞에서부터 "그 앱에 실제 있는" 첫 키로 연결되므로, 같은 표가 여러 앱에서 동작한다.
 // 종류(type)는 실제 컬럼 정의가 있으면 그 종류를 쓰고, 데이터에만 있는 키는 아래 type 를 보조로 쓴다.
 export const COMMON_BASIC_FIELD_SPECS: BasicFieldSpec[] = [
-  { label: "DB분류",       keys: ["54DB분류", "16DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류", "분류"], type: "multi_select" },
+  { label: "DB 담당",       keys: ["54DB분류", "16DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류", "분류"], type: "multi_select" },
   { label: "대표자명",      keys: ["03대표자명", "02대표자명", "대표자명"],                 type: "text" },
   { label: "연락처",        keys: ["04연락처", "03대표연락처", "대표연락처", "연락처"],       type: "phone_number" },
   { label: "이메일",        keys: ["53이메일", "이메일"],                                type: "email" },

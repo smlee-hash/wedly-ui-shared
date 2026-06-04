@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CustomSelect } from "@wedly/detail-modal-shared";
 import type { ViewTab, FilterCondition, FilterOperator } from "./collab-filters";
 
 type FieldDef = { key: string; label: string; type: string };
@@ -190,25 +191,21 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
             return (
               <div key={idx} className="rounded-lg border border-wedly-bd bg-wedly-bg-gray/40 p-2">
                 <div className="flex items-center gap-1.5">
-                  <select
-                    value={filter.field}
-                    onChange={(e) => changeField(idx, e.target.value)}
-                    className="min-w-0 flex-1 rounded-md border border-wedly-bd bg-white px-2 py-1.5 text-[13px]"
-                  >
-                    <option value="">항목 선택…</option>
-                    {fields.map((f) => (
-                      <option key={f.key} value={f.key}>{f.label}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={filter.operator}
-                    onChange={(e) => changeOperator(idx, e.target.value as FilterOperator)}
-                    className="w-[124px] flex-shrink-0 rounded-md border border-wedly-bd bg-white px-2 py-1.5 text-[13px]"
-                  >
-                    {ops.map((op) => (
-                      <option key={op.value} value={op.value}>{op.label}</option>
-                    ))}
-                  </select>
+                  <div className="min-w-0 flex-1">
+                    <CustomSelect
+                      value={filter.field}
+                      onChange={(v) => changeField(idx, v)}
+                      placeholder="항목 선택…"
+                      options={[{ value: "", label: "항목 선택…" }, ...fields.map((f) => ({ value: f.key, label: f.label }))]}
+                    />
+                  </div>
+                  <div className="w-[124px] flex-shrink-0">
+                    <CustomSelect
+                      value={filter.operator}
+                      onChange={(v) => changeOperator(idx, v as FilterOperator)}
+                      options={ops.map((op) => ({ value: op.value, label: op.label }))}
+                    />
+                  </div>
                   <button
                     onClick={() => removeCondition(idx)}
                     className="flex-shrink-0 rounded p-1 text-wedly-muted hover:text-wedly-red"
@@ -250,16 +247,12 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
                         className="w-full rounded-md border border-wedly-bd bg-white px-2 py-1.5 text-[13px]"
                       />
                     ) : filter.operator === "equals" && options.length > 0 ? (
-                      <select
+                      <CustomSelect
                         value={typeof filter.value === "string" ? filter.value : ""}
-                        onChange={(e) => updateFilter(idx, { value: e.target.value })}
-                        className="w-full rounded-md border border-wedly-bd bg-white px-2 py-1.5 text-[13px]"
-                      >
-                        <option value="">선택…</option>
-                        {options.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
+                        onChange={(v) => updateFilter(idx, { value: v })}
+                        placeholder="선택…"
+                        options={[{ value: "", label: "선택…" }, ...options.map((o) => ({ value: o, label: o }))]}
+                      />
                     ) : fieldDef?.type === "date" ? (
                       <input
                         type="date"

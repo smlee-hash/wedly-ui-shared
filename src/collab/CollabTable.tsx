@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "../lib/cn";
 import { DesktopTable } from "../components/DesktopTable";
 import { MobileCardList } from "../components/MobileCardList";
@@ -24,7 +25,8 @@ import {
 } from "./collab-table-core";
 import { filterRowsByTab, type ViewTab } from "./collab-filters";
 import { FilterTabs, type FilterTabsAdmin } from "./FilterTabs";
-import { TextEditor } from "../components/Editors";
+import { TextEditor, NumberEditor, DateEditor } from "../components/Editors";
+import { SelectDropdownBody } from "@wedly/detail-modal-shared";
 
 export type CollabTableProps = {
   /** 브라우저 저장 키 앞에 붙는 고유 접두어(페이지마다 다르게). 예: "unified-collab:tax-amendment" */
@@ -94,8 +96,23 @@ export type CollabTableProps = {
   };
   /** 이 값이 바뀌면 선택(체크)을 모두 해제한다(일괄 작업 완료 후 부모가 1 증가시킴). */
   selectionResetKey?: number;
-  /** 표에서 제목 칸(상호명 등)을 더블클릭해 바로 고치는 콜백. 관리자이고 이게 주어질 때만 켜진다(생략 시 기존과 동일한 읽기 전용 링크). */
-  onCellEdit?: (row: RowData, columnKey: string, value: string) => void;
+  /** 표에서 칸을 클릭해 바로 고치는 콜백. 관리자이고 이게 주어질 때만 켜진다(생략 시 기존과 동일한 읽기 전용). */
+  onCellEdit?: (row: RowData, columnKey: string, value: string | number | boolean | null) => void;
+  /** 표 안에서 칸을 클릭해 바로 수정할 때 쓰는 설정(선택/상태 칸의 선택지·색 등). onCellEdit 와 함께 줄 때만 편집이 켜진다. */
+  editConfig?: {
+    /** 이 칸을 편집 허용할지(생략 시 종류 기준 기본 규칙). */
+    isEditable?: (col: ColumnDef) => boolean;
+    /** 선택/상태 칸 선택지 목록 */
+    getOptions?: (columnKey: string) => string[];
+    /** 선택/상태 배지 색 클래스 */
+    getColorClass?: (columnKey: string, option: string) => string;
+    /** 선택지 추가/삭제/색칠(선택) */
+    onAddOption?: (columnKey: string, option: string) => void;
+    onDeleteOption?: (columnKey: string, option: string) => void;
+    onSetColor?: (columnKey: string, option: string, color: string) => void;
+    colorFamilies?: { name: string; classes: string }[];
+    allowDelete?: boolean;
+  };
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -106,6 +123,70 @@ function loadJson<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+// 선택(select/status) 칸 인라인 편집기 — portal 방식으로 뷰포트 안에 안전하게 띄움.
+function CellSelectEditor({ value, options, columnKey, onSave, onClose, cfg }: {
+  value: string;
+  options: string[];
+  columnKey: string;
+  onSave: (v: string) => void;
+  onClose: () => void;
+  cfg?: CollabTableProps["editConfig"];
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      const dropH = 320;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const top = spaceBelow >= dropH
+        ? rect.bottom + 4
+        : rect.top - Math.min(dropH, rect.top - 8) - 4;
+      setPos({ top, left: rect.left });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pos) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose, pos]);
+
+  return (
+    <>
+      <div ref={anchorRef} className="h-0" />
+      {pos && typeof document !== "undefined" && createPortal(
+        <div
+          ref={ref}
+          className="fixed w-64 max-h-[320px] overflow-y-auto rounded-2xl border border-wedly-bd bg-white shadow-[0_10px_30px_-6px_rgba(10,34,68,0.18)]"
+          style={{ top: pos.top, left: pos.left, zIndex: 9999 }}
+        >
+          <SelectDropdownBody
+            value={value}
+            options={options}
+            onSave={onSave}
+            onClose={onClose}
+            onAddOption={cfg?.onAddOption ? (opt) => cfg.onAddOption!(columnKey, opt) : undefined}
+            onDeleteOption={cfg?.onDeleteOption ? (opt) => cfg.onDeleteOption!(columnKey, opt) : undefined}
+            onSetColor={cfg?.onSetColor
+              ? (opt, color) => cfg.onSetColor!(columnKey, opt, color as unknown as string)
+              : undefined}
+            getColorClass={cfg?.getColorClass ? (opt) => cfg.getColorClass!(columnKey, opt) : undefined}
+            colorFamilies={cfg?.colorFamilies as never}
+            allowDelete={cfg?.allowDelete}
+          />
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 }
 
 export function CollabTable({
@@ -128,6 +209,7 @@ export function CollabTable({
   defaultVisibleColumns,
   defaultColumnOrder,
   onCellEdit,
+  editConfig,
 }: CollabTableProps) {
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
@@ -183,11 +265,8 @@ export function CollabTable({
 
   const [columnModalOpen, setColumnModalOpen] = useState(false);
 
-  // 제목 칸(상호명 등) 인라인 수정 — 한 번 클릭=상세 열기, 더블클릭=수정(관리자 + onCellEdit 있을 때만).
+  // 인라인 셀 수정 상태
   const [editingCell, setEditingCell] = useState<{ id: string; key: string } | null>(null);
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 화면에서 사라질 때 미실행 클릭 타이머 정리 — 언마운트 후 상세창이 갑자기 열리는 것 방지.
-  useEffect(() => () => { if (clickTimerRef.current) clearTimeout(clickTimerRef.current); }, []);
 
   // 검색어 디바운스(0.1초)
   useEffect(() => {
@@ -211,8 +290,18 @@ export function CollabTable({
 
   // 관리자 도구모음 활성 여부 — isAdmin 이고 adminToolbar 가 주어질 때만.
   const adminEnabled = isAdmin && !!adminToolbar;
-  // 제목 칸(상호명 등) 직접 수정 가능 여부 — 관리자 + onCellEdit 가 주어질 때만.
-  const titleEditable = adminEnabled && !!onCellEdit;
+
+  // 편집 가능 종류(기본) — formula·last_edited_time·last_edited_by·auto_increment_id·file·multi_select·person 은 편집 안 함.
+  const DEFAULT_EDITABLE_TYPES = useMemo(() => new Set<ColumnDef["type"]>([
+    "text", "title", "email", "phone_number", "number", "date", "select", "status", "checkbox",
+  ]), []);
+
+  const isCellEditable = useCallback((col: ColumnDef) => {
+    if (!(adminEnabled && onCellEdit)) return false;
+    if (editConfig?.isEditable) return editConfig.isEditable(col);
+    return DEFAULT_EDITABLE_TYPES.has(col.type);
+  }, [adminEnabled, onCellEdit, editConfig, DEFAULT_EDITABLE_TYPES]);
+
   // 선택된 행들(관리자 일괄 작업 콜백에 넘김)
   const checkedRows = useMemo(
     () => (adminEnabled ? sortedRows.filter((r) => checkedIds.has(String(r[rowIdKey]))) : []),
@@ -353,8 +442,8 @@ export function CollabTable({
   const mobileTitleKey = mobile?.titleKey ?? titleCol?.key ?? columns[0]?.key ?? "";
   const mobileStatusClass = mobile?.getStatusClass ?? (() => "bg-wedly-bg-gray text-wedly-t2");
 
-  // 행 그리기(읽기 전용) — 하이브 표 행과 동일 스타일(글자 13px·여백 px-4·한 줄 말줄임·hover 파란빛).
-  // 제목 칸 = 밑줄 링크 + ↗아이콘 + 댓글수 버튼, 클릭 시 상세 열기.
+  // 행 그리기 — 하이브 표 행과 동일 스타일(글자 13px·여백 px-4·한 줄 말줄임·hover 파란빛).
+  // 제목 칸 = 밑줄 링크 + ↗아이콘 + 댓글수 버튼, 편집 가능 칸은 클릭 시 인라인 편집기 열림.
   const renderRow = useCallback((row: RowData, virtualIndex: number) => {
     const id = String(row[rowIdKey] ?? "");
     const commentCount = typeof row._commentCount === "number" ? (row._commentCount as number) : 0;
@@ -374,6 +463,8 @@ export function CollabTable({
         {activeColumns.map((col) => {
           const isSticky = col.sticky;
           const v = (row[col.key] ?? null) as CellValue;
+          const editable = isCellEditable(col);
+          const isEditingThis = editingCell?.id === id && editingCell?.key === col.key;
           return (
             <td
               key={col.key}
@@ -382,11 +473,15 @@ export function CollabTable({
                 "py-2 px-4 text-[13px] whitespace-nowrap text-ellipsis overflow-hidden",
                 isSticky && "sticky z-10 bg-white",
                 col.type === "title" && "font-medium text-wedly-navy",
+                editable && col.type !== "checkbox" && !isEditingThis && "cursor-pointer hover:bg-wedly-bg-gray/40",
               )}
               style={{ minWidth: 40, ...(isSticky ? { left: (stickyOffsets[col.key] ?? 0) + 40 } : {}) }}
+              onClick={editable && col.type !== "checkbox" && !isEditingThis
+                ? () => setEditingCell({ id, key: col.key })
+                : undefined}
             >
               {col.type === "title" ? (
-                editingCell && editingCell.id === id && editingCell.key === col.key ? (
+                isEditingThis ? (
                   <TextEditor
                     value={v != null && v !== "" ? String(v) : ""}
                     onSave={(nv) => {
@@ -399,16 +494,8 @@ export function CollabTable({
                 <span className="inline-flex items-center gap-2">
                   <span
                     className="cursor-pointer text-wedly-accent underline decoration-wedly-accent/30 underline-offset-2 hover:decoration-wedly-accent transition-colors inline-flex items-center gap-1"
-                    onClick={() => {
-                      if (!titleEditable) { onOpenRow(row); return; }
-                      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-                      clickTimerRef.current = setTimeout(() => { clickTimerRef.current = null; onOpenRow(row); }, 220);
-                    }}
-                    onDoubleClick={titleEditable ? () => {
-                      if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
-                      setEditingCell({ id, key: col.key });
-                    } : undefined}
-                    title={titleEditable ? "클릭=상세 열기 · 더블클릭=이름 수정" : undefined}
+                    onClick={(e) => { e.stopPropagation(); onOpenRow(row); }}
+                    title={editable ? "글자=상세 열기 · 빈곳=이름 수정" : undefined}
                   >
                     {v != null && v !== "" ? String(v) : "-"}
                     <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="opacity-40">
@@ -427,6 +514,42 @@ export function CollabTable({
                   </button>
                 </span>
                 )
+              ) : col.type === "checkbox" ? (
+                <button
+                  onClick={editable ? (e) => { e.stopPropagation(); onCellEdit?.(row, col.key, !v); } : undefined}
+                  className={editable ? "cursor-pointer" : undefined}
+                >
+                  {renderFieldValue ? renderFieldValue(col, v, row) : <span>{defaultFormatCellValue(col, v)}</span>}
+                </button>
+              ) : isEditingThis ? (
+                col.type === "text" || col.type === "email" || col.type === "phone_number" ? (
+                  <TextEditor
+                    value={String(v ?? "")}
+                    onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv); }}
+                  />
+                ) : col.type === "number" ? (
+                  <NumberEditor
+                    value={v != null && v !== "" ? Number(v) : null}
+                    onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv); }}
+                  />
+                ) : col.type === "date" ? (
+                  <DateEditor
+                    value={String(v ?? "")}
+                    onClose={() => setEditingCell(null)}
+                    onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv); }}
+                  />
+                ) : col.type === "select" || col.type === "status" ? (
+                  <CellSelectEditor
+                    value={String(v ?? "")}
+                    options={editConfig?.getOptions?.(col.key) ?? []}
+                    columnKey={col.key}
+                    cfg={editConfig}
+                    onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv || null); }}
+                    onClose={() => setEditingCell(null)}
+                  />
+                ) : (
+                  renderFieldValue ? renderFieldValue(col, v, row) : <span>{defaultFormatCellValue(col, v)}</span>
+                )
               ) : renderFieldValue ? (
                 renderFieldValue(col, v, row)
               ) : (
@@ -437,7 +560,7 @@ export function CollabTable({
         })}
       </tr>
     );
-  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, renderFieldValue, editingCell, titleEditable, onCellEdit]);
+  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, renderFieldValue, editingCell, isCellEditable, onCellEdit, editConfig]);
 
   return (
     <div>
