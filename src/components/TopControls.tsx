@@ -214,11 +214,10 @@ export function TopControls({
             </button>
           </div>
         )}
-      </div>
 
-      {/* 3줄 — 보기/표시/페이지 박스. PC 폭 820px 통일. 캘린더 뷰 등에서는 안 그림 */}
-      {showPageBox && (
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px] md:max-w-[820px]">
+        {/* 3줄 — 보기/표시/페이지 박스. PC 폭 820px 통일. 캘린더 뷰 등에서는 안 그림 */}
+        {showPageBox && (
+        <div className="flex flex-wrap items-center gap-2 text-[13px] md:max-w-[820px]">
         {/* 그룹 1: 보기 (카드/표) */}
         <div className="flex-1 md:flex-1 md:min-w-0 inline-flex items-center gap-1.5 bg-white border border-wedly-bd rounded-lg px-2.5 h-[44px] md:h-[36px] shadow-sm">
           <span className="whitespace-nowrap font-semibold text-[12px] leading-none flex-shrink-0 inline-flex items-center gap-1">
@@ -335,8 +334,9 @@ export function TopControls({
         {(pageSize === Infinity || totalPages <= 1) && totalRows > 0 && (
           <span className="text-wedly-muted text-[11px] tabular-nums whitespace-nowrap">총 {totalRows}건</span>
         )}
+        </div>
+        )}
       </div>
-      )}
     </>
   );
 }
