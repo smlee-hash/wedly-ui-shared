@@ -138,6 +138,8 @@ export type CollabTableProps = {
     canChangeType?: (col: ColumnDef) => boolean;
     typeOptions?: { value: string; label: string }[];
   };
+  /** 이 키 목록이 바뀌면 해당 칸을 강제로 '보임'으로 켠다(새로 추가한 칸을 표에 바로 보이게). */
+  ensureVisibleKeys?: string[];
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -238,6 +240,7 @@ export function CollabTable({
   onCellEdit,
   editConfig,
   columnAdmin,
+  ensureVisibleKeys,
 }: CollabTableProps) {
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
@@ -281,6 +284,16 @@ export function CollabTable({
   const [colLabelOverrides, setColLabelOverrides] = useState<Record<string, string>>(() =>
     loadJson<Record<string, string>>(COL_LABELS_KEY, {}),
   );
+
+  // 새로 추가한 칸을 표에 바로 보이게 — 부모가 ensureVisibleKeys 로 알려준 키만 보임 처리(기존 숨김 설정은 건드리지 않음).
+  useEffect(() => {
+    if (!ensureVisibleKeys || ensureVisibleKeys.length === 0) return;
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      ensureVisibleKeys.forEach((k) => next.add(k));
+      return next;
+    });
+  }, [ensureVisibleKeys]);
 
   // 헤더 메뉴 / 드래그 / 리사이즈
   const [colMenuKey, setColMenuKey] = useState<string | null>(null);
