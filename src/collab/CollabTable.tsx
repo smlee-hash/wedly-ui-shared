@@ -22,7 +22,7 @@ import {
   type SortConfig,
 } from "./collab-table-core";
 import { filterRowsByTab, type ViewTab } from "./collab-filters";
-import { FilterTabs } from "./FilterTabs";
+import { FilterTabs, type FilterTabsAdmin } from "./FilterTabs";
 
 export type CollabTableProps = {
   /** 브라우저 저장 키 앞에 붙는 고유 접두어(페이지마다 다르게). 예: "unified-collab:tax-amendment" */
@@ -59,6 +59,8 @@ export type CollabTableProps = {
   defaultVisibleColumns?: string[];
   /** 저장값이 없을 때 컬럼 순서(앱이 하이브식 배치 지정). 생략 시 columns 원래 순서 */
   defaultColumnOrder?: string[];
+  /** 관리자 탭 편집 훅(생략 시 표시 전용). isAdmin=true 이고 이게 주어지면 탭 편집(끌어옮기기·＋추가·더블클릭 편집)이 켜진다. */
+  tabAdmin?: FilterTabsAdmin;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -78,12 +80,14 @@ export function CollabTable({
   rowIdKey = "_id",
   loading,
   error = null,
+  isAdmin,
   onOpenRow,
   onRefresh,
   mobile,
   renderFieldValue,
   getColAccent: getColAccentProp,
   tabs,
+  tabAdmin,
   defaultVisibleColumns,
   defaultColumnOrder,
 }: CollabTableProps) {
@@ -172,6 +176,13 @@ export function CollabTable({
     setActiveTabId(id);
     try { localStorage.setItem(ACTIVE_TAB_KEY, id); } catch {}
   }, [ACTIVE_TAB_KEY]);
+
+  // 탭 목록이 바뀌어 현재 활성 탭이 사라지면 첫 탭으로(편집·삭제 후 안전).
+  useEffect(() => {
+    if (tabs && tabs.length && !tabs.some((t) => t.id === activeTabId)) {
+      setActiveTabId(tabs[0].id);
+    }
+  }, [tabs, activeTabId]);
 
   const persistVisible = useCallback((next: Set<string>) => {
     try { localStorage.setItem(VISIBLE_COLS_KEY, JSON.stringify([...next])); } catch {}
@@ -324,7 +335,7 @@ export function CollabTable({
   return (
     <div>
       {tabs && tabs.length > 0 && (
-        <FilterTabs tabs={tabs} activeId={activeTabId} onSelect={selectTab} />
+        <FilterTabs tabs={tabs} activeId={activeTabId} onSelect={selectTab} admin={isAdmin && tabAdmin ? tabAdmin : undefined} />
       )}
       <TopControls
         isAdmin={false}

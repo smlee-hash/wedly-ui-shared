@@ -93,7 +93,7 @@ export type { RowData, CellValue, SortConfig } from "./collab/collab-table-core"
 export { matchesFilter, matchesTab, filterRowsByTab } from "./collab/collab-filters";
 export type { FilterOperator, FilterCondition, ViewTab } from "./collab/collab-filters";
 export { FilterTabs } from "./collab/FilterTabs";
-export type { FilterTabsProps } from "./collab/FilterTabs";
+export type { FilterTabsProps, FilterTabsAdmin } from "./collab/FilterTabs";
 
 // 색깔 딱지 셀 — 순수 판정(cellChips) + 표시 부품/렌더러(상태·분류 색상)
 export { cellChips } from "./collab/collab-cell";
