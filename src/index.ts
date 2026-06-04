@@ -114,4 +114,4 @@ export {
 export { HistoryPanel } from "./components/HistoryPanel";
 export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPanel";
 
-export const __MODULE_VERSION__ = "0.31.1";
+export const __MODULE_VERSION__ = "0.32.0";

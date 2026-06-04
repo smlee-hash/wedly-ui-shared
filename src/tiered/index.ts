@@ -24,6 +24,14 @@ export interface FieldDef {
   //   formulaResult: 계산 결과 표시 형식 (number=원, percent=%). 기본 number.
   formula?: FormulaTerm[];
   formulaResult?: FormulaResultFormat;
+  // ── type === "formula" 조건별 식 (선택적) ──
+  //   conditionFieldKey: 기준 필드(기본정보 평면 필드) 키. 예 "54DB분류"
+  //   rules: 기준 값별로 쓸 식. 먼저 맞는 규칙 우선. 매칭 없으면 formula(기본).
+  //   미설정 시 기존과 100% 동일(앞호환).
+  conditional?: {
+    conditionFieldKey: string;
+    rules: Array<{ whenValue: string; formula: FormulaTerm[] }>;
+  };
 }
 
 // 합계 스코어카드 정의 — 어드민이 카드 제목, 색, 계산식, 추가/삭제 모두 편집 가능.
@@ -229,6 +237,32 @@ export function isNumericFieldType(type: FieldType): boolean {
   return type === "number" || type === "percent" || type === "formula";
 }
 
+// 조건별 식 고르기 — field.conditional 가 있으면 conditionValue 에 맞는 규칙의 식을, 없거나 매칭 안 되면 field.formula 를 돌려준다.
+// 매칭: 단일 문자열은 일치, 배열/콤마 문자열(다중 선택)은 그 안에 whenValue 가 '포함'되면 일치. 먼저 맞는 규칙 우선.
+// conditionValue 는 기준 필드의 '저장된 원본 값'(문자열 / 배열 / 콤마문자열) — 화면 표시용 가공값(칩 등)이 아니라 raw 값을 넘길 것.
+export function resolveConditionalFormula(
+  field: FieldDef,
+  conditionValue: unknown,
+): FormulaTerm[] | undefined {
+  const cond = field.conditional;
+  if (!cond || !Array.isArray(cond.rules) || cond.rules.length === 0) return field.formula;
+  const matches = (when: string): boolean => {
+    const w = when.trim();
+    if (w === "") return false; // 빈 기준값은 매칭 안 함(관리자 공백 실수로 규칙이 조용히 사라지는 것 방지)
+    if (conditionValue === null || conditionValue === undefined) return false;
+    if (Array.isArray(conditionValue)) return conditionValue.some((v) => String(v).trim() === w);
+    const s = String(conditionValue).trim();
+    if (s === w) return true;
+    return s.split(/[,\n;]+/).map((x) => x.trim()).includes(w);
+  };
+  for (const rule of cond.rules) {
+    if (rule && typeof rule.whenValue === "string" && Array.isArray(rule.formula) && matches(rule.whenValue)) {
+      return rule.formula;
+    }
+  }
+  return field.formula;
+}
+
 // 한 차수(tier)에서 수식 컬럼(field)의 값을 계산한다.
 //   - 숫자 컬럼: 저장값 그대로
 //   - 퍼센트 컬럼/퍼센트 값: 0~1 비율로 환산 (10% → 0.1) — 곱셈이 자연스럽게 맞도록
@@ -239,8 +273,10 @@ export function evalFormulaForTier(
   tier: TierData,
   fields: FieldDef[],
   seen: ReadonlySet<string> = new Set<string>(),
+  conditionValues?: Record<string, unknown>,
 ): number | null {
-  const terms = field.formula;
+  const conditionValue = field.conditional ? conditionValues?.[field.conditional.conditionFieldKey] : undefined;
+  const terms = resolveConditionalFormula(field, conditionValue);
   if (!Array.isArray(terms) || terms.length === 0) return null;
   if (seen.has(field.key)) return null; // 순환 참조 차단
   const nextSeen = new Set(seen);
@@ -261,7 +297,7 @@ export function evalFormulaForTier(
     const ref = t.columnKey ? byKey.get(t.columnKey) : undefined;
     if (!ref) return { v: 0, has: false };
     if (ref.type === "formula") {
-      const r = evalFormulaForTier(ref, tier, fields, nextSeen);
+      const r = evalFormulaForTier(ref, tier, fields, nextSeen, conditionValues);
       return r === null ? { v: 0, has: false } : { v: r, has: true };
     }
     const raw = tier[ref.key];
