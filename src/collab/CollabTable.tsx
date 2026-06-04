@@ -91,6 +91,8 @@ export type CollabTableProps = {
     /** "컬럼 표시 설정" 메뉴 항목 id(기본 "column-toggle"). */
     columnSettingsMenuId?: string;
   };
+  /** 이 값이 바뀌면 선택(체크)을 모두 해제한다(일괄 작업 완료 후 부모가 1 증가시킴). */
+  selectionResetKey?: number;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -119,6 +121,7 @@ export function CollabTable({
   tabs,
   tabAdmin,
   adminToolbar,
+  selectionResetKey,
   defaultVisibleColumns,
   defaultColumnOrder,
 }: CollabTableProps) {
@@ -224,6 +227,22 @@ export function CollabTable({
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, pageSize, activeTabId]);
+
+  // 행 목록이 바뀌면 사라진 행(예: 삭제됨)의 선택을 자동 해제 — 유령 선택·유령 개수 방지.
+  useEffect(() => {
+    setCheckedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const valid = new Set(rows.map((r) => String(r[rowIdKey])));
+      const next = new Set([...prev].filter((id) => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [rows, rowIdKey]);
+
+  // 부모가 selectionResetKey 를 올리면(일괄 작업 완료) 선택을 전부 해제.
+  useEffect(() => {
+    if (selectionResetKey === undefined) return;
+    setCheckedIds(new Set());
+  }, [selectionResetKey]);
 
   const getColLabel = useCallback((col: ColumnDef) => colLabelOverrides[col.key] || col.label || col.key, [colLabelOverrides]);
   const getColAccent = useCallback((col: ColumnDef) => (getColAccentProp ? getColAccentProp(col) : null), [getColAccentProp]);
