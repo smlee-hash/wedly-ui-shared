@@ -9,6 +9,7 @@
  * generic 타입 인자로 컬럼 형식 받음 — 양쪽 앱에서 자기 ColumnDef 그대로 사용 가능.
  */
 
+import { useState } from "react";
 import { CustomSelect } from "@wedly/detail-modal-shared";
 import { cn } from "../lib/cn";
 
@@ -66,7 +67,12 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   setNewColType,
   addColumn,
 }: Props<TCol>) {
+  const [search, setSearch] = useState("");
   if (!open) return null;
+  const q = search.trim().toLowerCase();
+  const visibleCols = q
+    ? allColumns.filter((c) => getColLabel(c).toLowerCase().includes(q) || c.key.toLowerCase().includes(q))
+    : allColumns;
   return (
     <div className="fixed inset-0 z-[55] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
@@ -85,7 +91,16 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
         </div>
         <div className="px-5 py-4 overflow-y-auto">
           <div className="text-[11px] font-medium text-wedly-muted uppercase tracking-wider mb-2">표시할 컬럼 선택</div>
-          {allColumns.map((col) => {
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="컬럼 이름 검색"
+            className="w-full mb-2 px-3 py-2 text-[13px] border border-wedly-bd rounded-lg bg-white text-wedly-t1 placeholder:text-wedly-muted focus:outline-none focus:ring-2 focus:ring-wedly-accent/30 focus:border-wedly-accent hover:border-wedly-accent/50 transition-colors"
+          />
+          {visibleCols.length === 0 && (
+            <div className="px-2 py-3 text-[12px] text-wedly-muted">검색 결과가 없습니다.</div>
+          )}
+          {visibleCols.map((col) => {
             const isCustom = col.key.startsWith("custom_");
             const accent = getColAccent(col);
             return (
