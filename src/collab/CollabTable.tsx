@@ -186,6 +186,8 @@ export function CollabTable({
   // 제목 칸(상호명 등) 인라인 수정 — 한 번 클릭=상세 열기, 더블클릭=수정(관리자 + onCellEdit 있을 때만).
   const [editingCell, setEditingCell] = useState<{ id: string; key: string } | null>(null);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 화면에서 사라질 때 미실행 클릭 타이머 정리 — 언마운트 후 상세창이 갑자기 열리는 것 방지.
+  useEffect(() => () => { if (clickTimerRef.current) clearTimeout(clickTimerRef.current); }, []);
 
   // 검색어 디바운스(0.1초)
   useEffect(() => {
