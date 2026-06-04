@@ -47,6 +47,8 @@ type Props = {
   onBulkDelete: () => void; // 어드민
   deleting: boolean;
   onBulkAlimtalk: () => void;
+  /** 알림톡 일괄 버튼 표시 여부(기본 true). 알림톡 미사용 화면에서 false 로 숨김. */
+  showBulkAlimtalk?: boolean;
 
   // 비어드민 새로고침
   onRefresh: () => void;
@@ -92,6 +94,7 @@ export function TopControls({
   onBulkDelete,
   deleting,
   onBulkAlimtalk,
+  showBulkAlimtalk = true,
   onRefresh,
   loading,
   mobileViewMode,
@@ -153,7 +156,7 @@ export function TopControls({
         </div>
 
         {/* 선택 행 있을 때 동작 버튼 */}
-        {checkedCount > 0 && (
+        {checkedCount > 0 && (isAdmin || showBulkAlimtalk) && (
           <div className="flex items-center gap-2 flex-wrap">
             {isAdmin && (
               <button
@@ -179,6 +182,7 @@ export function TopControls({
                 {deleting ? "삭제 중..." : `삭제 (${checkedCount})`}
               </button>
             )}
+            {showBulkAlimtalk && (
             <button
               onClick={onBulkAlimtalk}
               className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-bold bg-[#FEE500] text-[#3C1E1E] rounded-lg hover:brightness-95 transition-all"
@@ -189,6 +193,7 @@ export function TopControls({
               </svg>
               알림톡 ({checkedCount})
             </button>
+            )}
           </div>
         )}
 

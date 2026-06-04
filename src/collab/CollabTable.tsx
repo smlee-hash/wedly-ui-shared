@@ -6,6 +6,7 @@ import { DesktopTable } from "../components/DesktopTable";
 import { MobileCardList } from "../components/MobileCardList";
 import { TopControls } from "../components/TopControls";
 import { ColumnToggleModal } from "../components/ColumnToggleModal";
+import type { SettingsMenuItem, SettingsCustomItem } from "../components/SettingsDropdown";
 import type { ColumnDef } from "../types/columns";
 import {
   filterRowsBySearch,
@@ -61,6 +62,37 @@ export type CollabTableProps = {
   defaultColumnOrder?: string[];
   /** 관리자 탭 편집 훅(생략 시 표시 전용). isAdmin=true 이고 이게 주어지면 탭 편집(끌어옮기기·＋추가·더블클릭 편집)이 켜진다. */
   tabAdmin?: FilterTabsAdmin;
+  /**
+   * 관리자 도구모음(새 업체·관리 도구 메뉴·일괄 작업). isAdmin=true 이고 이게 주어질 때만 켜진다.
+   * 생략 시 기존과 100% 동일(읽기 전용 도구모음 + 우측 "컬럼 설정" 버튼).
+   * "컬럼 표시 설정" 메뉴 항목(기본 id "column-toggle")의 onClick 은 표 내부 컬럼 모달로 자동 연결된다.
+   * 일괄 콜백은 현재 선택된 행 배열을 인자로 받는다. onBulkAlimtalk 을 안 주면 알림톡 버튼은 숨겨진다.
+   */
+  adminToolbar?: {
+    onCreateNew: () => void;
+    settingsBaseMenus: SettingsMenuItem[];
+    cfActiveCount?: number;
+    settingsMenuOrder?: string[];
+    persistSettingsMenuOrder?: (next: string[]) => void;
+    settingsMenuLabelOverrides?: Record<string, string>;
+    persistSettingsMenuLabel?: (id: string, label: string) => void;
+    settingsMenuHidden?: string[];
+    persistSettingsMenuHidden?: (next: string[]) => void;
+    settingsMenuCustom?: SettingsCustomItem[];
+    persistSettingsMenuCustom?: (
+      updater: SettingsCustomItem[] | ((prev: SettingsCustomItem[]) => SettingsCustomItem[]),
+    ) => void;
+    isSafeMenuUrl?: (url: string) => boolean;
+    onToast?: (msg: { message: string; type: "success" | "error" }) => void;
+    onBulkEdit?: (rows: RowData[]) => void;
+    onBulkDelete?: (rows: RowData[]) => void;
+    onBulkAlimtalk?: (rows: RowData[]) => void;
+    deleting?: boolean;
+    /** "컬럼 표시 설정" 메뉴 항목 id(기본 "column-toggle"). */
+    columnSettingsMenuId?: string;
+  };
+  /** 이 값이 바뀌면 선택(체크)을 모두 해제한다(일괄 작업 완료 후 부모가 1 증가시킴). */
+  selectionResetKey?: number;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -88,6 +120,8 @@ export function CollabTable({
   getColAccent: getColAccentProp,
   tabs,
   tabAdmin,
+  adminToolbar,
+  selectionResetKey,
   defaultVisibleColumns,
   defaultColumnOrder,
 }: CollabTableProps) {
@@ -165,9 +199,50 @@ export function CollabTable({
   const totalPages = useMemo(() => totalPageCount(sortedRows.length, pageSize), [sortedRows.length, pageSize]);
   const pagedData = useMemo(() => paginate(sortedRows, currentPage, pageSize), [sortedRows, currentPage, pageSize]);
 
+  // 관리자 도구모음 활성 여부 — isAdmin 이고 adminToolbar 가 주어질 때만.
+  const adminEnabled = isAdmin && !!adminToolbar;
+  // 선택된 행들(관리자 일괄 작업 콜백에 넘김)
+  const checkedRows = useMemo(
+    () => (adminEnabled ? sortedRows.filter((r) => checkedIds.has(String(r[rowIdKey]))) : []),
+    [adminEnabled, sortedRows, checkedIds, rowIdKey],
+  );
+  // 관리 도구 메뉴 — "컬럼 표시 설정" 항목의 onClick 을 표 내부 컬럼 모달로 연결(없으면 자동 추가).
+  const colSettingsMenuId = adminToolbar?.columnSettingsMenuId ?? "column-toggle";
+  const wiredSettingsMenus = useMemo<SettingsMenuItem[]>(() => {
+    const base = adminToolbar?.settingsBaseMenus ?? [];
+    let hasColItem = false;
+    const mapped = base.map((m) => {
+      if (m.id === colSettingsMenuId) {
+        hasColItem = true;
+        return { ...m, onClick: () => setColumnModalOpen(true) };
+      }
+      return m;
+    });
+    if (!hasColItem) {
+      mapped.push({ id: colSettingsMenuId, label: "컬럼 표시 설정", icon: "👁️", onClick: () => setColumnModalOpen(true) });
+    }
+    return mapped;
+  }, [adminToolbar?.settingsBaseMenus, colSettingsMenuId]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, pageSize, activeTabId]);
+
+  // 행 목록이 바뀌면 사라진 행(예: 삭제됨)의 선택을 자동 해제 — 유령 선택·유령 개수 방지.
+  useEffect(() => {
+    setCheckedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const valid = new Set(rows.map((r) => String(r[rowIdKey])));
+      const next = new Set([...prev].filter((id) => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [rows, rowIdKey]);
+
+  // 부모가 selectionResetKey 를 올리면(일괄 작업 완료) 선택을 전부 해제.
+  useEffect(() => {
+    if (selectionResetKey === undefined) return;
+    setCheckedIds(new Set());
+  }, [selectionResetKey]);
 
   const getColLabel = useCallback((col: ColumnDef) => colLabelOverrides[col.key] || col.label || col.key, [colLabelOverrides]);
   const getColAccent = useCallback((col: ColumnDef) => (getColAccentProp ? getColAccentProp(col) : null), [getColAccentProp]);
@@ -338,27 +413,28 @@ export function CollabTable({
         <FilterTabs tabs={tabs} activeId={activeTabId} onSelect={selectTab} admin={isAdmin && tabAdmin ? tabAdmin : undefined} />
       )}
       <TopControls
-        isAdmin={false}
-        onCreateNew={() => {}}
-        settingsBaseMenus={[]}
-        cfActiveCount={0}
-        settingsMenuOrder={[]}
-        persistSettingsMenuOrder={() => {}}
-        settingsMenuLabelOverrides={{}}
-        persistSettingsMenuLabel={() => {}}
-        settingsMenuHidden={[]}
-        persistSettingsMenuHidden={() => {}}
-        settingsMenuCustom={[]}
-        persistSettingsMenuCustom={() => {}}
-        isSafeMenuUrl={() => false}
-        onToast={() => {}}
+        isAdmin={adminEnabled}
+        onCreateNew={adminToolbar?.onCreateNew ?? (() => {})}
+        settingsBaseMenus={adminEnabled ? wiredSettingsMenus : []}
+        cfActiveCount={adminToolbar?.cfActiveCount ?? 0}
+        settingsMenuOrder={adminToolbar?.settingsMenuOrder ?? []}
+        persistSettingsMenuOrder={adminToolbar?.persistSettingsMenuOrder ?? (() => {})}
+        settingsMenuLabelOverrides={adminToolbar?.settingsMenuLabelOverrides ?? {}}
+        persistSettingsMenuLabel={adminToolbar?.persistSettingsMenuLabel ?? (() => {})}
+        settingsMenuHidden={adminToolbar?.settingsMenuHidden ?? []}
+        persistSettingsMenuHidden={adminToolbar?.persistSettingsMenuHidden ?? (() => {})}
+        settingsMenuCustom={adminToolbar?.settingsMenuCustom ?? []}
+        persistSettingsMenuCustom={adminToolbar?.persistSettingsMenuCustom ?? (() => {})}
+        isSafeMenuUrl={adminToolbar?.isSafeMenuUrl ?? (() => false)}
+        onToast={adminToolbar?.onToast ?? (() => {})}
         searchInput={searchInput}
         setSearchInput={setSearchInput}
-        checkedCount={0}
-        onBulkEdit={() => {}}
-        onBulkDelete={() => {}}
-        deleting={false}
-        onBulkAlimtalk={() => {}}
+        checkedCount={adminEnabled ? checkedIds.size : 0}
+        onBulkEdit={() => adminToolbar?.onBulkEdit?.(checkedRows)}
+        onBulkDelete={() => adminToolbar?.onBulkDelete?.(checkedRows)}
+        deleting={adminToolbar?.deleting ?? false}
+        onBulkAlimtalk={() => adminToolbar?.onBulkAlimtalk?.(checkedRows)}
+        showBulkAlimtalk={!!adminToolbar?.onBulkAlimtalk}
         onRefresh={onRefresh}
         loading={loading}
         mobileViewMode={mobileViewMode}
@@ -372,14 +448,16 @@ export function CollabTable({
         showPageBox={true}
       />
 
-      <div className="mb-2 mt-2 flex justify-end">
-        <button
-          onClick={() => setColumnModalOpen(true)}
-          className="rounded-lg border border-wedly-bd px-3 py-1.5 text-sm font-medium text-wedly-t2 hover:bg-wedly-bg-gray"
-        >
-          컬럼 설정
-        </button>
-      </div>
+      {!adminEnabled && (
+        <div className="mb-2 mt-2 flex justify-end">
+          <button
+            onClick={() => setColumnModalOpen(true)}
+            className="rounded-lg border border-wedly-bd px-3 py-1.5 text-sm font-medium text-wedly-t2 hover:bg-wedly-bg-gray"
+          >
+            컬럼 설정
+          </button>
+        </div>
+      )}
 
       <MobileCardList
         mobileViewMode={mobileViewMode}
