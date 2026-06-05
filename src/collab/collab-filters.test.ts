@@ -69,3 +69,18 @@ describe("filterRowsByTab", () => {
     expect(filterRowsByTab(rows, { id: "all", label: "전체", filters: [] })).toHaveLength(3);
   });
 });
+
+describe("matchesFilter — multi_select 다중값(하이브 동일화)", () => {
+  it("equals: '가망, 계약대기' 행이 '가망' 필터에 매칭", () => {
+    expect(matchesFilter({ s: "가망, 계약대기" } as RowData, { field: "s", operator: "equals", value: "가망" })).toBe(true);
+  });
+  it("equals: 단일값은 정확 일치만(기존 동작 보존)", () => {
+    expect(matchesFilter({ s: "가망" } as RowData, { field: "s", operator: "equals", value: "계약대기" })).toBe(false);
+  });
+  it("in: '가망, 계약대기' 행이 ['계약대기'] 필터에 매칭", () => {
+    expect(matchesFilter({ s: "가망, 계약대기" } as RowData, { field: "s", operator: "in", value: ["계약대기"] })).toBe(true);
+  });
+  it("in: 다중값 어느 것도 안 맞으면 비매칭", () => {
+    expect(matchesFilter({ s: "가망, 계약대기" } as RowData, { field: "s", operator: "in", value: ["계약완료"] })).toBe(false);
+  });
+});

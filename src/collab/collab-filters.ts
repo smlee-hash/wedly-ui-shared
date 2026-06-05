@@ -30,11 +30,21 @@ export function matchesFilter(row: RowData, filter: FilterCondition): boolean {
   const rawVal = row[filter.field];
   const strVal = rawVal != null ? String(rawVal) : "";
   const isEmpty = rawVal === null || rawVal === undefined || rawVal === "";
+  // multi_select 값("값1, 값2")은 각 값 단위로도 비교 — 여러 개 고른 행이
+  // equals/in 필터(상단 탭)에서 누락되지 않도록. 단일값(", " 없음)은 기존과 동일.
+  const parts = strVal.includes(", ")
+    ? strVal.split(", ").map((s) => s.trim()).filter(Boolean)
+    : null;
   switch (filter.operator) {
-    case "equals":
-      return strVal === String(filter.value || "");
-    case "in":
-      return Array.isArray(filter.value) && filter.value.includes(strVal);
+    case "equals": {
+      const target = String(filter.value || "");
+      return strVal === target || (parts ? parts.includes(target) : false);
+    }
+    case "in": {
+      const fv = filter.value;
+      if (!Array.isArray(fv)) return false;
+      return fv.includes(strVal) || (parts ? parts.some((p) => fv.includes(p)) : false);
+    }
     case "is_empty":
       return isEmpty;
     case "is_not_empty":
