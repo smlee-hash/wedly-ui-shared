@@ -656,6 +656,8 @@ export function CollabTable({
         </div>
       )}
 
+      {/* 표·카드 영역 — 위 컨트롤 줄들과 같은 간격(8px)을 줘서 붙어 보이지 않게 */}
+      <div className="mt-2">
       <MobileCardList
         mobileViewMode={mobileViewMode}
         pagedData={pagedData}
@@ -710,6 +712,7 @@ export function CollabTable({
         refreshData={onRefresh}
         renderRow={renderRow}
       />
+      </div>
 
       <ColumnToggleModal
         open={columnModalOpen}
