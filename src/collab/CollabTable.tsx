@@ -534,10 +534,13 @@ export function CollabTable({
   ]), []);
 
   const isCellEditable = useCallback((col: ColumnDef) => {
-    if (!(adminEnabled && onCellEdit)) return false;
+    // 셀 값 편집 = 저장 핸들러(onCellEdit)가 연결된 앱에서 허용 — 관리자 전용 아님.
+    // 서버 정책이 "행을 볼 수 있으면 값 수정 가능"이라, 보이는 행의 값은 일반 사용자도 고칠 수 있다.
+    // (옵션 추가/삭제·색상 등 구조 편집은 그대로 editConfig=관리자에서만 제공)
+    if (!onCellEdit) return false;
     if (editConfig?.isEditable) return editConfig.isEditable(col);
     return DEFAULT_EDITABLE_TYPES.has(col.type);
-  }, [adminEnabled, onCellEdit, editConfig, DEFAULT_EDITABLE_TYPES]);
+  }, [onCellEdit, editConfig, DEFAULT_EDITABLE_TYPES]);
 
   // 선택된 행들(관리자 일괄 작업 콜백에 넘김)
   const checkedRows = useMemo(
