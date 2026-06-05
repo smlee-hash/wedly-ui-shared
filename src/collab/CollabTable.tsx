@@ -13,6 +13,7 @@ import {
   filterRowsBySearch,
   sortRows,
   nextSortConfig,
+  normalizeSort,
   orderColumns,
   computeStickyOffsets,
   paginate,
@@ -22,6 +23,7 @@ import {
   type RowData,
   type CellValue,
   type SortConfig,
+  type SortRule,
 } from "./collab-table-core";
 import { filterRowsByTab, type ViewTab } from "./collab-filters";
 import { FilterTabs, type FilterTabsAdmin } from "./FilterTabs";
@@ -142,6 +144,13 @@ export type CollabTableProps = {
   };
   /** 이 키 목록이 바뀌면 해당 칸을 강제로 '보임'으로 켠다(새로 추가한 칸을 표에 바로 보이게). */
   ensureVisibleKeys?: string[];
+  /**
+   * 제어형 다중 정렬. 주어지면 내부 sortConfig 대신 이 값을 사용하고,
+   * 변경 시 onSortChange 를 호출한다. 생략 시 기존 내부 상태로 동작.
+   */
+  sort?: SortConfig;
+  /** sort prop 변경 콜백(제어형 사용 시). 관리자 정렬 패널에서도 이 콜백으로 통지. */
+  onSortChange?: (s: SortRule[]) => void;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -244,6 +253,8 @@ export function CollabTable({
   columnAdmin,
   ensureVisibleKeys,
   headerSlot,
+  sort: sortProp,
+  onSortChange,
 }: CollabTableProps) {
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
@@ -254,7 +265,13 @@ export function CollabTable({
   // 표 상태
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  // 내부 정렬 상태(비제어형). sortProp 이 주어지면 덮어쓰임.
+  const [sortConfigInternal, setSortConfigInternal] = useState<SortConfig>(null);
+  // 제어형 우선: sortProp 이 주어지면 그 값, 아니면 내부 상태
+  const sortConfig: SortConfig = sortProp !== undefined ? sortProp : sortConfigInternal;
+  // 정렬 패널 열림 상태
+  const [sortPanelOpen, setSortPanelOpen] = useState(false);
+  const sortPanelRef = useRef<HTMLDivElement | null>(null);
   const [mobileViewMode, setMobileViewMode] = useState<"card" | "table">("table");
   const [pageSize, setPageSize] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
@@ -398,9 +415,34 @@ export function CollabTable({
     setCheckedIds(new Set());
   }, [selectionResetKey]);
 
+  // 정렬 패널 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!sortPanelOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (sortPanelRef.current && !sortPanelRef.current.contains(e.target as Node)) {
+        setSortPanelOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [sortPanelOpen]);
+
   const getColLabel = useCallback((col: ColumnDef) => colLabelOverrides[col.key] || col.label || col.key, [colLabelOverrides]);
   const getColAccent = useCallback((col: ColumnDef) => (getColAccentProp ? getColAccentProp(col) : null), [getColAccentProp]);
-  const handleSort = useCallback((key: string) => setSortConfig((p) => nextSortConfig(p, key)), []);
+
+  // 정렬 변경 공통 헬퍼 — 제어형이면 onSortChange, 비제어형이면 내부 setSortConfigInternal
+  const applySortChange = useCallback((next: SortConfig) => {
+    if (sortProp !== undefined) {
+      onSortChange?.(normalizeSort(next));
+    } else {
+      setSortConfigInternal(next);
+    }
+  }, [sortProp, onSortChange]);
+
+  // 헤더 클릭 → 1순위 단일 토글 (기존 동작 유지)
+  const handleSort = useCallback((key: string) => {
+    applySortChange(nextSortConfig(sortConfig, key));
+  }, [applySortChange, sortConfig]);
   const selectTab = useCallback((id: string) => {
     setActiveTabId(id);
     try { localStorage.setItem(ACTIVE_TAB_KEY, id); } catch {}
@@ -621,7 +663,112 @@ export function CollabTable({
       {maximized && headerSlot && (
         <div className="mb-2">{headerSlot}</div>
       )}
-      <div className="mb-1 flex items-center justify-end">
+      <div className="mb-1 flex items-center justify-end gap-2">
+        {/* 정렬 설정 패널 — 관리자만 노출 */}
+        {isAdmin && (
+          <div className="relative" ref={sortPanelRef}>
+            <button
+              type="button"
+              onClick={() => setSortPanelOpen((o) => !o)}
+              title="정렬 기준 설정"
+              className={cn(
+                "inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+                normalizeSort(sortConfig).length > 0
+                  ? "border-wedly-accent bg-wedly-bg-blue text-wedly-accent"
+                  : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray",
+              )}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <path d="M2 4h12M4 8h8M7 12h2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+              정렬
+              {normalizeSort(sortConfig).length > 0 && (
+                <span className="ml-0.5 rounded-full bg-wedly-accent px-1 py-0 text-[10px] text-white leading-4">
+                  {normalizeSort(sortConfig).length}
+                </span>
+              )}
+            </button>
+
+            {sortPanelOpen && (
+              <div className="absolute right-0 top-full mt-1 w-72 rounded-2xl border border-wedly-bd bg-white shadow-[0_8px_24px_-4px_rgba(10,34,68,0.14)] z-50">
+                <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
+                  <span className="text-[12px] font-semibold text-wedly-navy">정렬 기준</span>
+                  {normalizeSort(sortConfig).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => applySortChange([])}
+                      className="text-[11px] text-wedly-muted hover:text-wedly-red transition-colors"
+                    >
+                      전체 해제
+                    </button>
+                  )}
+                </div>
+
+                {/* 현재 정렬 기준 목록 */}
+                {normalizeSort(sortConfig).map((rule, idx) => (
+                  <div key={`${rule.key}-${idx}`} className="flex items-center gap-1.5 px-3 py-1.5">
+                    <span className="text-[11px] text-wedly-muted w-5 text-center">{idx + 1}</span>
+                    <select
+                      value={rule.key}
+                      onChange={(e) => {
+                        const rules = normalizeSort(sortConfig).map((r, i) =>
+                          i === idx ? { ...r, key: e.target.value } : r,
+                        );
+                        applySortChange(rules);
+                      }}
+                      className="flex-1 rounded-lg border border-wedly-bd bg-white px-2 py-1 text-[12px] text-wedly-navy focus:border-wedly-accent focus:outline-none"
+                    >
+                      {activeColumns.map((col) => (
+                        <option key={col.key} value={col.key}>{getColLabel(col)}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const rules = normalizeSort(sortConfig).map((r, i) =>
+                          i === idx ? { ...r, direction: r.direction === "asc" ? "desc" : "asc" as "asc" | "desc" } : r,
+                        );
+                        applySortChange(rules);
+                      }}
+                      className="rounded-lg border border-wedly-bd px-2 py-1 text-[11px] text-wedly-t2 hover:bg-wedly-bg-gray transition-colors w-12 text-center"
+                    >
+                      {rule.direction === "asc" ? "오름" : "내림"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const rules = normalizeSort(sortConfig).filter((_, i) => i !== idx);
+                        applySortChange(rules);
+                      }}
+                      className="rounded-lg border border-wedly-bd px-1.5 py-1 text-[12px] text-wedly-muted hover:bg-wedly-bg-red hover:text-wedly-red transition-colors"
+                      title="이 기준 삭제"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+
+                {/* 기준 추가 버튼 */}
+                <div className="px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const existing = new Set(normalizeSort(sortConfig).map((r) => r.key));
+                      const next = activeColumns.find((c) => !existing.has(c.key));
+                      if (!next) return;
+                      const rules: SortRule[] = [...normalizeSort(sortConfig), { key: next.key, direction: "asc" }];
+                      applySortChange(rules);
+                    }}
+                    className="w-full rounded-lg border border-wedly-bd-blue bg-wedly-bg-blue px-3 py-1.5 text-[12px] text-wedly-accent hover:bg-wedly-bg-blue/70 transition-colors text-left"
+                  >
+                    + 기준 추가
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={() => setMaximized((m) => !m)}
@@ -711,7 +858,7 @@ export function CollabTable({
         stickyOffsets={stickyOffsets}
         checkedIds={checkedIds}
         toggleAllChecks={toggleAllChecks}
-        sortConfig={sortConfig}
+        sortConfig={(() => { const r = normalizeSort(sortConfig); return r.length > 0 ? r[0] : null; })()}
         handleSort={handleSort}
         colMenuKey={colMenuKey}
         setColMenuKey={setColMenuKey}

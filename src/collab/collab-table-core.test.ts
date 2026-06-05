@@ -4,6 +4,7 @@ import {
   filterRowsBySearch,
   sortRows,
   nextSortConfig,
+  normalizeSort,
   orderColumns,
   computeStickyOffsets,
   paginate,
@@ -11,6 +12,7 @@ import {
   reorderList,
   defaultFormatCellValue,
   type RowData,
+  type SortRule,
 } from "./collab-table-core";
 
 const col = (key: string, type: ColumnDef["type"], extra: Partial<ColumnDef> = {}): ColumnDef => ({
@@ -51,6 +53,60 @@ describe("sortRows / nextSortConfig", () => {
     expect(nextSortConfig({ key: "v", direction: "asc" }, "v")).toEqual({ key: "v", direction: "desc" });
     expect(nextSortConfig({ key: "v", direction: "desc" }, "v")).toBeNull();
     expect(nextSortConfig({ key: "v", direction: "desc" }, "other")).toEqual({ key: "other", direction: "asc" });
+  });
+});
+
+describe("normalizeSort", () => {
+  it("null → 빈 배열", () => {
+    expect(normalizeSort(null)).toEqual([]);
+  });
+  it("단일 객체 → 1개짜리 배열", () => {
+    expect(normalizeSort({ key: "v", direction: "asc" })).toEqual([{ key: "v", direction: "asc" }]);
+  });
+  it("배열 → 그대로 반환", () => {
+    const rules: SortRule[] = [{ key: "a", direction: "asc" }, { key: "b", direction: "desc" }];
+    expect(normalizeSort(rules)).toBe(rules);
+  });
+});
+
+describe("sortRows — 다중 AND 정렬", () => {
+  // 1순위: status(asc), 2순위: name(asc)
+  const rows: RowData[] = [
+    { _id: "1", status: "B", name: "나" },
+    { _id: "2", status: "A", name: "다" },
+    { _id: "3", status: "A", name: "가" },
+    { _id: "4", status: "B", name: "가" },
+    { _id: "5", status: "",  name: "나" },
+  ];
+
+  it("1순위 동률이면 2순위로 정렬(AND)", () => {
+    const rules: SortRule[] = [
+      { key: "status", direction: "asc" },
+      { key: "name",   direction: "asc" },
+    ];
+    // status A < B, A끼리는 name 오름(가<다), B끼리는 name 오름(가<나), 빈 status는 항상 뒤
+    expect(sortRows(rows, rules).map((r) => r._id)).toEqual(["3", "2", "4", "1", "5"]);
+  });
+
+  it("2순위 내림차순도 동작", () => {
+    const rules: SortRule[] = [
+      { key: "status", direction: "asc" },
+      { key: "name",   direction: "desc" },
+    ];
+    // A끼리: 다>가 → 2,3 / B끼리: 나>가 → 1,4
+    expect(sortRows(rows, rules).map((r) => r._id)).toEqual(["2", "3", "1", "4", "5"]);
+  });
+
+  it("빈 배열 SortConfig → 원본 순서", () => {
+    expect(sortRows(rows, []).map((r) => r._id)).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("nextSortConfig 배열 형태 prev: 첫 규칙 기준 토글", () => {
+    const prev: SortRule[] = [{ key: "status", direction: "asc" }, { key: "name", direction: "desc" }];
+    // status asc → status desc (2순위는 사라짐 — 단일 반환)
+    expect(nextSortConfig(prev, "status")).toEqual({ key: "status", direction: "desc" });
+    // 다른 키 → 그 키 osc 단일
+    expect(nextSortConfig(prev, "name")).toEqual({ key: "name", direction: "asc" });
   });
 });
 

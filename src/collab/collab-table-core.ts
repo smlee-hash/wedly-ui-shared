@@ -3,7 +3,17 @@ import { formatCurrency, formatDate } from "../lib/utils";
 
 export type CellValue = string | number | boolean | null;
 export type RowData = Record<string, CellValue>;
-export type SortConfig = { key: string; direction: "asc" | "desc" } | null;
+/** 정렬 규칙 하나 (다중 AND 정렬의 단위) */
+export type SortRule = { key: string; direction: "asc" | "desc" };
+/** 단일 정렬(하위호환) 또는 다중 정렬 배열 또는 null(정렬 없음) */
+export type SortConfig = SortRule[] | { key: string; direction: "asc" | "desc" } | null;
+
+/** SortConfig 를 항상 SortRule[] 로 정규화. null→[], 단일 객체→[그것], 배열→그대로. */
+export function normalizeSort(s: SortConfig): SortRule[] {
+  if (s == null) return [];
+  if (Array.isArray(s)) return s;
+  return [s];
+}
 
 /** 밑줄(_)로 시작하는 내부 키는 제외하고, 나머지 값들을 이어붙여 대소문자 무시 부분일치 검색 */
 export function filterRowsBySearch(rows: RowData[], query: string): RowData[] {
@@ -21,25 +31,36 @@ export function filterRowsBySearch(rows: RowData[], query: string): RowData[] {
   });
 }
 
-/** 한국어 정렬. 빈 값은 방향과 무관하게 항상 뒤로. */
+/** 한국어 정렬. 빈 값은 방향과 무관하게 항상 뒤로.
+ *  다중 AND 정렬 지원: 1순위 기준이 같을 때만 2순위 기준으로 비교.
+ *  단일 { key, direction } 또는 배열 SortRule[] 모두 처리(하위호환). */
 export function sortRows(rows: RowData[], sortConfig: SortConfig): RowData[] {
-  if (!sortConfig) return rows;
-  const { key, direction } = sortConfig;
+  const rules = normalizeSort(sortConfig);
+  if (rules.length === 0) return rows;
   return [...rows].sort((a, b) => {
-    const av = a[key];
-    const bv = b[key];
-    if (av == null || av === "") return 1;
-    if (bv == null || bv === "") return -1;
-    return direction === "asc"
-      ? String(av).localeCompare(String(bv), "ko")
-      : String(bv).localeCompare(String(av), "ko");
+    for (const { key, direction } of rules) {
+      const av = a[key];
+      const bv = b[key];
+      if ((av == null || av === "") && (bv == null || bv === "")) continue;
+      if (av == null || av === "") return 1;
+      if (bv == null || bv === "") return -1;
+      const cmp = direction === "asc"
+        ? String(av).localeCompare(String(bv), "ko")
+        : String(bv).localeCompare(String(av), "ko");
+      if (cmp !== 0) return cmp;
+    }
+    return 0;
   });
 }
 
-/** 정렬 토글: 다른 키 클릭→오름, 같은 키 오름→내림, 내림→해제(null) */
+/** 정렬 토글: 다른 키 클릭→오름, 같은 키 오름→내림, 내림→해제(null).
+ *  헤더 클릭(1순위 단일 토글) 전용. 반환은 단일 SortRule 또는 null — 하위호환 유지.
+ *  prev 가 배열이면 첫 번째 규칙을 기준으로 토글한다. */
 export function nextSortConfig(prev: SortConfig, key: string): SortConfig {
-  if (prev?.key === key) {
-    return prev.direction === "asc" ? { key, direction: "desc" } : null;
+  const rules = normalizeSort(prev);
+  const first = rules[0];
+  if (first?.key === key) {
+    return first.direction === "asc" ? { key, direction: "desc" } : null;
   }
   return { key, direction: "asc" };
 }
