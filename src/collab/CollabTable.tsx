@@ -97,6 +97,8 @@ export type CollabTableProps = {
   /** 이 값이 바뀌면 선택(체크)을 모두 해제한다(일괄 작업 완료 후 부모가 1 증가시킴). */
   selectionResetKey?: number;
   /** 표에서 칸을 클릭해 바로 고치는 콜백. 관리자이고 이게 주어질 때만 켜진다(생략 시 기존과 동일한 읽기 전용). */
+  /** 최대화 모드에서 표 위에 함께 표시할 헤더(예: 탭 메뉴). 미지정 시 최대화해도 헤더 영역 없음. */
+  headerSlot?: ReactNode;
   onCellEdit?: (row: RowData, columnKey: string, value: string | number | boolean | null) => void;
   /** 표 안에서 칸을 클릭해 바로 수정할 때 쓰는 설정(선택/상태 칸의 선택지·색 등). onCellEdit 와 함께 줄 때만 편집이 켜진다. */
   editConfig?: {
@@ -241,6 +243,7 @@ export function CollabTable({
   editConfig,
   columnAdmin,
   ensureVisibleKeys,
+  headerSlot,
 }: CollabTableProps) {
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
@@ -305,6 +308,15 @@ export function CollabTable({
   const resizingRef = useRef<unknown>(null);
 
   const [columnModalOpen, setColumnModalOpen] = useState(false);
+
+  // F2: 표 최대화 — 사이드바·상단 메뉴를 덮는 전체화면. 탭(headerSlot)은 위에 유지, 페이지 이동줄도 유지.
+  const [maximized, setMaximized] = useState(false);
+  useEffect(() => {
+    if (!maximized) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMaximized(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [maximized]);
 
   // 인라인 셀 수정 상태
   const [editingCell, setEditingCell] = useState<{ id: string; key: string } | null>(null);
@@ -605,7 +617,20 @@ export function CollabTable({
   }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, renderFieldValue, editingCell, isCellEditable, onCellEdit, editConfig]);
 
   return (
-    <div>
+    <div className={maximized ? "fixed inset-0 z-[70] bg-white overflow-y-auto p-3 sm:p-4" : undefined}>
+      {maximized && headerSlot && (
+        <div className="mb-2">{headerSlot}</div>
+      )}
+      <div className="mb-1 flex items-center justify-end">
+        <button
+          type="button"
+          onClick={() => setMaximized((m) => !m)}
+          title={maximized ? "최대화 해제 (Esc)" : "표를 화면 전체로 넓게 보기"}
+          className="inline-flex items-center gap-1 rounded-lg border border-wedly-bd px-2.5 py-1.5 text-[12px] font-medium text-wedly-t2 transition-colors hover:bg-wedly-bg-gray"
+        >
+          {maximized ? "↙ 최대화 해제" : "⛶ 표 최대화"}
+        </button>
+      </div>
       {tabs && tabs.length > 0 && (
         <FilterTabs tabs={tabs} activeId={activeTabId} onSelect={selectTab} admin={isAdmin && tabAdmin ? tabAdmin : undefined} />
       )}
