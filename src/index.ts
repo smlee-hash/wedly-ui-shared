@@ -114,6 +114,9 @@ export {
 export { HistoryPanel } from "./components/HistoryPanel";
 export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPanel";
 
+// 업체 상세창 "맨 위 상호명" 공용 편집 부품 — 하이브·ERP·일루아 모든 상세 모달 공유 (클릭 → 그 자리 수정)
+export { EditableTitle } from "./components/EditableTitle";
+
 // 틀(레이아웃) — 사이드바 접힘 폭 변화 + 새로고침 유지 (ERP·하이브·일루아 공용)
 export { resolveStoredCollapsed } from "./layout/sidebar-collapse-core";
 export { useSidebarCollapse } from "./layout/useSidebarCollapse";
