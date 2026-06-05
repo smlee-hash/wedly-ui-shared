@@ -114,4 +114,11 @@ export {
 export { HistoryPanel } from "./components/HistoryPanel";
 export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPanel";
 
+// 틀(레이아웃) — 사이드바 접힘 폭 변화 + 새로고침 유지 (ERP·하이브·일루아 공용)
+export { resolveStoredCollapsed } from "./layout/sidebar-collapse-core";
+export { useSidebarCollapse } from "./layout/useSidebarCollapse";
+export type { SidebarCollapseState } from "./layout/useSidebarCollapse";
+export { CollapsibleShell } from "./layout/CollapsibleShell";
+export type { MainVariant, CollapsibleShellProps } from "./layout/CollapsibleShell";
+
 export const __MODULE_VERSION__ = "0.32.1";
