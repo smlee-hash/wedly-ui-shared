@@ -118,6 +118,22 @@ export type CollabTableProps = {
     allowDelete?: boolean;
   };
   /**
+   * 컬럼 표시 설정 모달에 공통/그외 구분, 승격, 삭제, 복원 기능을 전달하는 묶음.
+   * 생략 시 기존과 100% 동일(공통/그외 구분 없음, 삭제 복원 없음).
+   *
+   * onDeleteColumn: isDeletable=true인 칸을 모달에서 삭제(✕)할 때 호출되는 soft-delete 콜백.
+   *   제공하면 isDeletable+이 콜백으로 삭제를 처리(columnAdmin.deleteColumn 와 별도).
+   *   미제공 시 columnAdmin.deleteColumn 을 그대로 사용.
+   */
+  columnGrouping?: {
+    commonColumnKeys?: string[];
+    onPromoteToCommon?: (key: string) => void;
+    deletedColumns?: string[];
+    onRestoreColumn?: (key: string) => void;
+    isDeletable?: (col: ColumnDef) => boolean;
+    onDeleteColumn?: (key: string) => void;
+  };
+  /**
    * 칸 관리(추가/제목·타입 수정/삭제)를 소비 앱이 제공할 때 주는 묶음. 컬럼 설정 모달로 전달된다.
    * 생략 시 컬럼 설정 모달은 보기/검색만(기존과 100% 동일). 제공 시 편집 기능이 켜진다.
    * renameColumn 은 "저장" 콜백 — 소비 앱이 editColLabel(제목)·editColType(타입)을 함께 저장한다.
@@ -251,6 +267,7 @@ export function CollabTable({
   onCellEdit,
   editConfig,
   columnAdmin,
+  columnGrouping,
   ensureVisibleKeys,
   headerSlot,
   sort: sortProp,
@@ -899,7 +916,10 @@ export function CollabTable({
         editColLabel={columnAdmin?.editColLabel ?? ""}
         setEditColLabel={columnAdmin?.setEditColLabel ?? (() => {})}
         renameColumn={columnAdmin?.renameColumn ?? (() => {})}
-        deleteColumn={columnAdmin?.deleteColumn ?? (() => {})}
+        deleteColumn={
+          // columnGrouping.onDeleteColumn 이 있으면 그것을 사용(soft-delete). 없으면 columnAdmin.deleteColumn(기존 hard-delete).
+          columnGrouping?.onDeleteColumn ?? columnAdmin?.deleteColumn ?? (() => {})
+        }
         showAddColumn={columnAdmin?.showAddColumn ?? false}
         setShowAddColumn={columnAdmin?.setShowAddColumn ?? (() => {})}
         newColLabel={columnAdmin?.newColLabel ?? ""}
@@ -912,6 +932,11 @@ export function CollabTable({
         canEditColumn={columnAdmin?.canEditColumn}
         canChangeType={columnAdmin?.canChangeType}
         typeOptions={columnAdmin?.typeOptions}
+        commonColumnKeys={columnGrouping?.commonColumnKeys}
+        onPromoteToCommon={columnGrouping?.onPromoteToCommon}
+        deletedColumns={columnGrouping?.deletedColumns}
+        onRestoreColumn={columnGrouping?.onRestoreColumn}
+        isDeletable={columnGrouping?.isDeletable}
       />
     </div>
   );
