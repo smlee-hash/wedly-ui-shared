@@ -179,6 +179,156 @@ function loadJson<T>(key: string, fallback: T): T {
   }
 }
 
+// 다중 선택(multi_select) 칸 인라인 편집기 — CellSelectEditor 와 동일한 포털·위치·바깥클릭 구조.
+function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg }: {
+  value: string;
+  options: string[];
+  columnKey: string;
+  onSave: (v: string) => void;
+  onClose: () => void;
+  cfg?: CollabTableProps["editConfig"];
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [addingNew, setAddingNew] = useState(false);
+  const [newOptInput, setNewOptInput] = useState("");
+  const newOptRef = useRef<HTMLInputElement>(null);
+
+  // 현재 선택된 값 집합 (콤마+공백 구분)
+  const [selected, setSelected] = useState<Set<string>>(() => {
+    return new Set(value.split(",").map((s) => s.trim()).filter(Boolean));
+  });
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const el = anchorRef.current.parentElement ?? anchorRef.current;
+      const rect = el.getBoundingClientRect();
+      const dropH = 320;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const top = spaceBelow >= dropH
+        ? rect.bottom + 4
+        : rect.top - Math.min(dropH, rect.top - 8) - 4;
+      setPos({ top, left: rect.left });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pos) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        // 바깥 클릭 시 현재 선택 상태로 저장 후 닫기
+        const joined = Array.from(selected).join(", ");
+        onSave(joined);
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose, onSave, pos, selected]);
+
+  useEffect(() => {
+    if (addingNew) newOptRef.current?.focus();
+  }, [addingNew]);
+
+  const toggle = (opt: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(opt)) next.delete(opt); else next.add(opt);
+      return next;
+    });
+  };
+
+  const handleAddNew = () => {
+    const name = newOptInput.trim();
+    if (!name) return;
+    cfg?.onAddOption?.(columnKey, name);
+    setSelected((prev) => new Set([...prev, name]));
+    setNewOptInput("");
+    setAddingNew(false);
+  };
+
+  // 옵션 목록: cfg.getOptions 로 최신 상태 반영
+  const liveOptions = cfg?.getOptions?.(columnKey) ?? options;
+
+  return (
+    <>
+      <div ref={anchorRef} className="h-0" />
+      {pos && typeof document !== "undefined" && createPortal(
+        <div
+          ref={ref}
+          className="fixed w-64 max-h-[320px] overflow-y-auto rounded-2xl border border-wedly-bd bg-white shadow-[0_10px_30px_-6px_rgba(10,34,68,0.18)]"
+          style={{ top: pos.top, left: pos.left, zIndex: 9999 }}
+        >
+          <div className="py-1">
+            {liveOptions.map((opt) => {
+              const isOn = selected.has(opt);
+              const colorClass = cfg?.getColorClass?.(columnKey, opt) ?? "bg-wedly-bg-gray text-wedly-t2";
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => toggle(opt)}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-wedly-bg-blue/40 transition-colors"
+                >
+                  <span className={cn(
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] transition-colors",
+                    isOn ? "border-wedly-accent bg-wedly-accent text-white" : "border-wedly-bd bg-white",
+                  )}>
+                    {isOn && "✓"}
+                  </span>
+                  <span className={cn("inline-block rounded-full px-2 py-0.5 text-[12px] font-medium", colorClass)}>
+                    {opt}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 새 옵션 추가 */}
+          {cfg?.onAddOption && (
+            <div className="border-t border-wedly-bd px-3 py-2">
+              {addingNew ? (
+                <div className="flex gap-1">
+                  <input
+                    ref={newOptRef}
+                    value={newOptInput}
+                    onChange={(e) => setNewOptInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleAddNew(); if (e.key === "Escape") setAddingNew(false); }}
+                    placeholder="새 옵션"
+                    className="flex-1 rounded-lg border border-wedly-bd px-2 py-1 text-[12px] focus:border-wedly-accent focus:outline-none"
+                  />
+                  <button type="button" onClick={handleAddNew} className="rounded-lg bg-wedly-accent px-2 py-1 text-[11px] text-white">추가</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAddingNew(true)}
+                  className="w-full rounded-lg border border-wedly-bd-blue bg-wedly-bg-blue px-2 py-1 text-[12px] text-wedly-accent hover:bg-wedly-bg-blue/70 transition-colors text-left"
+                >
+                  + 새 옵션
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 저장 버튼 */}
+          <div className="border-t border-wedly-bd px-3 py-2">
+            <button
+              type="button"
+              onClick={() => { onSave(Array.from(selected).join(", ")); onClose(); }}
+              className="w-full rounded-lg bg-wedly-accent px-3 py-1.5 text-[12px] font-medium text-white hover:bg-wedly-navy transition-colors"
+            >
+              저장
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 // 선택(select/status) 칸 인라인 편집기 — portal 방식으로 뷰포트 안에 안전하게 띄움.
 function CellSelectEditor({ value, options, columnKey, onSave, onClose, cfg }: {
   value: string;
@@ -378,9 +528,9 @@ export function CollabTable({
   // 관리자 도구모음 활성 여부 — isAdmin 이고 adminToolbar 가 주어질 때만.
   const adminEnabled = isAdmin && !!adminToolbar;
 
-  // 편집 가능 종류(기본) — formula·last_edited_time·last_edited_by·auto_increment_id·file·multi_select·person 은 편집 안 함.
+  // 편집 가능 종류(기본) — formula·last_edited_time·last_edited_by·auto_increment_id·file·person 은 편집 안 함.
   const DEFAULT_EDITABLE_TYPES = useMemo(() => new Set<ColumnDef["type"]>([
-    "text", "title", "email", "phone_number", "number", "date", "select", "status", "checkbox",
+    "text", "title", "email", "phone_number", "number", "date", "select", "status", "checkbox", "multi_select",
   ]), []);
 
   const isCellEditable = useCallback((col: ColumnDef) => {
@@ -653,6 +803,15 @@ export function CollabTable({
                   />
                 ) : col.type === "select" || col.type === "status" ? (
                   <CellSelectEditor
+                    value={String(v ?? "")}
+                    options={editConfig?.getOptions?.(col.key) ?? []}
+                    columnKey={col.key}
+                    cfg={editConfig}
+                    onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv || null); }}
+                    onClose={() => setEditingCell(null)}
+                  />
+                ) : col.type === "multi_select" ? (
+                  <CellMultiSelectEditor
                     value={String(v ?? "")}
                     options={editConfig?.getOptions?.(col.key) ?? []}
                     columnKey={col.key}
