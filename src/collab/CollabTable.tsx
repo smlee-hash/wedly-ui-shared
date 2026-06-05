@@ -712,7 +712,7 @@ export function CollabTable({
     return (
       <tr
         key={id || virtualIndex}
-        className={cn("border-t border-slate-100 hover:bg-blue-50/30", checkedIds.has(id) && "bg-wedly-bg-blue/30")}
+        className={cn("border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30", checkedIds.has(id) && "bg-wedly-bg-blue/30")}
       >
         <td className="py-2 px-3 w-10 text-center sticky left-0 z-10 bg-white">
           <input
