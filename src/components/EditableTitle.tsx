@@ -64,16 +64,17 @@ export function EditableTitle({
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className={`group min-w-0 flex-1 inline-flex items-center gap-1.5 text-left ${className}`}
-      title="클릭해서 상호명 수정"
+      className={`group min-w-0 flex-1 inline-flex items-center gap-1.5 text-left rounded-md px-1.5 -mx-1.5 hover:bg-wedly-bg-gray/60 transition-colors ${className}`}
+      title="클릭(또는 탭)해서 상호명 수정"
     >
       <h2 className="text-[16px] sm:text-lg font-bold text-wedly-navy truncate">{display}</h2>
+      {/* 연필 아이콘 — 휴대폰(마우스 올림 없음)에서도 '수정 가능'이 보이도록 항상 옅게 표시, 마우스 올리면 진해짐 */}
       <svg
         width="14"
         height="14"
         viewBox="0 0 16 16"
         fill="none"
-        className="flex-shrink-0 text-wedly-muted opacity-0 group-hover:opacity-70 transition-opacity"
+        className="flex-shrink-0 text-wedly-muted opacity-50 group-hover:opacity-90 transition-opacity"
       >
         <path
           d="M11.5 2.5l2 2L6 12l-2.5.5L4 10l7.5-7.5z"
