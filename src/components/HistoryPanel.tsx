@@ -861,6 +861,9 @@ export function HistoryPanel({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
+              // 한글 등 IME 조합 중 Enter는 무시 — 조합이 안 끝난 상태로 등록하면
+              // 마지막 글자(예: "히스토리"의 "리")가 따로 또 등록되는 중복 입력 버그 방지.
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
