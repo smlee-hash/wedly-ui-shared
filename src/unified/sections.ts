@@ -197,12 +197,14 @@ export type BasicFieldSpec = {
   format?: ColumnLite["format"];
 };
 
-// ─── 공통 10칸 (하이브·ERP 모두 공유) ───
+// ─── 공통 11칸 (하이브·ERP·일루아 공유) ───
 // 진행상태·팀장·팀원은 앱별로 다르므로 제외. 환급금여부는 공통 신규 추가.
+// DB 담당/분류 분리(2026-06-07): 담당=54DB분류(하이브·ERP), 분류=16DB분류(일루아). 16DB분류를 담당 keys에서 떼어 분류로 이동.
 // 각 칸은 앞에서부터 "그 앱에 실제 있는" 첫 키로 연결되므로, 같은 표가 여러 앱에서 동작한다.
 // 종류(type)는 실제 컬럼 정의가 있으면 그 종류를 쓰고, 데이터에만 있는 키는 아래 type 를 보조로 쓴다.
 export const COMMON_BASIC_FIELD_SPECS: BasicFieldSpec[] = [
-  { label: "DB 담당",       keys: ["54DB분류", "16DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류", "분류"], type: "multi_select" },
+  { label: "DB 담당",       keys: ["54DB분류"], labelAliases: ["DB담당"], type: "multi_select" },
+  { label: "DB 분류",       keys: ["16DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류"], type: "select" },
   { label: "대표자명",      keys: ["03대표자명", "02대표자명", "대표자명"],                 type: "text" },
   { label: "연락처",        keys: ["04연락처", "03대표연락처", "대표연락처", "연락처"],       type: "phone_number" },
   { label: "이메일",        keys: ["53이메일", "이메일"],                                type: "email" },
