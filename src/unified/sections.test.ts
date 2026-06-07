@@ -8,7 +8,42 @@ import {
   BASIC_FIELD_SPECS,
   type BasicFieldSpec,
   type ColumnLite,
+  isCommonBasicLabel,
+  DEFAULT_COMMON_BASIC_LABELS,
+  ILLUA_APP_BASIC_FIELDS,
 } from "./sections";
+
+// ── isCommonBasicLabel: 공통/앱별 판정 (색 구분·공유 트리거 단일 출처) ──
+describe("isCommonBasicLabel — 공통/앱별 판정", () => {
+  it("기본 공통 라벨은 공통(true)", () => {
+    expect(isCommonBasicLabel("환급금여부")).toBe(true);
+    expect(isCommonBasicLabel("이메일")).toBe(true);
+    expect(isCommonBasicLabel("리포트")).toBe(true);
+  });
+  it("공백·대소문자 무시 매칭", () => {
+    expect(isCommonBasicLabel("DB 담당")).toBe(true);
+    expect(isCommonBasicLabel("db담당")).toBe(true);
+    expect(isCommonBasicLabel(" 대표자명 ")).toBe(true);
+  });
+  it("앱별(일루아 전용·하이브 전용) 칸은 false", () => {
+    expect(isCommonBasicLabel("주업종")).toBe(false);
+    expect(isCommonBasicLabel("팀장")).toBe(false);
+    expect(ILLUA_APP_BASIC_FIELDS.every((f) => isCommonBasicLabel(f.label))).toBe(false);
+  });
+  it("빈 라벨은 false", () => {
+    expect(isCommonBasicLabel("")).toBe(false);
+    expect(isCommonBasicLabel("   ")).toBe(false);
+  });
+  it("override.extra 는 공통으로 추가", () => {
+    expect(isCommonBasicLabel("주업종", { extra: ["주업종"] })).toBe(true);
+  });
+  it("override.excluded 는 기본 공통이라도 앱별로 내림", () => {
+    expect(isCommonBasicLabel("연락처", { excluded: ["연락처"] })).toBe(false);
+  });
+  it("기본 공통 라벨은 11개", () => {
+    expect(DEFAULT_COMMON_BASIC_LABELS.length).toBe(11);
+  });
+});
 
 // ── computeUnifiedSections: 시스템/컨테이너 키 제외 (하이브 원본 3건 이전) ──
 describe("computeUnifiedSections — 시스템키 제외", () => {

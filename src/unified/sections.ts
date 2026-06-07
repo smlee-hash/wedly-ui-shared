@@ -228,6 +228,40 @@ export const HIVE_APP_BASIC_FIELDS: BasicFieldSpec[] = [
   { label: "팀원",          keys: ["팀원", "담당 팀원", "담당팀원"],   labelAliases: ["팀원", "담당팀원"],              type: "person" },
 ];
 
+// ─── 일루아 전용 칸 ───
+// 공통 11칸에 없는, 일루아 기본정보 고유 칸. 공통 칸과 합쳐 buildBasicSection 에 넘긴다.
+// 01업체명(=상호명)은 상세창 제목이라 여기(행)에서 제외.
+export const ILLUA_APP_BASIC_FIELDS: BasicFieldSpec[] = [
+  { label: "주업종",          keys: ["25주업종", "주업종"],             type: "text" },
+  { label: "파트너사",        keys: ["18파트너사", "파트너사"],         type: "select" },
+  { label: "통합관리코드",     keys: ["19통합관리코드", "통합관리코드"], type: "text" },
+  { label: "메모",            keys: ["23메모", "메모"],                 type: "text" },
+  { label: "최종업데이트일시",  keys: ["24최종업데이트일시"],            type: "last_edited_time" },
+];
+
+// ─── 공통/앱별 판정 (색 구분·공유 트리거가 함께 쓰는 단일 출처) ───
+// "공통 칸"인지 = 기본 공통 라벨(COMMON_BASIC_FIELD_SPECS) + override(M2 토글) 가감.
+// 색(공통=파랑/앱별=회색)과 보관함 공유 트리거가 모두 이 한 함수를 쓴다(따로 판정해 어긋나는 일 방지).
+export const DEFAULT_COMMON_BASIC_LABELS: string[] = COMMON_BASIC_FIELD_SPECS.map((s) => s.label);
+
+const normCommonLabel = (s?: string) => (s || "").replace(/\s+/g, "").toLowerCase();
+
+// 관리자가 칸을 공통↔앱별로 바꾼 결과(기본 목록 대비 가감). M2에서 공용 보관함에 저장.
+export type CommonFieldOverride = { extra?: string[]; excluded?: string[] };
+
+/**
+ * label 이 "공통 칸"인지 판정. 라벨은 공백·대소문자 무시 매칭.
+ * - override.excluded 에 있으면 공통에서 제외(앱별로 내림).
+ * - 기본 공통 라벨이거나 override.extra 에 있으면 공통.
+ */
+export function isCommonBasicLabel(label: string, override?: CommonFieldOverride | null): boolean {
+  const n = normCommonLabel(label);
+  if (!n) return false;
+  if ((override?.excluded || []).some((e) => normCommonLabel(e) === n)) return false;
+  if (DEFAULT_COMMON_BASIC_LABELS.some((d) => normCommonLabel(d) === n)) return true;
+  return (override?.extra || []).some((x) => normCommonLabel(x) === n);
+}
+
 // ─── 기존 호환용 통짜 배열 (기존 사용처가 깨지지 않도록 유지) ───
 // 구성: 공통 10칸 + 하이브 전용 2칸. 진행상태가 빠지고 환급금여부가 들어간 변화에 주의.
 // 기존에 진행상태에 의존하던 곳이 있다면 COMMON_BASIC_FIELD_SPECS 에 직접 추가하거나
