@@ -668,7 +668,11 @@ export function CollabTable({
   }, [COL_LABELS_KEY]);
 
   const reorderColumn = useCallback((fromKey: string, toKey: string) => {
-    const base = colOrder.length ? colOrder : columns.map((c) => c.key);
+    // 화면에 실제로 보이는 전체 순서를 기준으로 옮긴다.
+    // 저장된 순서(colOrder)에 아직 없던 칸(나중에 추가됐거나 기본 숨김이라 뒤에 붙은 칸,
+    // 예: "DB 담당")도 끌 수 있도록 orderColumns 로 합친 전체 순서를 기준으로 삼는다.
+    // (이전엔 base=colOrder 라, 저장된 순서에 없는 칸은 reorderList 가 무시해 드래그가 먹지 않았음.)
+    const base = orderColumns(columns, colOrder).map((c) => c.key);
     const next = reorderList(base, fromKey, toKey);
     setColOrder(next);
     try { localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next)); } catch {}

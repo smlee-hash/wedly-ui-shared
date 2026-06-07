@@ -151,6 +151,19 @@ describe("reorderList", () => {
   it("없는 키면 원본 반환", () => {
     expect(reorderList(["a", "b"], "z", "a")).toEqual(["a", "b"]);
   });
+  // 회귀 방지: 저장된 순서에 없던 칸(나중에 추가됐거나 기본 숨김이라 뒤에 붙은 칸, 예: "DB 담당")이
+  // 드래그로 옮겨지지 않던 버그. reorderColumn 이 base 를 colOrder 가 아니라 orderColumns 전체로
+  // 잡아야 동작한다. 옛 동작(colOrder 만 base)이면 무시되고, 고친 동작(전체 순서 base)이면 이동된다.
+  it("저장된 순서에 없던 칸도 전체 순서 기준이면 드래그로 옮길 수 있다", () => {
+    const cols = [col("a", "text"), col("b", "text"), col("DB담당", "select")];
+    const savedOrder = ["a", "b"]; // DB담당 빠짐(나중에 추가됨)
+    // 옛 동작: 저장된 순서만 기준 → DB담당 이동 무시(버그)
+    expect(reorderList(savedOrder, "DB담당", "a")).toEqual(["a", "b"]);
+    // 고친 동작: orderColumns 로 만든 전체 순서 기준 → 정상 이동
+    const fullBase = orderColumns(cols, savedOrder).map((c) => c.key);
+    expect(fullBase).toEqual(["a", "b", "DB담당"]);
+    expect(reorderList(fullBase, "DB담당", "a")).toEqual(["DB담당", "a", "b"]);
+  });
 });
 
 describe("defaultFormatCellValue", () => {
