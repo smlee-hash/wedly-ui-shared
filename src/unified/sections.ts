@@ -199,12 +199,14 @@ export type BasicFieldSpec = {
 
 // ─── 공통 11칸 (하이브·ERP·일루아 공유) ───
 // 진행상태·팀장·팀원은 앱별로 다르므로 제외. 환급금여부는 공통 신규 추가.
-// DB 담당/분류 분리(2026-06-07): 담당=54DB분류(하이브·ERP), 분류=16DB분류(일루아). 16DB분류를 담당 keys에서 떼어 분류로 이동.
+// DB 담당/분류 정정(2026-06-07, 운영데이터 직접확인): 담당=59DB담당(ERP·하이브)·18파트너사(일루아) = "누가 담당"(위들리/하이브/파트너사).
+//   분류=54DB분류(ERP·하이브)·16DB분류/17소스DB분류(일루아) = "유입 출처"(TheLink/고용누리/필승마케팅).
+//   ※ 직전 분리에서 담당↔분류가 거꾸로였음(54DB분류는 출처인데 담당으로 매핑). 데이터 분포로 확인 후 바로잡음.
 // 각 칸은 앞에서부터 "그 앱에 실제 있는" 첫 키로 연결되므로, 같은 표가 여러 앱에서 동작한다.
 // 종류(type)는 실제 컬럼 정의가 있으면 그 종류를 쓰고, 데이터에만 있는 키는 아래 type 를 보조로 쓴다.
 export const COMMON_BASIC_FIELD_SPECS: BasicFieldSpec[] = [
-  { label: "DB 담당",       keys: ["54DB분류"], labelAliases: ["DB담당"], type: "multi_select" },
-  { label: "DB 분류",       keys: ["16DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류"], type: "select" },
+  { label: "DB 담당",       keys: ["59DB담당", "18파트너사"], labelAliases: ["DB담당"], type: "multi_select" },
+  { label: "DB 분류",       keys: ["54DB분류", "16DB분류", "17소스DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류"], type: "select" },
   { label: "대표자명",      keys: ["03대표자명", "02대표자명", "대표자명"],                 type: "text" },
   { label: "연락처",        keys: ["04연락처", "03대표연락처", "대표연락처", "연락처"],       type: "phone_number" },
   { label: "이메일",        keys: ["53이메일", "이메일"],                                type: "email" },
