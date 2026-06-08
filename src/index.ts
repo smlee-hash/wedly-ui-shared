@@ -114,4 +114,11 @@ export {
 export { HistoryPanel } from "./components/HistoryPanel";
 export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPanel";
 
-export const __MODULE_VERSION__ = "0.32.0";
+// 기능요청·제안 패널 — 별도 앱 임베드. "요청 페이지" 링크는 현재 주소 사용(로그인 창 문제 차단).
+// (하이브용 곁가지: 0.32.0 위에 패널만 추가 — 최신 본류(46141a6)에도 동일 코드가 있어 나중에 합류 시 자연 병합)
+export { DevRequestPanel } from "./components/DevRequestPanel";
+export type { DevRequestPanelProps } from "./components/DevRequestPanel";
+export { buildDevRequestUrl } from "./components/dev-request-url";
+export type { DevRequestUrlParams } from "./components/dev-request-url";
+
+export const __MODULE_VERSION__ = "0.32.0+hive-panel";
