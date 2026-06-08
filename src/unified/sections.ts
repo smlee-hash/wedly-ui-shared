@@ -262,6 +262,28 @@ export function isCommonBasicLabel(label: string, override?: CommonFieldOverride
   return (override?.extra || []).some((x) => normCommonLabel(x) === n);
 }
 
+/**
+ * 한 칸(key+label)이 공용 보관함에 공유될지와 그 fieldId(공통 라벨)를 판정. override 반영.
+ * - 후보 fieldId: 키가 기본 공통 spec.keys 에 들면 그 spec.label, 아니면 override.extra 에 라벨이 있으면 그 label.
+ * - 후보가 override.excluded(라벨 기준)면 공유 중단(null).
+ */
+export function resolveCommonFieldId(
+  key: string,
+  label: string,
+  override?: CommonFieldOverride | null,
+): string | null {
+  const n = normCommonLabel;
+  const isExcluded = (s: string) => (override?.excluded || []).some((e) => n(e) === n(s));
+  let fieldId: string | null = null;
+  for (const spec of COMMON_BASIC_FIELD_SPECS) {
+    if (spec.keys.includes(key)) { fieldId = spec.label; break; }
+  }
+  if (!fieldId && (override?.extra || []).some((x) => n(x) === n(label))) fieldId = label;
+  if (!fieldId) return null;
+  if (isExcluded(fieldId) || isExcluded(label)) return null;
+  return fieldId;
+}
+
 // ─── 기존 호환용 통짜 배열 (기존 사용처가 깨지지 않도록 유지) ───
 // 구성: 공통 10칸 + 하이브 전용 2칸. 진행상태가 빠지고 환급금여부가 들어간 변화에 주의.
 // 기존에 진행상태에 의존하던 곳이 있다면 COMMON_BASIC_FIELD_SPECS 에 직접 추가하거나

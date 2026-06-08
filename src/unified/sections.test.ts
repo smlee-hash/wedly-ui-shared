@@ -174,3 +174,25 @@ describe("buildBasicSection", () => {
     expect(sec.fields.map((f) => f.label)).not.toContain("없는칸");
   });
 });
+
+import { resolveCommonFieldId } from "./sections";
+
+describe("resolveCommonFieldId — override 반영 공유판정", () => {
+  it("기본 공통칸: 키가 공통 spec 키면 그 라벨 반환", () => {
+    expect(resolveCommonFieldId("53이메일", "이메일")).toBe("이메일");
+    expect(resolveCommonFieldId("03대표자명", "대표자명")).toBe("대표자명");
+  });
+  it("앱별칸: 기본+override 없으면 null", () => {
+    expect(resolveCommonFieldId("25주업종", "주업종")).toBe(null);
+  });
+  it("내림(excluded): 기본 공통칸을 앱별로 내리면 null", () => {
+    expect(resolveCommonFieldId("53이메일", "이메일", { excluded: ["이메일"] })).toBe(null);
+  });
+  it("올림(extra): 앱별칸을 공통으로 올리면 라벨 반환", () => {
+    expect(resolveCommonFieldId("25주업종", "주업종", { extra: ["주업종"] })).toBe("주업종");
+  });
+  it("라벨 매칭은 공백·대소문자 무시", () => {
+    expect(resolveCommonFieldId("25주업종", "주업종", { extra: [" 주 업 종 "] })).toBe("주업종");
+    expect(resolveCommonFieldId("53이메일", "이메일", { excluded: [" 이메일 "] })).toBe(null);
+  });
+});
