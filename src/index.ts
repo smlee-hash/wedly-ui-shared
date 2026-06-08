@@ -138,4 +138,11 @@ export type { SidebarCollapseState } from "./layout/useSidebarCollapse";
 export { CollapsibleShell } from "./layout/CollapsibleShell";
 export type { MainVariant, CollapsibleShellProps } from "./layout/CollapsibleShell";
 
-export const __MODULE_VERSION__ = "0.32.1";
+// 기능요청·제안 패널 — 별도 앱(wedly-dev-request) 임베드 (ERP·하이브·일루아 공용).
+// "요청 페이지" 링크는 고정 주소가 아니라 살아있는 현재 주소를 사용(로그인 창 문제 차단).
+export { DevRequestPanel } from "./components/DevRequestPanel";
+export type { DevRequestPanelProps } from "./components/DevRequestPanel";
+export { buildDevRequestUrl } from "./components/dev-request-url";
+export type { DevRequestUrlParams } from "./components/dev-request-url";
+
+export const __MODULE_VERSION__ = "0.33.0";
