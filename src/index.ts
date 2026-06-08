@@ -110,12 +110,11 @@ export { cellChips } from "./collab/collab-cell";
 export type { CellColorMaps, CellChip, CellContent } from "./collab/collab-cell";
 export { ColoredCell, createColoredFieldRenderer } from "./collab/CollabCell";
 
-// 통합 협업 — 경정청구 뷰 프리셋(공용): 새 공용 컬럼 2개 + 하이브식 배치 + 파생 규칙
+// 통합 협업 — 경정청구 뷰 프리셋(공용): 새 공용 컬럼 2개 + 하이브식 배치 + 배지색
 export {
   TAX_AMENDMENT_EXTRA_COLUMNS,
   TAX_AMENDMENT_COLLAB_VISIBLE,
   TAX_AMENDMENT_COLLAB_COLORS,
-  deriveRefundFlag,
 } from "./collab/tax-amendment-collab-view";
 
 // 공용 히스토리(상담기록) 패널 — 하이브·ERP·일루아 공유
@@ -145,4 +144,4 @@ export type { DevRequestPanelProps } from "./components/DevRequestPanel";
 export { buildDevRequestUrl } from "./components/dev-request-url";
 export type { DevRequestUrlParams } from "./components/dev-request-url";
 
-export const __MODULE_VERSION__ = "0.33.0";
+export const __MODULE_VERSION__ = "0.34.0";

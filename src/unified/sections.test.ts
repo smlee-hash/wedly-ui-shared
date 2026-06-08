@@ -114,9 +114,9 @@ describe("기본정보 사양 분리", () => {
     expect(COMMON_BASIC_FIELD_SPECS.map((s) => s.label)).toContain("환급금여부");
   });
 
-  it("DB 담당 후보키는 59DB담당 하나뿐(일루아 18파트너사는 파트너사 칸이라 제외)", () => {
+  it("DB 담당 후보키는 하이브키 우선 + 59DB담당(일루아 18파트너사는 파트너사 칸이라 제외)", () => {
     const spec = COMMON_BASIC_FIELD_SPECS.find((s) => s.label === "DB 담당");
-    expect(spec?.keys).toEqual(["59DB담당"]);
+    expect(spec?.keys).toEqual(["custom_1779774393414_b1wc", "59DB담당"]);
     expect(spec?.keys).not.toContain("18파트너사");
   });
 
@@ -143,9 +143,9 @@ describe("기본정보 사양 분리", () => {
     expect(labels.slice(11)).toEqual(hiveLabels);
   });
 
-  it("환급금여부 키가 ['환급금여부'] 이고 type 이 select 다", () => {
+  it("환급금여부 키가 하이브키 우선 + 공용키이고 type 이 select 다", () => {
     const spec = COMMON_BASIC_FIELD_SPECS.find((s) => s.label === "환급금여부");
-    expect(spec?.keys).toEqual(["환급금여부"]);
+    expect(spec?.keys).toEqual(["custom_1780316171826", "환급금여부"]);
     expect(spec?.type).toBe("select");
   });
 });
