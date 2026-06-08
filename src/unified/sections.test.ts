@@ -11,6 +11,7 @@ import {
   isCommonBasicLabel,
   DEFAULT_COMMON_BASIC_LABELS,
   ILLUA_APP_BASIC_FIELDS,
+  isBasicColumnHidden,
 } from "./sections";
 
 // ── isCommonBasicLabel: 공통/앱별 판정 (색 구분·공유 트리거 단일 출처) ──
@@ -199,5 +200,24 @@ describe("resolveCommonFieldId — override 반영 공유판정", () => {
     expect(resolveCommonFieldId("custom_db_class_x9", "DB 분류")).toBe("DB 분류");
     expect(resolveCommonFieldId("custom_db_class_x9", "DB분류")).toBe("DB 분류");
     expect(resolveCommonFieldId("custom_db_class_x9", "DB 분류", { excluded: ["DB 분류"] })).toBe(null);
+  });
+});
+
+describe("isBasicColumnHidden (앱별 숨김 판정)", () => {
+  it("숨김 목록에 있으면 true", () => {
+    expect(isBasicColumnHidden("연락처", ["연락처"])).toBe(true);
+  });
+  it("공백·대소문자 무시 매칭", () => {
+    expect(isBasicColumnHidden(" 연락처 ", ["연락처"])).toBe(true);
+  });
+  it("숨김 목록에 없으면 false", () => {
+    expect(isBasicColumnHidden("대표자명", ["연락처"])).toBe(false);
+  });
+  it("상호명은 목록에 있어도 항상 보임(보호)", () => {
+    expect(isBasicColumnHidden("상호명", ["상호명"])).toBe(false);
+  });
+  it("빈 라벨·빈 목록은 숨김 아님", () => {
+    expect(isBasicColumnHidden("", ["연락처"])).toBe(false);
+    expect(isBasicColumnHidden("연락처", [])).toBe(false);
   });
 });

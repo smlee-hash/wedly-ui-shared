@@ -285,6 +285,19 @@ export function resolveCommonFieldId(
   return matchedDefault ?? effectiveLabel;
 }
 
+
+// ─── 앱별 칸 숨김(관리자 설정) 판정 ───────────────────────────────
+// 관리자가 "이 앱에서 숨김"으로 정한 기본정보 칸(라벨) 목록으로 표·상세창에서 그 칸을 뺀다.
+// 라벨은 공백·대소문자 무시 매칭(isCommonBasicLabel 과 같은 정규화). 상호명은 행 식별에 필요 → 항상 보임.
+export const PROTECTED_FROM_HIDE: string[] = ["상호명"];
+
+export function isBasicColumnHidden(label: string, hidden: string[]): boolean {
+  const n = normCommonLabel(label);
+  if (!n) return false;
+  if (PROTECTED_FROM_HIDE.some((p) => normCommonLabel(p) === n)) return false;
+  return (hidden || []).some((h) => normCommonLabel(h) === n);
+}
+
 // ─── 기존 호환용 통짜 배열 (기존 사용처가 깨지지 않도록 유지) ───
 // 구성: 공통 10칸 + 하이브 전용 2칸. 진행상태가 빠지고 환급금여부가 들어간 변화에 주의.
 // 기존에 진행상태에 의존하던 곳이 있다면 COMMON_BASIC_FIELD_SPECS 에 직접 추가하거나
