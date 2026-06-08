@@ -20,6 +20,14 @@ export {
   saveCommonFieldsOverride,
 } from "./lib/common-fields-store";
 
+// 앱별 칸 숨김(관리자 설정) 읽기·쓰기 도우미 (각 앱 /api/column-visibility 로 연결)
+export {
+  getCachedHiddenBasicColumns,
+  fetchHiddenBasicColumns,
+  refreshHiddenBasicColumns,
+  saveHiddenBasicColumns,
+} from "./lib/column-visibility-store";
+
 // 타입
 export type { ColumnDef, FormulaSpec } from "./types/columns";
 
@@ -144,4 +152,4 @@ export type { DevRequestPanelProps } from "./components/DevRequestPanel";
 export { buildDevRequestUrl } from "./components/dev-request-url";
 export type { DevRequestUrlParams } from "./components/dev-request-url";
 
-export const __MODULE_VERSION__ = "0.34.0";
+export const __MODULE_VERSION__ = "0.35.0";
