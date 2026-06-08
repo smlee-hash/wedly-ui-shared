@@ -12,6 +12,14 @@ export { cn } from "./lib/cn";
 export * from "./lib/utils";
 export * from "./lib/options";
 
+// M2: 공통/앱별 칸 전역 설정 읽기·쓰기 도우미 (관리자 설정 화면 → 각 앱 /api/common-fields 로 연결)
+export {
+  getCachedCommonOverride,
+  fetchCommonFieldsOverride,
+  refreshCommonFieldsOverride,
+  saveCommonFieldsOverride,
+} from "./lib/common-fields-store";
+
 // 타입
 export type { ColumnDef, FormulaSpec } from "./types/columns";
 
@@ -119,6 +127,9 @@ export { default as SectionHistoryPanel } from "./components/SectionHistoryPanel
 
 // 업체 상세창 "맨 위 상호명" 공용 편집 부품 — 하이브·ERP·일루아 모든 상세 모달 공유 (클릭 → 그 자리 수정)
 export { EditableTitle } from "./components/EditableTitle";
+
+// M2: 관리자용 공통/앱별 칸 설정 화면 부품
+export { CommonFieldsAdmin } from "./unified/CommonFieldsAdmin";
 
 // 틀(레이아웃) — 사이드바 접힘 폭 변화 + 새로고침 유지 (ERP·하이브·일루아 공용)
 export { resolveStoredCollapsed } from "./layout/sidebar-collapse-core";

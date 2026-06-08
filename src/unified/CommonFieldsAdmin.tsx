@@ -5,7 +5,7 @@ import {
   isCommonBasicLabel,
   type CommonFieldOverride,
 } from "./sections";
-import { fetchCommonFieldsOverride, saveCommonFieldsOverride } from "./common-fields-store";
+import { fetchCommonFieldsOverride, saveCommonFieldsOverride } from "../lib/common-fields-store";
 
 const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
 
