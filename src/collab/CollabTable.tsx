@@ -132,6 +132,8 @@ export type CollabTableProps = {
     onRestoreColumn?: (key: string) => void;
     isDeletable?: (col: ColumnDef) => boolean;
     onDeleteColumn?: (key: string) => void;
+    // 칸 표시 토글 시 호출(소비 앱이 상세창 공용설정 등과 연동할 때 사용). 미지정 시 무동작.
+    onToggleColumn?: (key: string, nextVisible: boolean) => void;
   };
   /**
    * 칸 관리(추가/제목·타입 수정/삭제)를 소비 앱이 제공할 때 주는 묶음. 컬럼 설정 모달로 전달된다.
@@ -642,13 +644,15 @@ export function CollabTable({
 
   const isColumnVisible = useCallback((key: string) => visibleColumns.has(key), [visibleColumns]);
   const toggleColumn = useCallback((key: string) => {
+    const nextVisible = !visibleColumns.has(key);
     setVisibleColumns((prev) => {
       const n = new Set(prev);
       if (n.has(key)) n.delete(key); else n.add(key);
       persistVisible(n);
       return n;
     });
-  }, [persistVisible]);
+    columnGrouping?.onToggleColumn?.(key, nextVisible);
+  }, [visibleColumns, persistVisible, columnGrouping]);
   const removeColFromTab = useCallback((key: string) => {
     setVisibleColumns((prev) => {
       const n = new Set(prev);
