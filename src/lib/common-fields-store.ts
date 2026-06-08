@@ -1,7 +1,7 @@
 "use client";
 // 전역 "공통/앱별" 설정 읽기/쓰기 도우미. 사업자번호와 무관한 전역 1행을 다룬다.
 // 각 앱이 소스로 직접 소비하므로 상대경로 /api/common-fields 는 그 앱의 저장통로로 연결된다.
-import type { CommonFieldOverride } from "./sections";
+import type { CommonFieldOverride } from "../unified/sections";
 
 const EMPTY: CommonFieldOverride = { extra: [], excluded: [] };
 let cache: CommonFieldOverride | null = null;
