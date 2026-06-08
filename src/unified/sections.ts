@@ -208,7 +208,7 @@ export type BasicFieldSpec = {
 // 각 칸은 앞에서부터 "그 앱에 실제 있는" 첫 키로 연결되므로, 같은 표가 여러 앱에서 동작한다.
 // 종류(type)는 실제 컬럼 정의가 있으면 그 종류를 쓰고, 데이터에만 있는 키는 아래 type 를 보조로 쓴다.
 export const COMMON_BASIC_FIELD_SPECS: BasicFieldSpec[] = [
-  { label: "DB 담당",       keys: ["59DB담당"], labelAliases: ["DB담당"], type: "multi_select" },
+  { label: "DB 담당",       keys: ["custom_1779774393414_b1wc", "59DB담당"], labelAliases: ["DB담당"], type: "multi_select" },
   { label: "DB 분류",       keys: ["54DB분류", "16DB분류", "17소스DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류"], type: "select" },
   { label: "대표자명",      keys: ["03대표자명", "02대표자명", "대표자명"],                 type: "text" },
   { label: "연락처",        keys: ["04연락처", "03대표연락처", "대표연락처", "연락처"],       type: "phone_number" },
@@ -216,7 +216,7 @@ export const COMMON_BASIC_FIELD_SPECS: BasicFieldSpec[] = [
   { label: "사업자번호",     keys: ["15사업자번호", "04사업자번호", "사업자번호"],           type: "text" },
   { label: "사업장주소지",   keys: ["52사업장주소지", "27주소지", "사업장주소지", "주소지", "주소"], type: "text" },
   { label: "사업자유형",     keys: ["14사업자유형", "사업자유형"],                         type: "select" },
-  { label: "환급금여부",     keys: ["환급금여부"],                                        type: "select" },
+  { label: "환급금여부",     keys: ["custom_1780316171826", "환급금여부"],                type: "select" },
   { label: "리포트",        keys: ["리포트", "검토보고서"],                              type: "file" },
   { label: "등록일시",       keys: ["_createdTime"],                                    type: "last_edited_time" },
 ];
@@ -377,4 +377,27 @@ export function ensureBasicReportField(section: UnifiedSection, allColumns: Colu
   if (!col) return section;
   const extra: ColumnLite = { key: col.key, label: "리포트", type: "file", format: col.format };
   return { ...section, fields: [...section.fields, extra] };
+}
+
+// ─── 통일쌍 "짝 키" 동기 (환급금여부·DB담당) ───
+// 하이브 손입력 칸을 공통칸 본체로 삼되, 기존 공용키를 읽던 표 컬럼이 빈 채로 남지 않도록
+// 한 항목(data) 안에서 하이브키↔공용키 값을 함께 맞춘다. 통일 대상 두 칸에만 적용
+// (DB분류처럼 후보키가 여러 개인 칸엔 적용 금지 — 엉뚱한 키에 값이 번지는 오염 방지).
+export const COMMON_KEY_MIRROR: Record<string, string> = {
+  custom_1780316171826: "환급금여부",
+  "환급금여부": "custom_1780316171826",
+  custom_1779774393414_b1wc: "59DB담당",
+  "59DB담당": "custom_1779774393414_b1wc",
+};
+
+/** data 안에서 key 의 짝 키에도 같은 value 를 채운다(통일쌍일 때만). 반환: 짝 키 이름(없으면 null). 순수 함수. */
+export function mirrorCommonPair(
+  data: Record<string, unknown>,
+  key: string,
+  value: unknown,
+): string | null {
+  const partner = COMMON_KEY_MIRROR[key];
+  if (!partner) return null;
+  data[partner] = value;
+  return partner;
 }
