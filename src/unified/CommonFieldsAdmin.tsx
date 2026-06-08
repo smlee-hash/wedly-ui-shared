@@ -44,7 +44,7 @@ function Row({ label, common, hidden, busy, hideLocked, onToggleCommon, onToggle
           <span className="text-[11px] text-wedly-muted">이 앱만 숨김</span>
           <button
             type="button"
-            disabled={busy || hideLocked}
+            disabled={hideLocked}
             onClick={() => onToggleHidden(!hidden)}
             className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${hidden ? "bg-wedly-red" : "bg-wedly-bg-gray"}`}
             aria-pressed={hidden}
@@ -86,10 +86,9 @@ export function CommonFieldsAdmin({ appSpecificLabels = [] }: { appSpecificLabel
     if (isProtected(label)) return;
     const next = hidden.filter((x) => norm(x) !== norm(label));
     if (makeHidden) next.push(label);
-    setSaving(true);
-    const saved = await saveHiddenBasicColumns(next);
+    setHidden(next); // 즉시 스위치 반영(서버 응답 기다리지 않음) — 표·상세창도 같은 순간 바뀜
+    const saved = await saveHiddenBasicColumns(next); // 뒤에서 저장 + 서버 확정값으로 보정
     setHidden(saved);
-    setSaving(false);
   };
 
   const isHidden = (label: string) => hidden.some((h) => norm(h) === norm(label));

@@ -154,4 +154,4 @@ export type { DevRequestPanelProps } from "./components/DevRequestPanel";
 export { buildDevRequestUrl } from "./components/dev-request-url";
 export type { DevRequestUrlParams } from "./components/dev-request-url";
 
-export const __MODULE_VERSION__ = "0.36.0";
+export const __MODULE_VERSION__ = "0.37.0";
