@@ -21,11 +21,13 @@ export {
 } from "./lib/common-fields-store";
 
 // 앱별 칸 숨김(관리자 설정) 읽기·쓰기 도우미 (각 앱 /api/column-visibility 로 연결)
+// subscribeHiddenBasicColumns: 설정 변경을 구독 → 표·상세창이 새로고침 없이 즉시 반영
 export {
   getCachedHiddenBasicColumns,
   fetchHiddenBasicColumns,
   refreshHiddenBasicColumns,
   saveHiddenBasicColumns,
+  subscribeHiddenBasicColumns,
 } from "./lib/column-visibility-store";
 
 // 타입
@@ -152,4 +154,4 @@ export type { DevRequestPanelProps } from "./components/DevRequestPanel";
 export { buildDevRequestUrl } from "./components/dev-request-url";
 export type { DevRequestUrlParams } from "./components/dev-request-url";
 
-export const __MODULE_VERSION__ = "0.35.0";
+export const __MODULE_VERSION__ = "0.36.0";

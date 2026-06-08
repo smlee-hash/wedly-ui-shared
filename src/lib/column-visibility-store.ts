@@ -6,6 +6,31 @@ const EMPTY: string[] = [];
 let cache: string[] | null = null;
 let inflight: Promise<string[]> | null = null;
 
+// 값이 바뀌면(저장·강제 새로고침) 구독한 화면에 즉시 알린다.
+// → 관리자가 설정을 바꾸면 이미 떠 있는 목록 표·상세창이 새로고침 없이 곧바로 반영된다.
+type Listener = (hidden: string[]) => void;
+const listeners = new Set<Listener>();
+
+function emit(): void {
+  const v = cache ?? EMPTY;
+  // Set 복사 후 순회: 알림 도중 구독/해제가 일어나도 안전
+  for (const listener of Array.from(listeners)) {
+    try {
+      listener(v);
+    } catch {
+      // 한 화면의 오류가 다른 화면 알림을 막지 않도록 무시
+    }
+  }
+}
+
+/** 숨김 목록 변경을 구독한다. 반환된 함수를 호출하면 구독 해제된다. */
+export function subscribeHiddenBasicColumns(listener: Listener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 function normalize(v: unknown): string[] {
   const o = v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
   const x = (o as { hidden?: unknown }).hidden;
@@ -29,7 +54,7 @@ export function fetchHiddenBasicColumns(): Promise<string[]> {
 
 export function refreshHiddenBasicColumns(): Promise<string[]> {
   cache = null;
-  return fetchHiddenBasicColumns();
+  return fetchHiddenBasicColumns().then((v) => { emit(); return v; });
 }
 
 export function saveHiddenBasicColumns(next: string[]): Promise<string[]> {
@@ -39,6 +64,6 @@ export function saveHiddenBasicColumns(next: string[]): Promise<string[]> {
     body: JSON.stringify({ hidden: next ?? [] }),
   })
     .then((r) => (r.ok ? r.json() : null))
-    .then((j) => { const v = normalize(j?.success ? j.data : null); cache = v; return v; })
+    .then((j) => { const v = normalize(j?.success ? j.data : null); cache = v; emit(); return v; })
     .catch(() => getCachedHiddenBasicColumns());
 }
