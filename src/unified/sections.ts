@@ -264,24 +264,25 @@ export function isCommonBasicLabel(label: string, override?: CommonFieldOverride
 
 /**
  * 한 칸(key+label)이 공용 보관함에 공유될지와 그 fieldId(공통 라벨)를 판정. override 반영.
- * - 후보 fieldId: 키가 기본 공통 spec.keys 에 들면 그 spec.label, 아니면 override.extra 에 라벨이 있으면 그 label.
- * - 후보가 override.excluded(라벨 기준)면 공유 중단(null).
+ * 색 판정(isCommonBasicLabel)과 "같은 기준"을 써서 색과 공유가 어긋나지 않게 한다.
+ * - 키가 기본 공통 spec.keys 면 그 spec.label(정규 라벨)을, 아니면 넘어온 label 을 기준 라벨로 삼는다.
+ *   (DB분류처럼 실제 키가 '이름표로 매칭된' 커스텀 키여도, 라벨이 공통이면 공통으로 인정 — 역행 방지.)
+ * - 그 라벨이 공통(isCommonBasicLabel)이면 공유. fieldId 는 기본 공통 라벨과 매칭 시 그 '정규 라벨'로
+ *   통일(3앱이 같은 키로 저장하도록). 올림(extra)된 전용칸은 그 라벨 그대로.
  */
 export function resolveCommonFieldId(
   key: string,
   label: string,
   override?: CommonFieldOverride | null,
 ): string | null {
-  const n = normCommonLabel;
-  const isExcluded = (s: string) => (override?.excluded || []).some((e) => n(e) === n(s));
-  let fieldId: string | null = null;
+  let canonical: string | null = null;
   for (const spec of COMMON_BASIC_FIELD_SPECS) {
-    if (spec.keys.includes(key)) { fieldId = spec.label; break; }
+    if (spec.keys.includes(key)) { canonical = spec.label; break; }
   }
-  if (!fieldId && (override?.extra || []).some((x) => n(x) === n(label))) fieldId = label;
-  if (!fieldId) return null;
-  if (isExcluded(fieldId) || isExcluded(label)) return null;
-  return fieldId;
+  const effectiveLabel = canonical ?? label;
+  if (!isCommonBasicLabel(effectiveLabel, override)) return null;
+  const matchedDefault = DEFAULT_COMMON_BASIC_LABELS.find((d) => normCommonLabel(d) === normCommonLabel(effectiveLabel));
+  return matchedDefault ?? effectiveLabel;
 }
 
 // ─── 기존 호환용 통짜 배열 (기존 사용처가 깨지지 않도록 유지) ───

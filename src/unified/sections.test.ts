@@ -195,4 +195,9 @@ describe("resolveCommonFieldId — override 반영 공유판정", () => {
     expect(resolveCommonFieldId("25주업종", "주업종", { extra: [" 주 업 종 "] })).toBe("주업종");
     expect(resolveCommonFieldId("53이메일", "이메일", { excluded: [" 이메일 "] })).toBe(null);
   });
+  it("이름표로 매칭된 키(표준 키 아님)라도 라벨이 공통이면 공유 + 정규 라벨 통일", () => {
+    expect(resolveCommonFieldId("custom_db_class_x9", "DB 분류")).toBe("DB 분류");
+    expect(resolveCommonFieldId("custom_db_class_x9", "DB분류")).toBe("DB 분류");
+    expect(resolveCommonFieldId("custom_db_class_x9", "DB 분류", { excluded: ["DB 분류"] })).toBe(null);
+  });
 });
