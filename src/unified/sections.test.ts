@@ -22,8 +22,8 @@ describe("isCommonBasicLabel — 공통/앱별 판정", () => {
     expect(isCommonBasicLabel("리포트")).toBe(true);
   });
   it("공백·대소문자 무시 매칭", () => {
-    expect(isCommonBasicLabel("DB 담당")).toBe(true);
-    expect(isCommonBasicLabel("db담당")).toBe(true);
+    expect(isCommonBasicLabel("DB 분류")).toBe(true);
+    expect(isCommonBasicLabel("내부db분류")).toBe(true);
     expect(isCommonBasicLabel(" 대표자명 ")).toBe(true);
   });
   it("앱별(일루아 전용·하이브 전용) 칸은 false", () => {
@@ -115,8 +115,8 @@ describe("기본정보 사양 분리", () => {
     expect(COMMON_BASIC_FIELD_SPECS.map((s) => s.label)).toContain("환급금여부");
   });
 
-  it("DB 담당 후보키는 하이브키 우선 + 59DB담당(일루아 18파트너사는 파트너사 칸이라 제외)", () => {
-    const spec = COMMON_BASIC_FIELD_SPECS.find((s) => s.label === "DB 담당");
+  it("누가담당 칸(새 이름 'DB 분류') 후보키는 하이브키 우선 + 59DB담당(일루아 18파트너사는 파트너사 칸이라 제외)", () => {
+    const spec = COMMON_BASIC_FIELD_SPECS.find((s) => s.label === "DB 분류");
     expect(spec?.keys).toEqual(["custom_1779774393414_b1wc", "59DB담당"]);
     expect(spec?.keys).not.toContain("18파트너사");
   });
@@ -197,9 +197,9 @@ describe("resolveCommonFieldId — override 반영 공유판정", () => {
     expect(resolveCommonFieldId("53이메일", "이메일", { excluded: [" 이메일 "] })).toBe(null);
   });
   it("이름표로 매칭된 키(표준 키 아님)라도 라벨이 공통이면 공유 + 정규 라벨 통일", () => {
-    expect(resolveCommonFieldId("custom_db_class_x9", "DB 분류")).toBe("DB 분류");
-    expect(resolveCommonFieldId("custom_db_class_x9", "DB분류")).toBe("DB 분류");
-    expect(resolveCommonFieldId("custom_db_class_x9", "DB 분류", { excluded: ["DB 분류"] })).toBe(null);
+    expect(resolveCommonFieldId("custom_db_class_x9", "내부 DB 분류")).toBe("내부 DB 분류");
+    expect(resolveCommonFieldId("custom_db_class_x9", "내부db분류")).toBe("내부 DB 분류");
+    expect(resolveCommonFieldId("custom_db_class_x9", "내부 DB 분류", { excluded: ["내부 DB 분류"] })).toBe(null);
   });
 });
 

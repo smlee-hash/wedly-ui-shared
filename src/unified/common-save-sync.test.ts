@@ -2,14 +2,14 @@ import { describe, it, expect } from "vitest";
 import { resolveCommonFieldId } from "./sections";
 import { mirrorCommonPair, COMMON_KEY_MIRROR } from "./sections";
 
-describe("환급금여부·DB담당 공통칸 통일", () => {
+describe("환급금여부·DB분류(옛 DB담당) 공통칸 통일", () => {
   it("하이브 맞춤키가 공통 fieldId로 해결된다", () => {
     expect(resolveCommonFieldId("custom_1780316171826", "", null)).toBe("환급금여부");
-    expect(resolveCommonFieldId("custom_1779774393414_b1wc", "", null)).toBe("DB 담당");
+    expect(resolveCommonFieldId("custom_1779774393414_b1wc", "", null)).toBe("DB 분류");
   });
   it("기존 공용키도 같은 fieldId로 해결된다(잔여 호환)", () => {
     expect(resolveCommonFieldId("환급금여부", "", null)).toBe("환급금여부");
-    expect(resolveCommonFieldId("59DB담당", "", null)).toBe("DB 담당");
+    expect(resolveCommonFieldId("59DB담당", "", null)).toBe("DB 분류");
   });
   it("짝 키 동기 — 한쪽 저장 시 다른쪽도 같은 값", () => {
     const d: Record<string, unknown> = {};

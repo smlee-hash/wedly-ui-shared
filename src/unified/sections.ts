@@ -199,17 +199,17 @@ export type BasicFieldSpec = {
 
 // ─── 공통 11칸 (하이브·ERP·일루아 공유) ───
 // 진행상태·팀장·팀원은 앱별로 다르므로 제외. 환급금여부는 공통 신규 추가.
-// DB 담당 = "누가 담당"(위들리/하이브/기존고객). 3앱 모두 정식키 59DB담당 으로 통일.
+// DB 분류(옛 이름 "DB 담당") = "누가 담당"(위들리/하이브/기존고객). 3앱 모두 정식키 59DB담당 으로 통일.
 //   (2026-06-07 정정: 이전엔 일루아 18파트너사를 'DB 담당'으로 매핑했으나, 18파트너사는 일루아의
 //    '파트너사' 칸 = 고객 노출 파티션·자동입력 변수(load-entries)였다. 그 칸에 위들리/하이브/기존고객을
 //    넣으면 고객이 목록에서 사라진다. 그래서 18파트너사를 DB 담당 후보키에서 빼고, 일루아에 별도
 //    59DB담당(select) 칸을 신설해 ERP·하이브와 같은 슬롯·선택값을 쓰게 했다.)
-// DB 분류 = "유입 출처"(TheLink/고용누리/필승마케팅): 54DB분류(ERP·하이브)·16DB분류/17소스DB분류(일루아).
+// 내부 DB 분류(옛 이름 "DB 분류") = "유입 출처"(TheLink/고용누리/필승마케팅): 54DB분류(ERP·하이브)·16DB분류/17소스DB분류(일루아).
 // 각 칸은 앞에서부터 "그 앱에 실제 있는" 첫 키로 연결되므로, 같은 표가 여러 앱에서 동작한다.
 // 종류(type)는 실제 컬럼 정의가 있으면 그 종류를 쓰고, 데이터에만 있는 키는 아래 type 를 보조로 쓴다.
 export const COMMON_BASIC_FIELD_SPECS: BasicFieldSpec[] = [
-  { label: "DB 담당",       keys: ["custom_1779774393414_b1wc", "59DB담당"], labelAliases: ["DB담당"], type: "multi_select" },
-  { label: "DB 분류",       keys: ["54DB분류", "16DB분류", "17소스DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류"], type: "select" },
+  { label: "DB 분류",       keys: ["custom_1779774393414_b1wc", "59DB담당"], labelAliases: ["DB담당", "DB 담당"], type: "multi_select" },
+  { label: "내부 DB 분류",   keys: ["54DB분류", "16DB분류", "17소스DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류"], type: "select" },
   { label: "대표자명",      keys: ["03대표자명", "02대표자명", "대표자명"],                 type: "text" },
   { label: "연락처",        keys: ["04연락처", "03대표연락처", "대표연락처", "연락처"],       type: "phone_number" },
   { label: "이메일",        keys: ["53이메일", "이메일"],                                type: "email" },
