@@ -72,6 +72,10 @@ type Props<TCol extends ColumnToggleColumn> = {
   // true 인 행에 삭제(✕) 버튼 표시. 클릭 시 confirm 후 deleteColumn 호출.
   // 미지정 시 기존 동작(custom_ 칸만 삭제 버튼 노출).
   isDeletable?: (col: TCol) => boolean;
+  // "공통" 행에 "그 외로" 버튼 — 클릭 시 공통 칸을 그 외 칸으로 되돌림.
+  // canDemoteFromCommon 으로 노출 대상 제한(예: 사용자가 옮긴 칸만, 기본 공통 칸은 보호).
+  onDemoteFromCommon?: (key: string) => void;
+  canDemoteFromCommon?: (key: string) => boolean;
 };
 
 export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
@@ -105,6 +109,8 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   deletedColumns,
   onRestoreColumn,
   isDeletable,
+  onDemoteFromCommon,
+  canDemoteFromCommon,
 }: Props<TCol>) {
   const [search, setSearch] = useState("");
   if (!open) return null;
@@ -193,6 +199,16 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
               title="상세창 기본정보에 포함(공통으로 승격)"
             >
               공통으로
+            </button>
+          )}
+          {/* 공통 칸 → "그 외로" 되돌리기 버튼 (되돌리기 대상만 노출) */}
+          {!isOther && onDemoteFromCommon && (canDemoteFromCommon ? canDemoteFromCommon(col.key) : true) && (
+            <button
+              onClick={() => onDemoteFromCommon(col.key)}
+              className="text-[11px] px-1.5 py-0.5 rounded border border-wedly-bd text-wedly-muted hover:bg-wedly-bg-gray transition whitespace-nowrap"
+              title="상세창 기본정보에서 빼고 그 외 칸으로 이동"
+            >
+              그 외로
             </button>
           )}
           {(editable || isCustom) && (

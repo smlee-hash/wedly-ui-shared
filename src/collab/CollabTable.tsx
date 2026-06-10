@@ -128,6 +128,8 @@ export type CollabTableProps = {
   columnGrouping?: {
     commonColumnKeys?: string[];
     onPromoteToCommon?: (key: string) => void;
+    onDemoteFromCommon?: (key: string) => void;
+    canDemoteFromCommon?: (key: string) => boolean;
     deletedColumns?: string[];
     onRestoreColumn?: (key: string) => void;
     isDeletable?: (col: ColumnDef) => boolean;
@@ -1116,6 +1118,8 @@ export function CollabTable({
         typeOptions={columnAdmin?.typeOptions}
         commonColumnKeys={columnGrouping?.commonColumnKeys}
         onPromoteToCommon={columnGrouping?.onPromoteToCommon}
+        onDemoteFromCommon={columnGrouping?.onDemoteFromCommon}
+        canDemoteFromCommon={columnGrouping?.canDemoteFromCommon}
         deletedColumns={columnGrouping?.deletedColumns}
         onRestoreColumn={columnGrouping?.onRestoreColumn}
         isDeletable={columnGrouping?.isDeletable}
