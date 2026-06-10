@@ -76,6 +76,9 @@ type Props<TCol extends ColumnToggleColumn> = {
   // canDemoteFromCommon 으로 노출 대상 제한(예: 사용자가 옮긴 칸만, 기본 공통 칸은 보호).
   onDemoteFromCommon?: (key: string) => void;
   canDemoteFromCommon?: (key: string) => boolean;
+  // "새 컬럼 추가" 버튼 노출 여부(기본 true — 미지정 호출부 무손상).
+  // false 면 추가 섹션 자체를 숨긴다(비관리자는 추가 권한이 없어 눌러도 무동작이므로).
+  canAddColumn?: boolean;
 };
 
 export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
@@ -111,6 +114,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   isDeletable,
   onDemoteFromCommon,
   canDemoteFromCommon,
+  canAddColumn = true,
 }: Props<TCol>) {
   const [search, setSearch] = useState("");
   if (!open) return null;
@@ -320,6 +324,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
               </div>
             </div>
           )}
+          {canAddColumn && (
           <div className="border-t border-wedly-bd/50 mt-3 pt-3">
             {showAddColumn ? (
               <div className="space-y-2 px-2">
@@ -359,6 +364,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
               </button>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>

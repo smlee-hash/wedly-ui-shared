@@ -46,6 +46,10 @@ export type CollabTableProps = {
   isAdmin: boolean;
   /** 제목 칸 클릭 시 호출(상세 열기 훅) */
   onOpenRow: (row: RowData) => void;
+  /** 비관리자도 새 업체 생성 가능한 화면이면 true(기본 false — 하이브·일루아 무영향). 서버가 로그인 사용자 생성을 허용할 때만 켠다. */
+  canCreate?: boolean;
+  /** 새 업체 생성 핸들러(비관리자 경로). 관리자는 adminToolbar.onCreateNew 를 쓴다. */
+  onCreateNew?: () => void;
   /** 모바일 카드 표시 설정 */
   mobile?: {
     titleKey?: string;
@@ -409,6 +413,8 @@ export function CollabTable({
   isAdmin,
   onOpenRow,
   onRefresh,
+  canCreate = false,
+  onCreateNew: onCreateNewProp,
   mobile,
   renderFieldValue,
   getColAccent: getColAccentProp,
@@ -984,7 +990,8 @@ export function CollabTable({
       )}
       <TopControls
         isAdmin={adminEnabled}
-        onCreateNew={adminToolbar?.onCreateNew ?? (() => {})}
+        canCreate={canCreate}
+        onCreateNew={adminToolbar?.onCreateNew ?? onCreateNewProp ?? (() => {})}
         settingsBaseMenus={adminEnabled ? wiredSettingsMenus : []}
         cfActiveCount={adminToolbar?.cfActiveCount ?? 0}
         settingsMenuOrder={adminToolbar?.settingsMenuOrder ?? []}
@@ -1111,6 +1118,7 @@ export function CollabTable({
         newColType={(columnAdmin?.newColType ?? "text") as ColumnDef["type"]}
         setNewColType={columnAdmin?.setNewColType ?? (() => {})}
         addColumn={columnAdmin?.addColumn ?? (() => {})}
+        canAddColumn={isAdmin && !!columnAdmin}
         editColType={columnAdmin?.editColType}
         setEditColType={columnAdmin?.setEditColType}
         canEditColumn={columnAdmin?.canEditColumn}

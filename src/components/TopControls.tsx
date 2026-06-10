@@ -18,6 +18,8 @@ import { SettingsDropdown, type SettingsMenuItem, type SettingsCustomItem } from
 
 type Props = {
   isAdmin: boolean;
+  // 비관리자도 '새 업체'를 쓸 수 있는 화면이면 true(기본 false — 하이브·일루아 무영향).
+  canCreate?: boolean;
 
   // 1줄
   onCreateNew: () => void;
@@ -74,6 +76,7 @@ type Props = {
 
 export function TopControls({
   isAdmin,
+  canCreate = false,
   onCreateNew,
   settingsBaseMenus,
   cfActiveCount,
@@ -111,9 +114,9 @@ export function TopControls({
     <>
       {/* 페이지 최상단 — 3줄 구조 (PC·모바일 동일). PC 컨테이너 폭 820px */}
       <div className="flex flex-col gap-2 md:max-w-[820px]">
-        {/* 1줄 — 새 업체 + 관리 도구 (어드민만) */}
-        {isAdmin && (
-          <div className="grid grid-cols-2 gap-2">
+        {/* 1줄 — 새 업체(어드민 또는 생성 권한자) + 관리 도구(어드민만) */}
+        {(isAdmin || canCreate) && (
+          <div className={isAdmin ? "grid grid-cols-2 gap-2" : "flex"}>
             <button
               onClick={onCreateNew}
               className="w-full inline-flex items-center justify-center gap-1.5 h-[44px] md:h-[36px] px-3 text-[13px] font-semibold text-white bg-wedly-accent rounded-lg hover:bg-wedly-accent/90 transition-colors shadow-sm whitespace-nowrap"
@@ -123,6 +126,7 @@ export function TopControls({
               </svg>
               새 업체
             </button>
+            {isAdmin && (
             <SettingsDropdown
               baseMenus={settingsBaseMenus}
               cfActiveCount={cfActiveCount}
@@ -137,6 +141,7 @@ export function TopControls({
               isSafeMenuUrl={isSafeMenuUrl}
               onToast={onToast}
             />
+            )}
           </div>
         )}
 
