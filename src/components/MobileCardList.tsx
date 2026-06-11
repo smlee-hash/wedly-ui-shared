@@ -67,11 +67,13 @@ export function MobileCardList({
   return (
     <div
       className={cn(
-        // 카드 보기 — 카드 모드면 모든 화면폭에서 표시(모바일 세로 스택, PC 2~3열 격자).
-        // 표 모드면 숨김(표가 대신 나옴). 과거엔 md:hidden 으로 PC에서 카드가 영구 숨김이라
-        // PC에서 카드/표 토글이 먹통이었음 — 그 버그 수정.
-        "space-y-2 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3",
-        mobileViewMode === "table" && "hidden",
+        // 카드 모드: 모든 화면폭에서 표시(모바일 세로 스택, PC 2~3열 격자).
+        // 표 모드: 숨김. ⚠️ "hidden"과 "md:grid"를 함께 두면 PC에서 md:grid가 hidden을
+        //   덮어써 카드가 안 숨겨진다 → 표 모드엔 md:grid 를 아예 내보내지 않도록 분기.
+        // (과거엔 md:hidden 으로 PC 영구숨김이라 카드/표 토글이 PC에서 먹통이었음 — 그 버그 수정.)
+        mobileViewMode === "table"
+          ? "hidden"
+          : "space-y-2 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3",
       )}
     >
       {/* 모바일 '카드 표시 항목 설정' 버튼은 관리 도구 드롭다운에서 호출 (2026-05-25) */}
