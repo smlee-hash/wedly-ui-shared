@@ -117,7 +117,8 @@ export function DesktopTable({
     <div
       className={cn(
         "bg-white rounded-2xl border border-wedly-bd shadow-sm overflow-hidden",
-        mobileViewMode === "table" && "block",
+        // 카드 모드면 표 박스 자체를 숨김(PC 포함). 표 모드면 표시 — 안쪽 스크롤 영역이 폭별 표시를 관장.
+        mobileViewMode === "card" && "hidden",
       )}
     >
       <div

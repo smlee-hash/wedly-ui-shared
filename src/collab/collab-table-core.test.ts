@@ -139,6 +139,10 @@ describe("paginate / totalPageCount", () => {
     expect(totalPageCount(5, 2)).toBe(3);
     expect(totalPageCount(0, 2)).toBe(1);
   });
+  it("전체(Infinity)면 모든 행 반환 — 0×Infinity=NaN 빈배열 버그 방지", () => {
+    expect(paginate(rows, 1, Infinity).map((r) => r._id)).toEqual(["0", "1", "2", "3", "4"]);
+    expect(totalPageCount(5, Infinity)).toBe(1);
+  });
 });
 
 describe("reorderList", () => {

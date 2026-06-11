@@ -93,11 +93,15 @@ export function computeStickyOffsets(activeColumns: ColumnDef[], colWidths: Reco
 }
 
 export function paginate<T>(rows: T[], currentPage: number, pageSize: number): T[] {
+  // "전체"(pageSize=Infinity)·비정상값이면 모든 행 반환.
+  // 가드 없으면 (currentPage-1)*Infinity = 0*Infinity = NaN → slice(NaN,NaN) = [] (빈 표 버그).
+  if (!Number.isFinite(pageSize) || pageSize <= 0) return rows;
   const start = (currentPage - 1) * pageSize;
   return rows.slice(start, start + pageSize);
 }
 
 export function totalPageCount(totalRows: number, pageSize: number): number {
+  if (!Number.isFinite(pageSize) || pageSize <= 0) return 1; // 전체 보기는 1페이지
   return Math.max(1, Math.ceil(totalRows / pageSize));
 }
 
