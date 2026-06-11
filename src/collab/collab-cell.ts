@@ -1,6 +1,7 @@
 import type { ColumnDef } from "../types/columns";
 import { getOptionColorClass } from "../lib/options";
 import { formatCurrency, formatDate } from "../lib/utils";
+import { cleanPersonName, detectPersonChipRole, personChipClasses } from "../unified/field-display-core";
 import type { CellValue } from "./collab-table-core";
 
 // 앱이 주입하는 색상 규칙(도메인 데이터). 보관함은 데이터를 갖지 않고 인자로만 받는다.
@@ -9,7 +10,7 @@ export type CellColorMaps = {
   badgeColors?: Record<string, string>;
 };
 
-export type CellChip = { label: string; className: string };
+export type CellChip = { label: string; className: string; dot?: string };
 
 // 셀을 어떻게 그릴지에 대한 순수 판정 결과 — 하이브 표 셀 표시(renderDisplay)와 동일 규칙.
 export type CellContent =
@@ -85,6 +86,20 @@ export function cellChips(col: ColumnDef, value: CellValue, maps: CellColorMaps 
   }
 
   if (col.type === "person") {
+    // 팀장/팀원 라벨 → 색 칩(상세창과 동일 규칙). 그 외 person 칸은 글자 그대로.
+    const role = detectPersonChipRole(col.label);
+    if (role) {
+      const names = String(value)
+        .split(/[,;]/)
+        .map((s) => cleanPersonName(s.trim()))
+        .filter(Boolean);
+      if (names.length === 0) return { kind: "text", text: "-" };
+      const c = personChipClasses(role);
+      return {
+        kind: "chips",
+        chips: names.map((label) => ({ label, className: `${c.bg} ${c.text}`, dot: c.dot })),
+      };
+    }
     return { kind: "text", text: personDisplayName(String(value)) };
   }
 

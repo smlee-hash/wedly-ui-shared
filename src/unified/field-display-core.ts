@@ -98,6 +98,24 @@ export function cleanPersonName(raw: string): string {
 }
 
 /**
+ * 사람 칸 라벨 → 색 칩 역할. 표 셀·상세창이 공유하는 단일 규칙.
+ * 팀장/담당팀장/담당사무장 → "leader", 팀원/담당팀원 → "member", 그 외 person 칸 → null(칩 아님).
+ */
+export function detectPersonChipRole(label: string | undefined): "leader" | "member" | null {
+  const ln = normLabel(label);
+  if (ln === "팀장" || ln === "담당팀장" || ln === "담당사무장") return "leader";
+  if (ln === "팀원" || ln === "담당팀원") return "member";
+  return null;
+}
+
+/** 팀장/팀원 색 칩 색상(WEDLY 토큰) — 표 셀·상세창 공용. */
+export function personChipClasses(role: "leader" | "member"): { bg: string; text: string; dot: string } {
+  return role === "leader"
+    ? { bg: "bg-wedly-bg-blue", text: "text-wedly-accent", dot: "bg-wedly-accent" }
+    : { bg: "bg-wedly-bg-green", text: "text-wedly-green", dot: "bg-wedly-green" };
+}
+
+/**
  * 하이브 읽기 분기와 동일한 순서로 표시 디스크립터를 만든다.
  * 순서: file → empty → 팀장/팀원칩 → last_edited_time → select/status → currency → date → ISO일시 → 기본텍스트.
  * (multi_select 별도 분기 없음 — 하이브와 동일하게 기본 텍스트로 떨어뜨림.)
@@ -120,17 +138,15 @@ export function classifyUnifiedFieldValue(
     return { kind: "empty", text: emptyText };
   }
 
-  // 팀장/팀원 라벨 → 색 칩
-  const ln = normLabel(field.label);
-  const isLeader = ln === "팀장" || ln === "담당팀장" || ln === "담당사무장";
-  const isMember = ln === "팀원" || ln === "담당팀원";
-  if ((isLeader || isMember) && typeof value === "string" && value.trim()) {
+  // 팀장/팀원 라벨 → 색 칩 (표 셀·상세창 공용 규칙)
+  const personRole = detectPersonChipRole(field.label);
+  if (personRole && typeof value === "string" && value.trim()) {
     const names = value
       .split(/[,;]/)
       .map((s) => s.trim())
       .filter(Boolean)
       .map((s) => (resolvePersonName ? resolvePersonName(s) : cleanPersonName(s)));
-    return { kind: "person-chip", names, isLeader };
+    return { kind: "person-chip", names, isLeader: personRole === "leader" };
   }
 
   if (field.type === "last_edited_time") {

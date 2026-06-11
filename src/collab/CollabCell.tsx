@@ -3,12 +3,24 @@
 import type { ReactNode } from "react";
 import type { ColumnDef } from "../types/columns";
 import { cn } from "../lib/cn";
-import { cellChips, type CellColorMaps } from "./collab-cell";
+import { cellChips, type CellChip, type CellColorMaps } from "./collab-cell";
 import type { CellValue, RowData } from "./collab-table-core";
 
-// 딱지(둥근 알약) 모양 — ERP·하이브 본화면 표와 동일.
-const CHIP_CLASS =
-  "inline-block px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap";
+// 딱지(둥근 알약) 모양 — ERP·하이브 본화면 표와 동일. (display 는 점 유무에 따라 분기)
+const CHIP_BASE = "px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap";
+
+// 색 딱지 1개. 팀장/팀원 사람 칩은 점(dot)+알약, 그 외는 일반 딱지.
+// cn 에 tailwind-merge 가 없어 inline-block/inline-flex 를 동시에 주지 않도록 한쪽만 내보낸다.
+function Chip({ chip }: { chip: CellChip }) {
+  return (
+    <span className={cn(chip.dot ? "inline-flex items-center gap-1" : "inline-block", CHIP_BASE, chip.className)}>
+      {chip.dot ? (
+        <span className={cn("inline-block w-1.5 h-1.5 rounded-full", chip.dot)} aria-hidden="true" />
+      ) : null}
+      {chip.label}
+    </span>
+  );
+}
 
 /** 하이브 표 셀과 동일한 표시(읽기 전용): 색 딱지 / 통화 / 글자. */
 export function ColoredCell({
@@ -54,17 +66,14 @@ export function ColoredCell({
       </span>
     );
   }
-  // chips
+  // chips (select/status/multi_select 색 딱지 + 팀장/팀원 점 알약)
   if (content.chips.length === 1) {
-    const c = content.chips[0];
-    return <span className={cn(CHIP_CLASS, c.className)}>{c.label}</span>;
+    return <Chip chip={content.chips[0]} />;
   }
   return (
     <span className="inline-flex flex-wrap gap-1">
       {content.chips.map((c, i) => (
-        <span key={`${c.label}-${i}`} className={cn(CHIP_CLASS, c.className)}>
-          {c.label}
-        </span>
+        <Chip key={`${c.label}-${i}`} chip={c} />
       ))}
     </span>
   );
