@@ -41,7 +41,7 @@ export default function BasicFilesField({
           onClick={() => setOpen(true)}
           className="inline-flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg border border-wedly-accent/40 hover:border-wedly-accent hover:bg-wedly-bg-blue/30 transition-colors text-[13px] text-wedly-accent font-medium"
         >
-          + 파일 첨부
+          파일 추가
         </button>
       ) : (
         <>
@@ -58,13 +58,15 @@ export default function BasicFilesField({
               <span className="truncate">{f.name}</span>
             </a>
           ))}
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="w-fit px-1 text-[12px] text-wedly-accent font-medium hover:underline"
-          >
-            {files.length > 2 ? `더 보기 (전체 ${files.length}개)` : "전체 보기 · 추가/삭제"}
-          </button>
+          <div className="flex w-fit items-center gap-2 px-1 text-[12px]">
+            <button type="button" onClick={() => setOpen(true)} className="text-wedly-accent font-medium hover:underline">파일 추가</button>
+            {files.length >= 3 && (
+              <>
+                <span className="text-wedly-muted">|</span>
+                <button type="button" onClick={() => setOpen(true)} className="text-wedly-accent font-medium hover:underline">모든 파일 보기</button>
+              </>
+            )}
+          </div>
         </>
       )}
 
