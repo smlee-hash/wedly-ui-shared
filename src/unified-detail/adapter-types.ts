@@ -172,8 +172,17 @@ export interface UnifiedDetailAdapter {
   ownFileCategoryKey: string;
 
   /**
+   * (선택) 표 컬럼에 file타입 칸이 없는 앱(일루아)이 기본정보에 파일칸을 항상 띄우게 하는 합성 칸 선언.
+   * 선언하면 UnifiedDetailView 가 기본정보에 아직 file타입 필드가 없을 때 합성 "리포트" 파일칸을 보충한다.
+   * ERP·하이브는 실제 file타입 칸을 보유 → 미선언(undefined)으로 두면 동작 무변화.
+   */
+  basicReportField?: { key: string; label?: string };
+
+  /**
    * 회사 전체 파일을 모아 반환 — 기본정보 "파일" 칸(2개 미리보기 + 더보기 팝업)이 사용.
    * 앱별 저장 방식 흡수: 하이브·일루아 = row["_files"] 묶음, ERP = ownFileFields 칸별 파일 합치기.
+   * detail(분야행 전체)은 선택 인자 — 일루아처럼 파일이 분야별 행에 흩어진 앱이 전 분야 _files 를 합산할 때 사용.
+   * ERP·하이브 구현은 detail 을 무시(인자 적은 함수도 호환).
    */
-  getAllFiles: (row: Record<string, unknown>) => FileMetaLite[];
+  getAllFiles: (row: Record<string, unknown>, detail?: CustomerDetailLite | null) => FileMetaLite[];
 }

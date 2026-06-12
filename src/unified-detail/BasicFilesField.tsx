@@ -9,22 +9,26 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { UnifiedDetailAdapter } from "./adapter-types";
+import type { CustomerDetailLite } from "./lib/customer-detail";
 
 export default function BasicFilesField({
   row,
+  detail,
   adapter,
   entryId,
   saveOwnField,
   onSaved,
 }: {
   row: Record<string, unknown>;
+  // 분야행 전체(있을 때) — 파일이 분야별 행에 흩어진 앱(일루아)이 전 분야 _files 를 합산하는 데 사용.
+  detail?: CustomerDetailLite | null;
   adapter: UnifiedDetailAdapter;
   entryId: string;
   saveOwnField: (entryId: string, key: string, value: string | number | boolean | null) => Promise<void>;
   onSaved?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const files = adapter.getAllFiles(row); // 매 렌더 재계산 (캐시 금지)
+  const files = adapter.getAllFiles(row, detail ?? null); // 매 렌더 재계산 (캐시 금지)
   const ErpFilesPanel = adapter.components.ErpFilesPanel;
   const inline = files.slice(0, 2);
 

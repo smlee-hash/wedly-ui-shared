@@ -926,13 +926,20 @@ function BasicInfoPanel({
     [ownColumns],
   );
   // 상호명은 별도 헤더로 표시하므로 BASIC_FIELD_SPECS에서는 제외 (진행상태는 표시)
-  const baseSection = useMemo(
-    () => ensureBasicTeamFields(
+  const baseSection = useMemo(() => {
+    const withTeam = ensureBasicTeamFields(
       buildBasicSection(BASIC_FIELD_SPECS, colsLite, row as Record<string, unknown>),
       colsLite,
-    ),
-    [colsLite, row],
-  );
+    );
+    // 표 컬럼에 file타입 칸이 없는 앱(일루아)은 기본정보에 파일칸이 안 떠 회사 파일이 안 보인다.
+    // 어댑터가 basicReportField 를 선언하고(일루아만) 아직 file타입 필드가 없으면 합성 "리포트" 파일칸을 보충.
+    // ERP·하이브는 실제 file타입 칸 보유 → 미선언이라 이 가지를 타지 않음(무변화).
+    const rf = adapter.basicReportField;
+    if (rf && !withTeam.fields.some((f) => f.type === "file")) {
+      return { ...withTeam, fields: [...withTeam.fields, { key: rf.key, label: rf.label ?? "리포트", type: "file" as const }] };
+    }
+    return withTeam;
+  }, [colsLite, row, adapter]);
 
   // ── 공용 기본정보 보관함 연결: 사업자번호 + 칸 키 → 공통 식별자(= 공통 스펙 라벨, 앱 중립) ──
   const bizno = useMemo(() => {
@@ -1298,6 +1305,7 @@ function BasicInfoPanel({
                       <div className="flex-1 min-w-0">
                         <BasicFilesField
                           row={r}
+                          detail={detail}
                           adapter={adapter}
                           entryId={String(r["_id"] ?? "")}
                           saveOwnField={saveOwnField}
