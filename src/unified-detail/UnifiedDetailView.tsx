@@ -11,11 +11,11 @@ import {
 import { DOMAIN_GROUPS, type DomainGroup } from "./lib/domain-config";
 import { getStatusDotClass } from "./lib/status-dot";
 import { normalizeBizno } from "./lib/secstore";
-import { type FileFieldDef } from "./adapter-types";
 import HistoryPanel, { type HistoryPanelApi } from "./HistoryPanel";
 import { FieldOptionsProvider } from "./field-options-context";
 import SectionHistoryPanel from "./SectionHistoryPanel";
 import { EditableFieldRow } from "./editors";
+import BasicFilesField from "./BasicFilesField";
 import { CommonFieldsLauncher } from "./CommonFieldsLauncher";
 import { UNIFIED_TYPE_OPTIONS } from "./lib/column-type-options";
 import { useFieldOrder } from "./lib/use-field-order";
@@ -133,7 +133,7 @@ function TaxAmendmentPanel({
   ownTieredFieldsPath: (kind: "contract" | "refund") => string;
   adapter: UnifiedDetailAdapter;
 }) {
-  const { SettlementInfoTab, MeetingsTab, ErpFilesPanel } = adapter.components;
+  const { SettlementInfoTab, MeetingsTab } = adapter.components;
   const [localRow, setLocalRow] = useState<Record<string, unknown>>(() => ({ ...domainRow.row }));
   const entryId = domainRow.entryId;
 
@@ -188,7 +188,6 @@ function TaxAmendmentPanel({
     { key: "settlement", label: "정산정보" },
     { key: "refund",     label: "환불정보" },
     { key: "meetings",   label: "미팅정보" },
-    { key: "files",      label: "파일" },
   ];
 
   // ── "탭 편집" — 하위 탭 순서·이름 변경(관리자만, 모두에게 반영). 탭의 실제 기능·저장 위치는 그대로, 표시(순서·이름)만 바뀐다. ──
@@ -359,35 +358,7 @@ function TaxAmendmentPanel({
           </div>
         )}
 
-        {/* 파일 */}
-        {subTab === "files" && (
-          <div className="p-4">
-            <div className="rounded-xl border border-wedly-bd bg-white overflow-hidden">
-              <div className="px-4 py-2.5 bg-wedly-bg-gray/50 border-b border-wedly-bd/60">
-                <span className="text-[12px] font-semibold text-wedly-t2">첨부파일</span>
-                <span className="ml-2 text-[11px] text-wedly-muted">경정청구 본화면과 공유</span>
-              </div>
-              <div className="p-4">
-                <ErpFilesPanel
-                  row={localRow}
-                  fields={adapter.ownFileFields}
-                  pageId={entryId}
-                  onPatchField={async (key: string, jsonValue: string) => {
-                    setLocalRow((r) => ({ ...r, [key]: jsonValue }));
-                    try {
-                      await saveOwnField(entryId, key, jsonValue);
-                      onSaved?.();
-                    } catch {
-                      setLocalRow((r) => ({ ...r, [key]: localRow[key] }));
-                    }
-                  }}
-                  defaultCategoryKey={adapter.ownFileCategoryKey}
-                  readOnly={false}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 파일 탭 제거 — 첨부파일은 기본정보 "파일" 칸(전체 모아보기 + 더보기 팝업)에서 통합 관리 */}
       </div>
     </div>
   );
@@ -434,7 +405,7 @@ function SectionDetailPanel({
   sectionSettlementBase: string;
   adapter: UnifiedDetailAdapter;
 }) {
-  const { MeetingsTab, ErpFilesPanel, SectionSettlementTab } = adapter.components;
+  const { MeetingsTab, SectionSettlementTab } = adapter.components;
   const [localRow, setLocalRow] = useState<Record<string, unknown>>(() => ({ ...primaryRow }));
   // 최신 행 값 참조(롤백용) — handleUpdate 가 localRow 에 의존하지 않게 해 자식(히스토리 등) 재초기화를 막는다.
   const localRowRef = useRef(localRow);
@@ -644,10 +615,7 @@ function SectionDetailPanel({
     { key: "settlement", label: "정산정보" },
     { key: "refund", label: "환불정보" },
     { key: "meetings", label: "미팅정보" },
-    { key: "files", label: "파일" },
   ];
-
-  const fileFields: FileFieldDef[] = [{ key: nk("첨부파일"), label: "첨부파일" }];
 
   return (
     <div className="flex flex-col h-full">
@@ -762,26 +730,7 @@ function SectionDetailPanel({
           </div>
         )}
 
-        {/* 파일 — 분야별 독립 */}
-        {subTab === "files" && (
-          <div className="p-4">
-            <div className="rounded-xl border border-wedly-bd bg-white overflow-hidden">
-              <div className="px-4 py-2.5 bg-wedly-bg-gray/50 border-b border-wedly-bd/60">
-                <span className="text-[12px] font-semibold text-wedly-t2">첨부파일</span>
-              </div>
-              <div className="p-4">
-                <ErpFilesPanel
-                  row={localRow}
-                  fields={fileFields}
-                  pageId={primaryId}
-                  onPatchField={(key: string, jsonValue: string) => handleUpdate(key, jsonValue)}
-                  defaultCategoryKey={nk("첨부파일")}
-                  readOnly={false}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 파일 탭 제거 — 첨부파일은 기본정보 "파일" 칸에서 통합 관리 */}
       </div>
     </div>
   );
@@ -1338,6 +1287,26 @@ function BasicInfoPanel({
                   defaultVisible: true,
                   format: f.format,
                 };
+                // 파일 칸: 회사 전체 파일을 한곳에 모아 2개 미리보기 + "더 보기" 팝업으로 표시(공용 BasicFilesField).
+                // 신규 등록 모드는 아직 항목(저장 대상)이 없어 생략한다.
+                if (col.type === "file") {
+                  if (isNew) return null;
+                  const r = row as Record<string, unknown>;
+                  return (
+                    <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
+                      <div className="w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal text-wedly-muted">{col.label}</div>
+                      <div className="flex-1 min-w-0">
+                        <BasicFilesField
+                          row={r}
+                          adapter={adapter}
+                          entryId={String(r["_id"] ?? "")}
+                          saveOwnField={saveOwnField}
+                          onSaved={onSaved}
+                        />
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <EditableFieldRow
                     key={f.key}

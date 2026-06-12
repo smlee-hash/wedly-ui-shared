@@ -163,6 +163,7 @@ export type {
   FieldOptionsBundle,
   BasicRecord,
   FileFieldDef,
+  FileMetaLite,
 } from "./unified-detail/adapter-types";
 export { FieldOptionsProvider, useFieldOptions } from "./unified-detail/field-options-context";
 export type { CustomerDetailLite, DomainRowLite } from "./unified-detail/lib/customer-detail";

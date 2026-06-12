@@ -12,6 +12,9 @@ import type { SelectDropdownColorFamily } from "@wedly/detail-modal-shared";
 // 원본: src/app/(erp)/_shared/erp-files-adapter.ts
 export type FileFieldDef = { key: string; label: string };
 
+/** 기본정보 통합 파일 칸(2개+더보기)이 쓰는 경량 파일 표현 — 앱별 getAllFiles 가 반환 */
+export type FileMetaLite = { name: string; url: string; category?: string };
+
 // ── FieldOptionsBundle — editors.tsx 가 ERP 옵션/색 모듈에서 쓰던 심볼 모음 ──
 // editors.tsx 는 이 번들을 FieldOptionsContext(React Context)를 통해 주입받고,
 // ERP 직접 import 없이 fo.getFieldOptions(...) 같은 형식으로 사용한다.
@@ -167,4 +170,10 @@ export interface UnifiedDetailAdapter {
 
   /** 자기 도메인 파일 탭 기본 카테고리 키 */
   ownFileCategoryKey: string;
+
+  /**
+   * 회사 전체 파일을 모아 반환 — 기본정보 "파일" 칸(2개 미리보기 + 더보기 팝업)이 사용.
+   * 앱별 저장 방식 흡수: 하이브·일루아 = row["_files"] 묶음, ERP = ownFileFields 칸별 파일 합치기.
+   */
+  getAllFiles: (row: Record<string, unknown>) => FileMetaLite[];
 }
