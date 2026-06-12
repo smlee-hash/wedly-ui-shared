@@ -154,4 +154,20 @@ export type { DevRequestPanelProps } from "./components/DevRequestPanel";
 export { buildDevRequestUrl } from "./components/dev-request-url";
 export type { DevRequestUrlParams } from "./components/dev-request-url";
 
-export const __MODULE_VERSION__ = "0.37.0";
+// ─── Phase 1B-2: ERP 통합상세창 공용화 ───────────────────────────────────────
+// UnifiedDetailView + 어댑터 타입 + 유틸 — ERP 어댑터 주입 방식으로 앱 중립화
+export { default as UnifiedDetailView } from "./unified-detail/UnifiedDetailView";
+export type {
+  UnifiedDetailAdapter,
+  UnifiedDetailApi,
+  FieldOptionsBundle,
+  BasicRecord,
+  FileFieldDef,
+} from "./unified-detail/adapter-types";
+export { FieldOptionsProvider, useFieldOptions } from "./unified-detail/field-options-context";
+export type { CustomerDetailLite, DomainRowLite } from "./unified-detail/lib/customer-detail";
+export type { DomainGroup } from "./unified-detail/lib/domain-config";
+export { DOMAIN_GROUPS } from "./unified-detail/lib/domain-config";
+export { useFieldOrder } from "./unified-detail/lib/use-field-order";
+
+export const __MODULE_VERSION__ = "0.38.0";
