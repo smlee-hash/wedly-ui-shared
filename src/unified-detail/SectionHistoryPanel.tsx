@@ -3,7 +3,7 @@
 // 통합화면 분야(섹션)별 히스토리 — 공용 SectionHistoryPanel(@wedly/ui-shared)에 ERP 설정
 // (작성 출처 "erp"·작성자 이름)을 주입하는 얇은 래퍼. (Stage 2b: 로직 단일 원본화)
 import { useEffect, useState } from "react";
-import { SectionHistoryPanel as Shared } from "../components/SectionHistoryPanel";
+import Shared from "../components/SectionHistoryPanel";
 import type { UnifiedComment } from "../unified/history-core";
 
 let _cachedName: string | null = null;

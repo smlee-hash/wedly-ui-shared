@@ -169,5 +169,7 @@ export type { CustomerDetailLite, DomainRowLite } from "./unified-detail/lib/cus
 export type { DomainGroup } from "./unified-detail/lib/domain-config";
 export { DOMAIN_GROUPS } from "./unified-detail/lib/domain-config";
 export { useFieldOrder } from "./unified-detail/lib/use-field-order";
+// 분야별 정산 차수 탭 래퍼(공용 부품에 ERP 경로 주입) — erp-adapter 가 adapter.components 로 주입.
+export { default as SectionSettlementTab } from "./unified-detail/SectionSettlementTab";
 
-export const __MODULE_VERSION__ = "0.38.0";
+export const __MODULE_VERSION__ = "0.39.0";
