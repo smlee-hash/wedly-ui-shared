@@ -50,6 +50,8 @@ export { DesktopTable } from "./components/DesktopTable";
 
 export { TopControls } from "./components/TopControls";
 
+export { MaximizableSection } from "./components/MaximizableSection";
+
 // 글자·숫자·날짜 입력기 — 표 셀과 상세 모달 양쪽이 같은 부품 사용
 // (AGENTS.md §5-4 cell-detail-parity — 두 화면 100% 동일).
 // 날짜 입력기는 onClose 가 있으면 표 셀용(portal), 없으면 상세 모달용(인라인).
