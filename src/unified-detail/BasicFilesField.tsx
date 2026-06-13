@@ -105,6 +105,7 @@ export default function BasicFilesField({
                   onPatchField={(key: string, jsonValue: string) => saveOwnField(entryId, key, jsonValue)}
                   defaultCategoryKey={adapter.ownFileFields[0]?.key ?? "첨부파일"}
                   readOnly={false}
+                  allFiles={files}
                 />
               </div>
             </div>
