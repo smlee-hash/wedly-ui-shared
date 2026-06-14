@@ -500,10 +500,23 @@ export function EditableFieldRow({
 
   const handleSave = useCallback(
     (newVal: string | number | boolean | null) => {
+      // 의도치 않은 수정 방지 — 단일 값 저장 직전 확인 팝업. multi_select(태그 토글)는 매번 묻기 불편하므로 제외(즉시 반영).
+      // 통합 상세창의 기본정보·일반 칸이 모두 이 관문(EditableFieldRow)을 거치므로, 표 셀과 동일한 "저장 전 확인"을 상세창에도 제공한다.
+      if (col.type !== "multi_select" && String(newVal ?? "") !== String(value ?? "")) {
+        const fmt = (v: unknown) =>
+          v === null || v === undefined || v === "" ? "(빈 값)" : String(v);
+        const ok = window.confirm(
+          `다음 내용을 수정합니다.\n\n· 항목: ${col.label || col.key}\n· 이전 값: ${fmt(value)}\n· 변경 값: ${fmt(newVal)}\n\n저장할까요?`,
+        );
+        if (!ok) {
+          setEditing(false);
+          return;
+        }
+      }
       setEditing(false);
       onUpdate(col.key, newVal);
     },
-    [col.key, onUpdate],
+    [col.key, col.type, col.label, value, onUpdate],
   );
 
   // 표시용 값 — 하이브 EditableFieldRow 와 100% 동일한 형태(빈값 문구·선택 배지·남색 글자·글씨크기).
