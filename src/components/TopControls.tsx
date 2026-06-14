@@ -72,6 +72,9 @@ type Props = {
 
   // 3줄(보기/표시/페이지) 렌더 여부 — 캘린더 뷰 등에서는 false
   showPageBox: boolean;
+
+  // 3줄 우측 끝에 붙일 추가 컨트롤(정렬 패널·표 최대화 버튼 등). 보기/표시/페이지와 같은 줄.
+  trailingControls?: import("react").ReactNode;
 };
 
 export function TopControls({
@@ -109,6 +112,7 @@ export function TopControls({
   totalPages,
   totalRows,
   showPageBox,
+  trailingControls,
 }: Props) {
   return (
     <>
@@ -338,6 +342,10 @@ export function TopControls({
         {/* Infinity 또는 단일 페이지 + 데이터 있을 때만 — 건수 표시 */}
         {(pageSize === Infinity || totalPages <= 1) && totalRows > 0 && (
           <span className="text-wedly-muted text-[11px] tabular-nums whitespace-nowrap">총 {totalRows}건</span>
+        )}
+        {/* 우측 끝 — 정렬 패널 + 표 최대화 버튼(보기/표시/페이지와 같은 줄) */}
+        {trailingControls && (
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0">{trailingControls}</div>
         )}
         </div>
         )}
