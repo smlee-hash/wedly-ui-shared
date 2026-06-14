@@ -472,6 +472,86 @@ function FileEditor({
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 저장 전 확인 모달 — 브라우저 기본 confirm 대신 위들리 디자인 모달(AGENTS.md 규칙).
+// 이전 값(빨강·취소선) → 변경 값(초록·굵게) 으로 무엇이 어떻게 바뀌는지 색으로 또렷이 구분.
+// ─────────────────────────────────────────────────────────────────────────────
+function ConfirmEditDialog({
+  label,
+  oldVal,
+  newVal,
+  onConfirm,
+  onCancel,
+}: {
+  label: string;
+  oldVal: unknown;
+  newVal: string | number | boolean | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const fmt = (v: unknown) =>
+    v === null || v === undefined || v === "" ? "(빈 값)" : String(v);
+  return (
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+      onClick={onCancel}
+    >
+      <div
+        className="flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-wedly-bd bg-white shadow-[0_20px_60px_-10px_rgba(10,34,68,0.25)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div className="flex items-center gap-2.5 px-5 pt-5 pb-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-wedly-bg-blue text-wedly-accent">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-bold text-wedly-navy">수정 확인</h3>
+            <p className="truncate text-[12px] text-wedly-muted">
+              <span className="font-semibold text-wedly-t2">{label}</span> 칸을 아래와 같이 바꿉니다.
+            </p>
+          </div>
+        </div>
+        {/* 본문 — 이전 값(빨강) → 변경 값(초록) */}
+        <div className="space-y-1.5 px-5 pb-2">
+          <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-3.5 py-2.5">
+            <div className="mb-0.5 text-[11px] font-semibold text-wedly-red">이전 값</div>
+            <div className="break-words text-[14px] font-medium text-wedly-red line-through decoration-wedly-red/40">{fmt(oldVal)}</div>
+          </div>
+          <div className="flex justify-center text-wedly-muted">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M12 5v14m0 0l-5-5m5 5l5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <div className="rounded-xl border border-wedly-bd-green bg-wedly-bg-green px-3.5 py-2.5">
+            <div className="mb-0.5 text-[11px] font-semibold text-wedly-green">변경 값</div>
+            <div className="break-words text-[14px] font-bold text-wedly-green">{fmt(newVal)}</div>
+          </div>
+        </div>
+        {/* 버튼 */}
+        <div className="mt-2 flex justify-end gap-2 border-t border-wedly-bd/60 bg-wedly-bg-gray/40 px-5 py-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg px-4 py-2 text-[13px] font-medium text-wedly-t2 transition-colors hover:bg-wedly-bg-gray"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-lg bg-wedly-accent px-4 py-2 text-[13px] font-bold text-white transition-opacity hover:opacity-90"
+          >
+            저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function EditableFieldRow({
   col,
   value,
@@ -494,29 +574,24 @@ export function EditableFieldRow({
 }) {
   const fo = useFieldOptions();
   const [editing, setEditing] = useState(false);
+  // 저장 직전 확인 모달 대기 상태 — 값이 실제로 바뀌면 styled 확인창(ConfirmEditDialog)을 띄운다.
+  const [pendingSave, setPendingSave] = useState<{ newVal: string | number | boolean | null } | null>(null);
   // 편집 가능한 형식만 입력칸을 띄운다. person·읽기전용 타입은 표시만(빈 입력칸 방지).
   // multi_select·file은 편집 가능 — isReadonly에서 제외.
   const isReadonly = fo.READONLY_TYPES.has(col.type) || fo.isReadonlyPerson(col);
 
   const handleSave = useCallback(
     (newVal: string | number | boolean | null) => {
-      // 의도치 않은 수정 방지 — 단일 값 저장 직전 확인 팝업. multi_select(태그 토글)는 매번 묻기 불편하므로 제외(즉시 반영).
-      // 통합 상세창의 기본정보·일반 칸이 모두 이 관문(EditableFieldRow)을 거치므로, 표 셀과 동일한 "저장 전 확인"을 상세창에도 제공한다.
-      if (col.type !== "multi_select" && String(newVal ?? "") !== String(value ?? "")) {
-        const fmt = (v: unknown) =>
-          v === null || v === undefined || v === "" ? "(빈 값)" : String(v);
-        const ok = window.confirm(
-          `다음 내용을 수정합니다.\n\n· 항목: ${col.label || col.key}\n· 이전 값: ${fmt(value)}\n· 변경 값: ${fmt(newVal)}\n\n저장할까요?`,
-        );
-        if (!ok) {
-          setEditing(false);
-          return;
-        }
-      }
       setEditing(false);
+      // 의도치 않은 수정 방지 — 단일 값 저장 직전 확인 모달. multi_select(태그 토글)는 매번 묻기 불편하므로 제외(즉시 반영).
+      // 값이 안 바뀌면 묻지 않음. 통합 상세창의 기본정보·일반 칸이 모두 이 관문(EditableFieldRow)을 거친다.
+      if (col.type !== "multi_select" && String(newVal ?? "") !== String(value ?? "")) {
+        setPendingSave({ newVal });
+        return;
+      }
       onUpdate(col.key, newVal);
     },
-    [col.key, col.type, col.label, value, onUpdate],
+    [col.key, col.type, value, onUpdate],
   );
 
   // 표시용 값 — 하이브 EditableFieldRow 와 100% 동일한 형태(빈값 문구·선택 배지·남색 글자·글씨크기).
@@ -701,6 +776,18 @@ export function EditableFieldRow({
           </div>
         )}
       </div>
+      {pendingSave && (
+        <ConfirmEditDialog
+          label={col.label || col.key}
+          oldVal={value}
+          newVal={pendingSave.newVal}
+          onConfirm={() => {
+            onUpdate(col.key, pendingSave.newVal);
+            setPendingSave(null);
+          }}
+          onCancel={() => setPendingSave(null)}
+        />
+      )}
     </div>
   );
 }
