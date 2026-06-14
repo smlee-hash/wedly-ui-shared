@@ -51,6 +51,8 @@ export { DesktopTable } from "./components/DesktopTable";
 export { TopControls } from "./components/TopControls";
 
 export { MaximizableSection } from "./components/MaximizableSection";
+export type { MaximizableApi } from "./components/MaximizableSection";
+export { MaximizeButton } from "./components/MaximizeButton";
 
 // 글자·숫자·날짜 입력기 — 표 셀과 상세 모달 양쪽이 같은 부품 사용
 // (AGENTS.md §5-4 cell-detail-parity — 두 화면 100% 동일).
@@ -96,10 +98,13 @@ export * from "./unified";
 
 export { CollabTable } from "./collab/CollabTable";
 export type { CollabTableProps } from "./collab/CollabTable";
+// 정렬 기준 패널(다중 AND 정렬) — ERP·하이브·일루아 첫 화면 공용
+export { SortPanel } from "./collab/SortPanel";
 export {
   filterRowsBySearch,
   sortRows,
   nextSortConfig,
+  normalizeSort,
   orderColumns,
   computeStickyOffsets,
   paginate,
@@ -107,7 +112,7 @@ export {
   reorderList,
   defaultFormatCellValue,
 } from "./collab/collab-table-core";
-export type { RowData, CellValue, SortConfig } from "./collab/collab-table-core";
+export type { RowData, CellValue, SortConfig, SortRule } from "./collab/collab-table-core";
 
 // 상태별 필터 탭 — 순수 로직 + 표시 부품
 export { matchesFilter, matchesTab, filterRowsByTab } from "./collab/collab-filters";
@@ -175,4 +180,4 @@ export { useFieldOrder } from "./unified-detail/lib/use-field-order";
 // 분야별 정산 차수 탭 래퍼(공용 부품에 ERP 경로 주입) — erp-adapter 가 adapter.components 로 주입.
 export { default as SectionSettlementTab } from "./unified-detail/SectionSettlementTab";
 
-export const __MODULE_VERSION__ = "0.39.0";
+export const __MODULE_VERSION__ = "0.40.0";
