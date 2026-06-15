@@ -42,7 +42,7 @@ export function FilterTabs({ tabs, activeId, onSelect, admin, trailing }: Filter
   };
 
   return (
-    <div className="mb-3 flex items-center gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
+    <div className="mb-3 flex items-center gap-1 overflow-x-auto rounded-xl bg-wedly-bg-gray p-1">
       {tabs.map((tab, idx) => {
         const active = tab.id === activeId;
         return (

@@ -1,24 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-  deriveRefundFlag,
   TAX_AMENDMENT_COLLAB_VISIBLE,
   TAX_AMENDMENT_EXTRA_COLUMNS,
+  TAX_AMENDMENT_COLLAB_COLORS,
 } from "./tax-amendment-collab-view";
 
-describe("deriveRefundFlag — 총환급금 → 있음/없음", () => {
-  it("총환급금이 양수면 '있음'", () => {
-    expect(deriveRefundFlag({ "10총환급금": 1500000 })).toBe("있음");
-  });
-  it("0·빈값·없음은 '없음'", () => {
-    expect(deriveRefundFlag({ "10총환급금": 0 })).toBe("없음");
-    expect(deriveRefundFlag({ "10총환급금": "" })).toBe("없음");
-    expect(deriveRefundFlag({})).toBe("없음");
-  });
-  it("콤마·원 같은 글자가 섞인 금액도 숫자로 해석", () => {
-    expect(deriveRefundFlag({ "10총환급금": "1,200,000원" })).toBe("있음");
-    expect(deriveRefundFlag({ "10총환급금": "0" })).toBe("없음");
-  });
-});
+// deriveRefundFlag 는 2026-06-08 제거됨 — 하이브 손입력(O/X)이 본체가 됐으므로 자동어림 불필요.
 
 describe("경정청구 협업 뷰 프리셋", () => {
   it("하이브 순서(팀장·팀원 제외) 8개 컬럼", () => {

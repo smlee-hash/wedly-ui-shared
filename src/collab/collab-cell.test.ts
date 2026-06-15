@@ -104,3 +104,52 @@ describe("cellChips file", () => {
     expect(r.kind).toBe("chips");
   });
 });
+
+describe("cellChips — 팀장/팀원 사람 칩(점+알약)", () => {
+  it("라벨이 '팀장'인 사람 칸 → 파란 칩 + 점", () => {
+    const r = cellChips(col("person", { label: "팀장" }), "이상민", {});
+    expect(r.kind).toBe("chips");
+    if (r.kind === "chips") {
+      expect(r.chips).toHaveLength(1);
+      expect(r.chips[0].label).toBe("이상민");
+      expect(r.chips[0].className).toContain("bg-wedly-bg-blue");
+      expect(r.chips[0].className).toContain("text-wedly-accent");
+      expect(r.chips[0].dot).toBe("bg-wedly-accent");
+    }
+  });
+
+  it("라벨이 '팀원'인 사람 칸 → 초록 칩 + 점", () => {
+    const r = cellChips(col("person", { label: "팀원" }), "김혜나", {});
+    expect(r.kind).toBe("chips");
+    if (r.kind === "chips") {
+      expect(r.chips[0].className).toContain("bg-wedly-bg-green");
+      expect(r.chips[0].dot).toBe("bg-wedly-green");
+    }
+  });
+
+  it("'담당사무장'도 팀장 취급(leader)", () => {
+    const r = cellChips(col("person", { label: "담당사무장" }), "박대표", {});
+    expect(r.kind).toBe("chips");
+    if (r.kind === "chips") expect(r.chips[0].dot).toBe("bg-wedly-accent");
+  });
+
+  it("팀장/팀원이 아닌 사람 칸(예: 영업담당)은 글자 그대로(불변)", () => {
+    expect(cellChips(col("person", { label: "영업담당" }), "정수민 <s@wedly.kr>", {})).toEqual({
+      kind: "text",
+      text: "정수민",
+    });
+  });
+
+  it("팀원 여러 명(콤마)은 칩 여러 개, 이메일은 떼고 이름만", () => {
+    const r = cellChips(col("person", { label: "팀원" }), "김혜나 <hn@wedly.kr>, 이상민", {});
+    expect(r.kind).toBe("chips");
+    if (r.kind === "chips") {
+      expect(r.chips.map((c) => c.label)).toEqual(["김혜나", "이상민"]);
+      expect(r.chips.every((c) => c.dot === "bg-wedly-green")).toBe(true);
+    }
+  });
+
+  it("팀장 라벨이라도 값이 비면 '-'", () => {
+    expect(cellChips(col("person", { label: "팀장" }), "", {})).toEqual({ kind: "text", text: "-" });
+  });
+});

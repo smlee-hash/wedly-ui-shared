@@ -60,6 +60,25 @@ type Props<TCol extends ColumnToggleColumn> = {
   canEditColumn?: (col: TCol) => boolean; // 연필 표시 여부 (기본: custom_ 칸만)
   canChangeType?: (col: TCol) => boolean; // 편집창에 타입 선택칸 표시 (기본: 안 보임)
   typeOptions?: { value: string; label: string }[]; // 추가/편집 타입 선택지 (기본: DEFAULT_COLUMN_TYPE_OPTIONS)
+  // ── 공통/그외 구분 (선택) ──
+  // 주어지면 목록을 "공통 칸(상세창 기본정보)" / "그 외 칸" 두 섹션으로 나눠 렌더.
+  // 미지정 시 기존 평면 목록(하이브·일루아 무손상).
+  commonColumnKeys?: string[];
+  // "그외" 행에 "공통으로" 버튼 — 클릭 시 해당 칸을 공통으로 승격
+  onPromoteToCommon?: (key: string) => void;
+  // 삭제된 칸 키 목록 — 하단 "삭제된 칸 복원" 칩 목록으로 표시
+  deletedColumns?: string[];
+  onRestoreColumn?: (key: string) => void;
+  // true 인 행에 삭제(✕) 버튼 표시. 클릭 시 confirm 후 deleteColumn 호출.
+  // 미지정 시 기존 동작(custom_ 칸만 삭제 버튼 노출).
+  isDeletable?: (col: TCol) => boolean;
+  // "공통" 행에 "그 외로" 버튼 — 클릭 시 공통 칸을 그 외 칸으로 되돌림.
+  // canDemoteFromCommon 으로 노출 대상 제한(예: 사용자가 옮긴 칸만, 기본 공통 칸은 보호).
+  onDemoteFromCommon?: (key: string) => void;
+  canDemoteFromCommon?: (key: string) => boolean;
+  // "새 컬럼 추가" 버튼 노출 여부(기본 true — 미지정 호출부 무손상).
+  // false 면 추가 섹션 자체를 숨긴다(비관리자는 추가 권한이 없어 눌러도 무동작이므로).
+  canAddColumn?: boolean;
 };
 
 export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
@@ -88,6 +107,14 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   canEditColumn,
   canChangeType,
   typeOptions,
+  commonColumnKeys,
+  onPromoteToCommon,
+  deletedColumns,
+  onRestoreColumn,
+  isDeletable,
+  onDemoteFromCommon,
+  canDemoteFromCommon,
+  canAddColumn = true,
 }: Props<TCol>) {
   const [search, setSearch] = useState("");
   if (!open) return null;
@@ -98,6 +125,135 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   const TYPE_OPTS = typeOptions ?? DEFAULT_COLUMN_TYPE_OPTIONS;
   const canEdit = (col: TCol) => (canEditColumn ? canEditColumn(col) : col.key.startsWith("custom_"));
   const canType = (col: TCol) => (canChangeType ? canChangeType(col) : false);
+  const canDelete = (col: TCol) => (isDeletable ? isDeletable(col) : col.key.startsWith("custom_"));
+
+  // 공통/그외 분리 (commonColumnKeys 있을 때만)
+  const commonSet = commonColumnKeys ? new Set(commonColumnKeys) : null;
+  const commonCols = commonSet ? visibleCols.filter((c) => commonSet.has(c.key)) : null;
+  const otherCols = commonSet ? visibleCols.filter((c) => !commonSet.has(c.key)) : null;
+
+  // 삭제된 칸 중 이름을 표시할 수 있는 것 — allColumns 에서 라벨 찾기
+  const deletedColLabels = (deletedColumns ?? []).map((k) => {
+    const col = allColumns.find((c) => c.key === k);
+    return { key: k, label: col ? getColLabel(col) : k };
+  });
+
+  const renderColRow = (col: TCol, isOther?: boolean) => {
+    const isCustom = col.key.startsWith("custom_");
+    const accent = getColAccent(col);
+    const editable = canEdit(col);
+    const deletable = canDelete(col);
+    if (editingCol === col.key) {
+      return (
+        <div key={col.key} className="px-2 py-2 my-1 rounded-lg bg-wedly-bg-gray/60 space-y-2">
+          <input
+            value={editColLabel}
+            onChange={(e) => setEditColLabel(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && renameColumn(col.key)}
+            placeholder="컬럼 이름"
+            className="w-full px-3 py-2 text-[13px] border border-wedly-bd rounded-lg bg-white text-wedly-t1 placeholder:text-wedly-muted focus:outline-none focus:ring-2 focus:ring-wedly-accent/30 focus:border-wedly-accent transition-colors"
+            autoFocus
+          />
+          {canType(col) && setEditColType && (
+            <CustomSelect
+              value={(editColType ?? col.type) as string}
+              onChange={(v) => setEditColType(v)}
+              options={TYPE_OPTS}
+            />
+          )}
+          <div className="flex gap-2">
+            <button onClick={() => renameColumn(col.key)} className="flex-1 py-1.5 text-[12px] font-medium text-white bg-wedly-accent rounded-lg">
+              저장
+            </button>
+            <button onClick={() => setEditingCol(null)} className="flex-1 py-1.5 text-[12px] text-wedly-muted border border-wedly-bd rounded-lg">
+              취소
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-wedly-bg-gray/40 group">
+        <input
+          type="checkbox"
+          checked={isColumnVisible(col.key)}
+          onChange={() => toggleColumn(col.key)}
+          className="rounded border-wedly-bd text-wedly-accent focus:ring-wedly-accent/20"
+        />
+        <span
+          className={cn(
+            "flex-1 text-[13px] inline-flex items-center gap-1.5",
+            isColumnVisible(col.key) ? (accent?.headerTint || "text-wedly-t1") : "text-wedly-muted",
+          )}
+        >
+          {accent && isColumnVisible(col.key) && (
+            <span
+              className={cn("inline-block w-1.5 h-1.5 rounded-full flex-shrink-0", accent.dotClass)}
+              aria-hidden="true"
+            />
+          )}
+          {getColLabel(col)}
+        </span>
+        <div className="hidden group-hover:flex items-center gap-1">
+          {/* 그외 칸 → "공통으로" 버튼 */}
+          {isOther && onPromoteToCommon && (
+            <button
+              onClick={() => onPromoteToCommon(col.key)}
+              className="text-[11px] px-1.5 py-0.5 rounded border border-wedly-accent/40 text-wedly-accent hover:bg-wedly-bg-blue/40 transition whitespace-nowrap"
+              title="상세창 기본정보에 포함(공통으로 승격)"
+            >
+              공통으로
+            </button>
+          )}
+          {/* 공통 칸 → "그 외로" 되돌리기 버튼 (되돌리기 대상만 노출) */}
+          {!isOther && onDemoteFromCommon && (canDemoteFromCommon ? canDemoteFromCommon(col.key) : true) && (
+            <button
+              onClick={() => onDemoteFromCommon(col.key)}
+              className="text-[11px] px-1.5 py-0.5 rounded border border-wedly-bd text-wedly-muted hover:bg-wedly-bg-gray transition whitespace-nowrap"
+              title="상세창 기본정보에서 빼고 그 외 칸으로 이동"
+            >
+              그 외로
+            </button>
+          )}
+          {(editable || isCustom) && (
+            <>
+              {editable && (
+                <button
+                  onClick={() => {
+                    setEditingCol(col.key);
+                    setEditColLabel(col.label);
+                    setEditColType?.(col.type);
+                  }}
+                  className="text-wedly-muted hover:text-wedly-accent"
+                  title="제목·타입 수정"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                    <path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                </button>
+              )}
+              {deletable && (
+                <button
+                  onClick={() => {
+                    if (window.confirm("이 칸을 삭제하면 표와 상세창에서 사라집니다. 되돌릴 수 있습니다.")) {
+                      deleteColumn(col.key);
+                    }
+                  }}
+                  className="text-wedly-muted hover:text-wedly-red"
+                  title="삭제"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-[55] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
@@ -122,97 +278,53 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
             placeholder="컬럼 이름 검색"
             className="w-full mb-2 px-3 py-2 text-[13px] border border-wedly-bd rounded-lg bg-white text-wedly-t1 placeholder:text-wedly-muted focus:outline-none focus:ring-2 focus:ring-wedly-accent/30 focus:border-wedly-accent hover:border-wedly-accent/50 transition-colors"
           />
-          {visibleCols.length === 0 && (
-            <div className="px-2 py-3 text-[12px] text-wedly-muted">검색 결과가 없습니다.</div>
+
+          {/* 공통/그외 2-섹션 렌더 (commonColumnKeys 있을 때) */}
+          {commonSet ? (
+            <>
+              {/* 공통 칸 섹션 */}
+              <div className="text-[11px] font-semibold text-wedly-t2 mb-1 mt-1">공통 칸 (상세창 기본정보)</div>
+              {commonCols!.length === 0 && (
+                <div className="px-2 py-2 text-[12px] text-wedly-muted">없음</div>
+              )}
+              {commonCols!.map((col) => renderColRow(col, false))}
+
+              {/* 그 외 칸 섹션 */}
+              <div className="text-[11px] font-semibold text-wedly-t2 mb-1 mt-3 border-t border-wedly-bd/40 pt-2.5">그 외 칸</div>
+              {otherCols!.length === 0 && (
+                <div className="px-2 py-2 text-[12px] text-wedly-muted">없음</div>
+              )}
+              {otherCols!.map((col) => renderColRow(col, true))}
+            </>
+          ) : (
+            /* 기존 평면 목록 (commonColumnKeys 미지정 — 하이브·일루아 무손상) */
+            <>
+              {visibleCols.length === 0 && (
+                <div className="px-2 py-3 text-[12px] text-wedly-muted">검색 결과가 없습니다.</div>
+              )}
+              {visibleCols.map((col) => renderColRow(col, false))}
+            </>
           )}
-          {visibleCols.map((col) => {
-            const isCustom = col.key.startsWith("custom_");
-            const accent = getColAccent(col);
-            const editable = canEdit(col);
-            if (editingCol === col.key) {
-              return (
-                <div key={col.key} className="px-2 py-2 my-1 rounded-lg bg-slate-50 space-y-2">
-                  <input
-                    value={editColLabel}
-                    onChange={(e) => setEditColLabel(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && renameColumn(col.key)}
-                    placeholder="컬럼 이름"
-                    className="w-full px-3 py-2 text-[13px] border border-wedly-bd rounded-lg bg-white text-wedly-t1 placeholder:text-wedly-muted focus:outline-none focus:ring-2 focus:ring-wedly-accent/30 focus:border-wedly-accent transition-colors"
-                    autoFocus
-                  />
-                  {canType(col) && setEditColType && (
-                    <CustomSelect
-                      value={(editColType ?? col.type) as string}
-                      onChange={(v) => setEditColType(v)}
-                      options={TYPE_OPTS}
-                    />
-                  )}
-                  <div className="flex gap-2">
-                    <button onClick={() => renameColumn(col.key)} className="flex-1 py-1.5 text-[12px] font-medium text-white bg-wedly-accent rounded-lg">
-                      저장
-                    </button>
-                    <button onClick={() => setEditingCol(null)} className="flex-1 py-1.5 text-[12px] text-wedly-muted border border-wedly-bd rounded-lg">
-                      취소
-                    </button>
-                  </div>
-                </div>
-              );
-            }
-            return (
-              <div key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 group">
-                <input
-                  type="checkbox"
-                  checked={isColumnVisible(col.key)}
-                  onChange={() => toggleColumn(col.key)}
-                  className="rounded border-wedly-bd text-wedly-accent focus:ring-wedly-accent/20"
-                />
-                <span
-                  className={cn(
-                    "flex-1 text-[13px] inline-flex items-center gap-1.5",
-                    isColumnVisible(col.key) ? (accent?.headerTint || "text-wedly-t1") : "text-wedly-muted",
-                  )}
-                >
-                  {accent && isColumnVisible(col.key) && (
-                    <span
-                      className={cn("inline-block w-1.5 h-1.5 rounded-full flex-shrink-0", accent.dotClass)}
-                      aria-hidden="true"
-                    />
-                  )}
-                  {getColLabel(col)}
-                </span>
-                {(editable || isCustom) && (
-                  <div className="hidden group-hover:flex items-center gap-1">
-                    {editable && (
-                      <button
-                        onClick={() => {
-                          setEditingCol(col.key);
-                          setEditColLabel(col.label);
-                          setEditColType?.(col.type);
-                        }}
-                        className="text-wedly-muted hover:text-wedly-accent"
-                        title="제목·타입 수정"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                          <path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" strokeWidth="1.5" />
-                        </svg>
-                      </button>
-                    )}
-                    {isCustom && (
-                      <button
-                        onClick={() => deleteColumn(col.key)}
-                        className="text-wedly-muted hover:text-wedly-red"
-                        title="삭제"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                )}
+
+          {/* 삭제된 칸 복원 */}
+          {deletedColLabels.length > 0 && onRestoreColumn && (
+            <div className="mt-3 border-t border-wedly-bd/40 pt-2.5">
+              <div className="text-[11px] font-semibold text-wedly-t2 mb-1.5">삭제된 칸 복원</div>
+              <div className="flex flex-wrap gap-1.5">
+                {deletedColLabels.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => onRestoreColumn(key)}
+                    className="px-2 py-0.5 text-[12px] rounded-md border border-wedly-accent/40 text-wedly-accent hover:bg-wedly-bg-blue/40 transition"
+                    title="복원"
+                  >
+                    + {label}
+                  </button>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          )}
+          {canAddColumn && (
           <div className="border-t border-wedly-bd/50 mt-3 pt-3">
             {showAddColumn ? (
               <div className="space-y-2 px-2">
@@ -252,6 +364,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
               </button>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>

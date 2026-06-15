@@ -6,6 +6,8 @@ import { cn } from "../lib/cn";
 import { DesktopTable } from "../components/DesktopTable";
 import { MobileCardList } from "../components/MobileCardList";
 import { TopControls } from "../components/TopControls";
+import { MaximizeButton } from "../components/MaximizeButton";
+import { SortPanel } from "./SortPanel";
 import { ColumnToggleModal } from "../components/ColumnToggleModal";
 import type { SettingsMenuItem, SettingsCustomItem } from "../components/SettingsDropdown";
 import type { ColumnDef } from "../types/columns";
@@ -13,6 +15,7 @@ import {
   filterRowsBySearch,
   sortRows,
   nextSortConfig,
+  normalizeSort,
   orderColumns,
   computeStickyOffsets,
   paginate,
@@ -22,6 +25,7 @@ import {
   type RowData,
   type CellValue,
   type SortConfig,
+  type SortRule,
 } from "./collab-table-core";
 import { filterRowsByTab, type ViewTab } from "./collab-filters";
 import { FilterTabs, type FilterTabsAdmin } from "./FilterTabs";
@@ -44,6 +48,10 @@ export type CollabTableProps = {
   isAdmin: boolean;
   /** 제목 칸 클릭 시 호출(상세 열기 훅) */
   onOpenRow: (row: RowData) => void;
+  /** 비관리자도 새 업체 생성 가능한 화면이면 true(기본 false — 하이브·일루아 무영향). 서버가 로그인 사용자 생성을 허용할 때만 켠다. */
+  canCreate?: boolean;
+  /** 새 업체 생성 핸들러(비관리자 경로). 관리자는 adminToolbar.onCreateNew 를 쓴다. */
+  onCreateNew?: () => void;
   /** 모바일 카드 표시 설정 */
   mobile?: {
     titleKey?: string;
@@ -97,6 +105,8 @@ export type CollabTableProps = {
   /** 이 값이 바뀌면 선택(체크)을 모두 해제한다(일괄 작업 완료 후 부모가 1 증가시킴). */
   selectionResetKey?: number;
   /** 표에서 칸을 클릭해 바로 고치는 콜백. 관리자이고 이게 주어질 때만 켜진다(생략 시 기존과 동일한 읽기 전용). */
+  /** 최대화 모드에서 표 위에 함께 표시할 헤더(예: 탭 메뉴). 미지정 시 최대화해도 헤더 영역 없음. */
+  headerSlot?: ReactNode;
   onCellEdit?: (row: RowData, columnKey: string, value: string | number | boolean | null) => void;
   /** 표 안에서 칸을 클릭해 바로 수정할 때 쓰는 설정(선택/상태 칸의 선택지·색 등). onCellEdit 와 함께 줄 때만 편집이 켜진다. */
   editConfig?: {
@@ -112,6 +122,26 @@ export type CollabTableProps = {
     onSetColor?: (columnKey: string, option: string, color: string) => void;
     colorFamilies?: { name: string; classes: string }[];
     allowDelete?: boolean;
+  };
+  /**
+   * 컬럼 표시 설정 모달에 공통/그외 구분, 승격, 삭제, 복원 기능을 전달하는 묶음.
+   * 생략 시 기존과 100% 동일(공통/그외 구분 없음, 삭제 복원 없음).
+   *
+   * onDeleteColumn: isDeletable=true인 칸을 모달에서 삭제(✕)할 때 호출되는 soft-delete 콜백.
+   *   제공하면 isDeletable+이 콜백으로 삭제를 처리(columnAdmin.deleteColumn 와 별도).
+   *   미제공 시 columnAdmin.deleteColumn 을 그대로 사용.
+   */
+  columnGrouping?: {
+    commonColumnKeys?: string[];
+    onPromoteToCommon?: (key: string) => void;
+    onDemoteFromCommon?: (key: string) => void;
+    canDemoteFromCommon?: (key: string) => boolean;
+    deletedColumns?: string[];
+    onRestoreColumn?: (key: string) => void;
+    isDeletable?: (col: ColumnDef) => boolean;
+    onDeleteColumn?: (key: string) => void;
+    // 칸 표시 토글 시 호출(소비 앱이 상세창 공용설정 등과 연동할 때 사용). 미지정 시 무동작.
+    onToggleColumn?: (key: string, nextVisible: boolean) => void;
   };
   /**
    * 칸 관리(추가/제목·타입 수정/삭제)를 소비 앱이 제공할 때 주는 묶음. 컬럼 설정 모달로 전달된다.
@@ -140,6 +170,13 @@ export type CollabTableProps = {
   };
   /** 이 키 목록이 바뀌면 해당 칸을 강제로 '보임'으로 켠다(새로 추가한 칸을 표에 바로 보이게). */
   ensureVisibleKeys?: string[];
+  /**
+   * 제어형 다중 정렬. 주어지면 내부 sortConfig 대신 이 값을 사용하고,
+   * 변경 시 onSortChange 를 호출한다. 생략 시 기존 내부 상태로 동작.
+   */
+  sort?: SortConfig;
+  /** sort prop 변경 콜백(제어형 사용 시). 관리자 정렬 패널에서도 이 콜백으로 통지. */
+  onSortChange?: (s: SortRule[]) => void;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -150,6 +187,156 @@ function loadJson<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+// 다중 선택(multi_select) 칸 인라인 편집기 — CellSelectEditor 와 동일한 포털·위치·바깥클릭 구조.
+function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg }: {
+  value: string;
+  options: string[];
+  columnKey: string;
+  onSave: (v: string) => void;
+  onClose: () => void;
+  cfg?: CollabTableProps["editConfig"];
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [addingNew, setAddingNew] = useState(false);
+  const [newOptInput, setNewOptInput] = useState("");
+  const newOptRef = useRef<HTMLInputElement>(null);
+
+  // 현재 선택된 값 집합 (콤마+공백 구분)
+  const [selected, setSelected] = useState<Set<string>>(() => {
+    return new Set(value.split(",").map((s) => s.trim()).filter(Boolean));
+  });
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const el = anchorRef.current.parentElement ?? anchorRef.current;
+      const rect = el.getBoundingClientRect();
+      const dropH = 320;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const top = spaceBelow >= dropH
+        ? rect.bottom + 4
+        : rect.top - Math.min(dropH, rect.top - 8) - 4;
+      setPos({ top, left: rect.left });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pos) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        // 바깥 클릭 시 현재 선택 상태로 저장 후 닫기
+        const joined = Array.from(selected).join(", ");
+        onSave(joined);
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose, onSave, pos, selected]);
+
+  useEffect(() => {
+    if (addingNew) newOptRef.current?.focus();
+  }, [addingNew]);
+
+  const toggle = (opt: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(opt)) next.delete(opt); else next.add(opt);
+      return next;
+    });
+  };
+
+  const handleAddNew = () => {
+    const name = newOptInput.trim();
+    if (!name) return;
+    cfg?.onAddOption?.(columnKey, name);
+    setSelected((prev) => new Set([...prev, name]));
+    setNewOptInput("");
+    setAddingNew(false);
+  };
+
+  // 옵션 목록: cfg.getOptions 로 최신 상태 반영
+  const liveOptions = cfg?.getOptions?.(columnKey) ?? options;
+
+  return (
+    <>
+      <div ref={anchorRef} className="h-0" />
+      {pos && typeof document !== "undefined" && createPortal(
+        <div
+          ref={ref}
+          className="fixed w-64 max-h-[320px] overflow-y-auto rounded-2xl border border-wedly-bd bg-white shadow-[0_10px_30px_-6px_rgba(10,34,68,0.18)]"
+          style={{ top: pos.top, left: pos.left, zIndex: 9999 }}
+        >
+          <div className="py-1">
+            {liveOptions.map((opt) => {
+              const isOn = selected.has(opt);
+              const colorClass = cfg?.getColorClass?.(columnKey, opt) ?? "bg-wedly-bg-gray text-wedly-t2";
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => toggle(opt)}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-wedly-bg-blue/40 transition-colors"
+                >
+                  <span className={cn(
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] transition-colors",
+                    isOn ? "border-wedly-accent bg-wedly-accent text-white" : "border-wedly-bd bg-white",
+                  )}>
+                    {isOn && "✓"}
+                  </span>
+                  <span className={cn("inline-block rounded-full px-2 py-0.5 text-[12px] font-medium", colorClass)}>
+                    {opt}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 새 옵션 추가 */}
+          {cfg?.onAddOption && (
+            <div className="border-t border-wedly-bd px-3 py-2">
+              {addingNew ? (
+                <div className="flex gap-1">
+                  <input
+                    ref={newOptRef}
+                    value={newOptInput}
+                    onChange={(e) => setNewOptInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleAddNew(); if (e.key === "Escape") setAddingNew(false); }}
+                    placeholder="새 옵션"
+                    className="flex-1 rounded-lg border border-wedly-bd px-2 py-1 text-[12px] focus:border-wedly-accent focus:outline-none"
+                  />
+                  <button type="button" onClick={handleAddNew} className="rounded-lg bg-wedly-accent px-2 py-1 text-[11px] text-white">추가</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAddingNew(true)}
+                  className="w-full rounded-lg border border-wedly-bd-blue bg-wedly-bg-blue px-2 py-1 text-[12px] text-wedly-accent hover:bg-wedly-bg-blue/70 transition-colors text-left"
+                >
+                  + 새 옵션
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 저장 버튼 */}
+          <div className="border-t border-wedly-bd px-3 py-2">
+            <button
+              type="button"
+              onClick={() => { onSave(Array.from(selected).join(", ")); onClose(); }}
+              className="w-full rounded-lg bg-wedly-accent px-3 py-1.5 text-[12px] font-medium text-white hover:bg-wedly-navy transition-colors"
+            >
+              저장
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 }
 
 // 선택(select/status) 칸 인라인 편집기 — portal 방식으로 뷰포트 안에 안전하게 띄움.
@@ -228,6 +415,8 @@ export function CollabTable({
   isAdmin,
   onOpenRow,
   onRefresh,
+  canCreate = false,
+  onCreateNew: onCreateNewProp,
   mobile,
   renderFieldValue,
   getColAccent: getColAccentProp,
@@ -240,7 +429,11 @@ export function CollabTable({
   onCellEdit,
   editConfig,
   columnAdmin,
+  columnGrouping,
   ensureVisibleKeys,
+  headerSlot,
+  sort: sortProp,
+  onSortChange,
 }: CollabTableProps) {
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
@@ -251,7 +444,10 @@ export function CollabTable({
   // 표 상태
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  // 내부 정렬 상태(비제어형). sortProp 이 주어지면 덮어쓰임.
+  const [sortConfigInternal, setSortConfigInternal] = useState<SortConfig>(null);
+  // 제어형 우선: sortProp 이 주어지면 그 값, 아니면 내부 상태
+  const sortConfig: SortConfig = sortProp !== undefined ? sortProp : sortConfigInternal;
   const [mobileViewMode, setMobileViewMode] = useState<"card" | "table">("table");
   const [pageSize, setPageSize] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
@@ -306,6 +502,15 @@ export function CollabTable({
 
   const [columnModalOpen, setColumnModalOpen] = useState(false);
 
+  // F2: 표 최대화 — 사이드바·상단 메뉴를 덮는 전체화면. 탭(headerSlot)은 위에 유지, 페이지 이동줄도 유지.
+  const [maximized, setMaximized] = useState(false);
+  useEffect(() => {
+    if (!maximized) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMaximized(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [maximized]);
+
   // 인라인 셀 수정 상태
   const [editingCell, setEditingCell] = useState<{ id: string; key: string } | null>(null);
 
@@ -332,16 +537,19 @@ export function CollabTable({
   // 관리자 도구모음 활성 여부 — isAdmin 이고 adminToolbar 가 주어질 때만.
   const adminEnabled = isAdmin && !!adminToolbar;
 
-  // 편집 가능 종류(기본) — formula·last_edited_time·last_edited_by·auto_increment_id·file·multi_select·person 은 편집 안 함.
+  // 편집 가능 종류(기본) — formula·last_edited_time·last_edited_by·auto_increment_id·file·person 은 편집 안 함.
   const DEFAULT_EDITABLE_TYPES = useMemo(() => new Set<ColumnDef["type"]>([
-    "text", "title", "email", "phone_number", "number", "date", "select", "status", "checkbox",
+    "text", "title", "email", "phone_number", "number", "date", "select", "status", "checkbox", "multi_select",
   ]), []);
 
   const isCellEditable = useCallback((col: ColumnDef) => {
-    if (!(adminEnabled && onCellEdit)) return false;
+    // 셀 값 편집 = 저장 핸들러(onCellEdit)가 연결된 앱에서 허용 — 관리자 전용 아님.
+    // 서버 정책이 "행을 볼 수 있으면 값 수정 가능"이라, 보이는 행의 값은 일반 사용자도 고칠 수 있다.
+    // (옵션 추가/삭제·색상 등 구조 편집은 그대로 editConfig=관리자에서만 제공)
+    if (!onCellEdit) return false;
     if (editConfig?.isEditable) return editConfig.isEditable(col);
     return DEFAULT_EDITABLE_TYPES.has(col.type);
-  }, [adminEnabled, onCellEdit, editConfig, DEFAULT_EDITABLE_TYPES]);
+  }, [onCellEdit, editConfig, DEFAULT_EDITABLE_TYPES]);
 
   // 선택된 행들(관리자 일괄 작업 콜백에 넘김)
   const checkedRows = useMemo(
@@ -388,7 +596,20 @@ export function CollabTable({
 
   const getColLabel = useCallback((col: ColumnDef) => colLabelOverrides[col.key] || col.label || col.key, [colLabelOverrides]);
   const getColAccent = useCallback((col: ColumnDef) => (getColAccentProp ? getColAccentProp(col) : null), [getColAccentProp]);
-  const handleSort = useCallback((key: string) => setSortConfig((p) => nextSortConfig(p, key)), []);
+
+  // 정렬 변경 공통 헬퍼 — 제어형이면 onSortChange, 비제어형이면 내부 setSortConfigInternal
+  const applySortChange = useCallback((next: SortConfig) => {
+    if (sortProp !== undefined) {
+      onSortChange?.(normalizeSort(next));
+    } else {
+      setSortConfigInternal(next);
+    }
+  }, [sortProp, onSortChange]);
+
+  // 헤더 클릭 → 1순위 단일 토글 (기존 동작 유지)
+  const handleSort = useCallback((key: string) => {
+    applySortChange(nextSortConfig(sortConfig, key));
+  }, [applySortChange, sortConfig]);
   const selectTab = useCallback((id: string) => {
     setActiveTabId(id);
     try { localStorage.setItem(ACTIVE_TAB_KEY, id); } catch {}
@@ -418,13 +639,15 @@ export function CollabTable({
 
   const isColumnVisible = useCallback((key: string) => visibleColumns.has(key), [visibleColumns]);
   const toggleColumn = useCallback((key: string) => {
+    const nextVisible = !visibleColumns.has(key);
     setVisibleColumns((prev) => {
       const n = new Set(prev);
       if (n.has(key)) n.delete(key); else n.add(key);
       persistVisible(n);
       return n;
     });
-  }, [persistVisible]);
+    columnGrouping?.onToggleColumn?.(key, nextVisible);
+  }, [visibleColumns, persistVisible, columnGrouping]);
   const removeColFromTab = useCallback((key: string) => {
     setVisibleColumns((prev) => {
       const n = new Set(prev);
@@ -444,7 +667,11 @@ export function CollabTable({
   }, [COL_LABELS_KEY]);
 
   const reorderColumn = useCallback((fromKey: string, toKey: string) => {
-    const base = colOrder.length ? colOrder : columns.map((c) => c.key);
+    // 화면에 실제로 보이는 전체 순서를 기준으로 옮긴다.
+    // 저장된 순서(colOrder)에 아직 없던 칸(나중에 추가됐거나 기본 숨김이라 뒤에 붙은 칸,
+    // 예: "DB 담당")도 끌 수 있도록 orderColumns 로 합친 전체 순서를 기준으로 삼는다.
+    // (이전엔 base=colOrder 라, 저장된 순서에 없는 칸은 reorderList 가 무시해 드래그가 먹지 않았음.)
+    const base = orderColumns(columns, colOrder).map((c) => c.key);
     const next = reorderList(base, fromKey, toKey);
     setColOrder(next);
     try { localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next)); } catch {}
@@ -491,7 +718,7 @@ export function CollabTable({
     return (
       <tr
         key={id || virtualIndex}
-        className={cn("border-t border-slate-100 hover:bg-blue-50/30", checkedIds.has(id) && "bg-wedly-bg-blue/30")}
+        className={cn("border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30", checkedIds.has(id) && "bg-wedly-bg-blue/30")}
       >
         <td className="py-2 px-3 w-10 text-center sticky left-0 z-10 bg-white">
           <input
@@ -543,6 +770,18 @@ export function CollabTable({
                       <path d="M4.5 2.5h5v5M9.5 2.5L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </span>
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setEditingCell({ id, key: col.key }); }}
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue transition-colors"
+                      title="상호명 수정"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                        <path d="M11.5 2.5l2 2L6 12l-2.5.5L4 10l7.5-7.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); onOpenRow(row); }}
                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue transition-colors text-[11px]"
@@ -589,6 +828,15 @@ export function CollabTable({
                     onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv || null); }}
                     onClose={() => setEditingCell(null)}
                   />
+                ) : col.type === "multi_select" ? (
+                  <CellMultiSelectEditor
+                    value={String(v ?? "")}
+                    options={editConfig?.getOptions?.(col.key) ?? []}
+                    columnKey={col.key}
+                    cfg={editConfig}
+                    onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv || null); }}
+                    onClose={() => setEditingCell(null)}
+                  />
                 ) : (
                   renderFieldValue ? renderFieldValue(col, v, row) : <span>{defaultFormatCellValue(col, v)}</span>
                 )
@@ -605,13 +853,17 @@ export function CollabTable({
   }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, renderFieldValue, editingCell, isCellEditable, onCellEdit, editConfig]);
 
   return (
-    <div>
+    <div className={maximized ? "fixed inset-0 z-[70] bg-white overflow-y-auto p-3 sm:p-4" : undefined}>
+      {maximized && headerSlot && (
+        <div className="mb-2">{headerSlot}</div>
+      )}
       {tabs && tabs.length > 0 && (
         <FilterTabs tabs={tabs} activeId={activeTabId} onSelect={selectTab} admin={isAdmin && tabAdmin ? tabAdmin : undefined} />
       )}
       <TopControls
         isAdmin={adminEnabled}
-        onCreateNew={adminToolbar?.onCreateNew ?? (() => {})}
+        canCreate={canCreate}
+        onCreateNew={adminToolbar?.onCreateNew ?? onCreateNewProp ?? (() => {})}
         settingsBaseMenus={adminEnabled ? wiredSettingsMenus : []}
         cfActiveCount={adminToolbar?.cfActiveCount ?? 0}
         settingsMenuOrder={adminToolbar?.settingsMenuOrder ?? []}
@@ -643,6 +895,18 @@ export function CollabTable({
         totalPages={totalPages}
         totalRows={sortedRows.length}
         showPageBox={true}
+        trailingControls={
+          <>
+            {isAdmin && (
+              <SortPanel
+                sort={sortConfig}
+                onSortChange={applySortChange}
+                columns={activeColumns.map((c) => ({ key: c.key, label: getColLabel(c) }))}
+              />
+            )}
+            <MaximizeButton maximized={maximized} onToggle={() => setMaximized((m) => !m)} />
+          </>
+        }
       />
 
       {!adminEnabled && (
@@ -686,7 +950,7 @@ export function CollabTable({
         stickyOffsets={stickyOffsets}
         checkedIds={checkedIds}
         toggleAllChecks={toggleAllChecks}
-        sortConfig={sortConfig}
+        sortConfig={(() => { const r = normalizeSort(sortConfig); return r.length > 0 ? r[0] : null; })()}
         handleSort={handleSort}
         colMenuKey={colMenuKey}
         setColMenuKey={setColMenuKey}
@@ -727,7 +991,10 @@ export function CollabTable({
         editColLabel={columnAdmin?.editColLabel ?? ""}
         setEditColLabel={columnAdmin?.setEditColLabel ?? (() => {})}
         renameColumn={columnAdmin?.renameColumn ?? (() => {})}
-        deleteColumn={columnAdmin?.deleteColumn ?? (() => {})}
+        deleteColumn={
+          // columnGrouping.onDeleteColumn 이 있으면 그것을 사용(soft-delete). 없으면 columnAdmin.deleteColumn(기존 hard-delete).
+          columnGrouping?.onDeleteColumn ?? columnAdmin?.deleteColumn ?? (() => {})
+        }
         showAddColumn={columnAdmin?.showAddColumn ?? false}
         setShowAddColumn={columnAdmin?.setShowAddColumn ?? (() => {})}
         newColLabel={columnAdmin?.newColLabel ?? ""}
@@ -735,11 +1002,19 @@ export function CollabTable({
         newColType={(columnAdmin?.newColType ?? "text") as ColumnDef["type"]}
         setNewColType={columnAdmin?.setNewColType ?? (() => {})}
         addColumn={columnAdmin?.addColumn ?? (() => {})}
+        canAddColumn={isAdmin && !!columnAdmin}
         editColType={columnAdmin?.editColType}
         setEditColType={columnAdmin?.setEditColType}
         canEditColumn={columnAdmin?.canEditColumn}
         canChangeType={columnAdmin?.canChangeType}
         typeOptions={columnAdmin?.typeOptions}
+        commonColumnKeys={columnGrouping?.commonColumnKeys}
+        onPromoteToCommon={columnGrouping?.onPromoteToCommon}
+        onDemoteFromCommon={columnGrouping?.onDemoteFromCommon}
+        canDemoteFromCommon={columnGrouping?.canDemoteFromCommon}
+        deletedColumns={columnGrouping?.deletedColumns}
+        onRestoreColumn={columnGrouping?.onRestoreColumn}
+        isDeletable={columnGrouping?.isDeletable}
       />
     </div>
   );

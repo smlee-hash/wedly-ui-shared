@@ -4,6 +4,7 @@ import {
   filterRowsBySearch,
   sortRows,
   nextSortConfig,
+  normalizeSort,
   orderColumns,
   computeStickyOffsets,
   paginate,
@@ -11,6 +12,7 @@ import {
   reorderList,
   defaultFormatCellValue,
   type RowData,
+  type SortRule,
 } from "./collab-table-core";
 
 const col = (key: string, type: ColumnDef["type"], extra: Partial<ColumnDef> = {}): ColumnDef => ({
@@ -54,6 +56,60 @@ describe("sortRows / nextSortConfig", () => {
   });
 });
 
+describe("normalizeSort", () => {
+  it("null → 빈 배열", () => {
+    expect(normalizeSort(null)).toEqual([]);
+  });
+  it("단일 객체 → 1개짜리 배열", () => {
+    expect(normalizeSort({ key: "v", direction: "asc" })).toEqual([{ key: "v", direction: "asc" }]);
+  });
+  it("배열 → 그대로 반환", () => {
+    const rules: SortRule[] = [{ key: "a", direction: "asc" }, { key: "b", direction: "desc" }];
+    expect(normalizeSort(rules)).toBe(rules);
+  });
+});
+
+describe("sortRows — 다중 AND 정렬", () => {
+  // 1순위: status(asc), 2순위: name(asc)
+  const rows: RowData[] = [
+    { _id: "1", status: "B", name: "나" },
+    { _id: "2", status: "A", name: "다" },
+    { _id: "3", status: "A", name: "가" },
+    { _id: "4", status: "B", name: "가" },
+    { _id: "5", status: "",  name: "나" },
+  ];
+
+  it("1순위 동률이면 2순위로 정렬(AND)", () => {
+    const rules: SortRule[] = [
+      { key: "status", direction: "asc" },
+      { key: "name",   direction: "asc" },
+    ];
+    // status A < B, A끼리는 name 오름(가<다), B끼리는 name 오름(가<나), 빈 status는 항상 뒤
+    expect(sortRows(rows, rules).map((r) => r._id)).toEqual(["3", "2", "4", "1", "5"]);
+  });
+
+  it("2순위 내림차순도 동작", () => {
+    const rules: SortRule[] = [
+      { key: "status", direction: "asc" },
+      { key: "name",   direction: "desc" },
+    ];
+    // A끼리: 다>가 → 2,3 / B끼리: 나>가 → 1,4
+    expect(sortRows(rows, rules).map((r) => r._id)).toEqual(["2", "3", "1", "4", "5"]);
+  });
+
+  it("빈 배열 SortConfig → 원본 순서", () => {
+    expect(sortRows(rows, []).map((r) => r._id)).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("nextSortConfig 배열 형태 prev: 첫 규칙 기준 토글", () => {
+    const prev: SortRule[] = [{ key: "status", direction: "asc" }, { key: "name", direction: "desc" }];
+    // status asc → status desc (2순위는 사라짐 — 단일 반환)
+    expect(nextSortConfig(prev, "status")).toEqual({ key: "status", direction: "desc" });
+    // 다른 키 → 그 키 osc 단일
+    expect(nextSortConfig(prev, "name")).toEqual({ key: "name", direction: "asc" });
+  });
+});
+
 describe("orderColumns", () => {
   const cols = [col("a", "text"), col("b", "text"), col("c", "text")];
   it("순서 배열이 비면 원본 그대로", () => {
@@ -83,6 +139,10 @@ describe("paginate / totalPageCount", () => {
     expect(totalPageCount(5, 2)).toBe(3);
     expect(totalPageCount(0, 2)).toBe(1);
   });
+  it("전체(Infinity)면 모든 행 반환 — 0×Infinity=NaN 빈배열 버그 방지", () => {
+    expect(paginate(rows, 1, Infinity).map((r) => r._id)).toEqual(["0", "1", "2", "3", "4"]);
+    expect(totalPageCount(5, Infinity)).toBe(1);
+  });
 });
 
 describe("reorderList", () => {
@@ -94,6 +154,19 @@ describe("reorderList", () => {
   });
   it("없는 키면 원본 반환", () => {
     expect(reorderList(["a", "b"], "z", "a")).toEqual(["a", "b"]);
+  });
+  // 회귀 방지: 저장된 순서에 없던 칸(나중에 추가됐거나 기본 숨김이라 뒤에 붙은 칸, 예: "DB 담당")이
+  // 드래그로 옮겨지지 않던 버그. reorderColumn 이 base 를 colOrder 가 아니라 orderColumns 전체로
+  // 잡아야 동작한다. 옛 동작(colOrder 만 base)이면 무시되고, 고친 동작(전체 순서 base)이면 이동된다.
+  it("저장된 순서에 없던 칸도 전체 순서 기준이면 드래그로 옮길 수 있다", () => {
+    const cols = [col("a", "text"), col("b", "text"), col("DB담당", "select")];
+    const savedOrder = ["a", "b"]; // DB담당 빠짐(나중에 추가됨)
+    // 옛 동작: 저장된 순서만 기준 → DB담당 이동 무시(버그)
+    expect(reorderList(savedOrder, "DB담당", "a")).toEqual(["a", "b"]);
+    // 고친 동작: orderColumns 로 만든 전체 순서 기준 → 정상 이동
+    const fullBase = orderColumns(cols, savedOrder).map((c) => c.key);
+    expect(fullBase).toEqual(["a", "b", "DB담당"]);
+    expect(reorderList(fullBase, "DB담당", "a")).toEqual(["DB담당", "a", "b"]);
   });
 });
 

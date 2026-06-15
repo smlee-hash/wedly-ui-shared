@@ -1,5 +1,4 @@
 import type { ColumnDef } from "../types/columns";
-import type { RowData } from "./collab-table-core";
 
 // ─────────────────────────────────────────────────────────────
 // 통합 협업 — 경정청구 뷰 프리셋 (공용)
@@ -8,7 +7,7 @@ import type { RowData } from "./collab-table-core";
 // ─────────────────────────────────────────────────────────────
 
 // 하이브 전용 맞춤 컬럼을 공용 컬럼으로 승격.
-//  - 환급금여부: 총환급금에서 파생(있음/없음).
+//  - 환급금여부: 하이브 손입력(O/X) 본체.
 //  - 정부지원금리포트: 다른 앱(정부지원금) 데이터 → 경정청구엔 값 없음(빈 자리, 추후 연결).
 export const TAX_AMENDMENT_EXTRA_COLUMNS: ColumnDef[] = [
   { key: "환급금여부", label: "환급금 여부", type: "select", defaultVisible: false, width: 90 },
@@ -20,26 +19,19 @@ export const TAX_AMENDMENT_COLLAB_VISIBLE: string[] = [
   "_createdTime",        // 등록일시
   "54DB분류",            // DB분류
   "02상호명",            // 상호명
-  "환급금여부",          // 환급금 여부 (파생)
+  "환급금여부",          // 환급금 여부 (하이브 손입력 O/X)
   "정부지원금리포트",    // 정부지원금 리포트 (빈 자리)
   "05경정계약진행상태",  // 진행상태
   "03대표자명",          // 대표자명
   "04연락처",            // 연락처
 ];
 
-// 새 컬럼 값의 색 — 하이브식 배지.
+// 새 컬럼 값의 색 — 하이브식 배지. 환급금여부는 하이브 손입력값 O/X 가 본체.
 export const TAX_AMENDMENT_COLLAB_COLORS: Record<string, string> = {
-  "있음": "bg-wedly-bg-green text-wedly-green",
-  "없음": "bg-wedly-bg-red text-wedly-red",
+  "O": "bg-wedly-bg-green text-wedly-green",
+  "X": "bg-wedly-bg-red text-wedly-red",
+  "있음": "bg-wedly-bg-green text-wedly-green",   // 잔여 호환
+  "없음": "bg-wedly-bg-red text-wedly-red",       // 잔여 호환
   "생성완료": "bg-wedly-bg-blue text-wedly-accent",
   "미생성": "bg-wedly-bg-gray text-wedly-muted",
 };
-
-const REFUND_TOTAL_KEY = "10총환급금";
-
-/** 총환급금이 있으면 "있음", 없으면 "없음" (하이브 환급금여부 근사 — 추후 정확 규칙으로 맞춤). */
-export function deriveRefundFlag(row: RowData): "있음" | "없음" {
-  const raw = row[REFUND_TOTAL_KEY];
-  const n = typeof raw === "number" ? raw : Number(String(raw ?? "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) && n > 0 ? "있음" : "없음";
-}

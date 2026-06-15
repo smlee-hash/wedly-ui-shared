@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * 모바일 카드 리스트 — md:hidden 영역
+ * 카드 보기 리스트 — 카드 모드일 때 표시(모바일 세로, PC 격자), 표 모드면 숨김
  * (SubsidyClient.tsx 모듈화 B 1단계, 2026-05-25)
  *
- * 모바일에서 행 데이터를 카드 형식으로 표시. 카드 표시 항목 설정 4개까지 노출.
+ * 행 데이터를 카드 형식으로 표시. 카드 표시 항목 설정 4개까지 노출.
  * 빈 상태, 검색 결과 없음, 오류 상태 처리 포함.
  */
 
@@ -65,10 +65,20 @@ export function MobileCardList({
   renderFieldValue,
 }: Props) {
   return (
-    <div className={cn("md:hidden space-y-2", mobileViewMode === "table" && "hidden")}>
+    <div
+      className={cn(
+        // 카드 모드: 모든 화면폭에서 표시(모바일 세로 스택, PC 2~3열 격자).
+        // 표 모드: 숨김. ⚠️ "hidden"과 "md:grid"를 함께 두면 PC에서 md:grid가 hidden을
+        //   덮어써 카드가 안 숨겨진다 → 표 모드엔 md:grid 를 아예 내보내지 않도록 분기.
+        // (과거엔 md:hidden 으로 PC 영구숨김이라 카드/표 토글이 PC에서 먹통이었음 — 그 버그 수정.)
+        mobileViewMode === "table"
+          ? "hidden"
+          : "space-y-2 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3",
+      )}
+    >
       {/* 모바일 '카드 표시 항목 설정' 버튼은 관리 도구 드롭다운에서 호출 (2026-05-25) */}
       {sortedDataLength === 0 ? (
-        <div className="py-12 text-center text-sm text-wedly-muted">
+        <div className="md:col-span-2 lg:col-span-3 py-12 text-center text-sm text-wedly-muted">
           {error || (searchQuery ? "검색 결과가 없습니다" : "데이터가 없습니다")}
         </div>
       ) : (
@@ -80,7 +90,7 @@ export function MobileCardList({
             <div
               key={String(row._id || idx)}
               className={cn(
-                "rounded-xl border border-wedly-bd p-3.5 shadow-sm cursor-pointer active:bg-slate-50 transition-colors",
+                "rounded-xl border border-wedly-bd p-3.5 shadow-sm cursor-pointer active:bg-wedly-bg-gray transition-colors",
                 cfClass ? cfClass : "bg-white",
               )}
               onClick={() => openRow(row)}
@@ -188,7 +198,7 @@ export function MobileCardList({
                 // 팀원이 1명이든 여러 명이든 줄 구조가 같아 카드가 항상 균일.
                 if (renderFieldValue) {
                   return (
-                    <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-slate-100">
+                    <div className="flex flex-col gap-1.5 mt-2 pt-2 border-t border-wedly-bd/60">
                       {visible.map((v) => (
                         <div key={v.key} className="flex items-start gap-2 text-xs">
                           <span className="text-wedly-muted/70 flex-shrink-0">{v.label}</span>
@@ -203,7 +213,7 @@ export function MobileCardList({
 
                 // 기존 방식(렌더러 미제공 앱 — 일루아·ERP 등): 가로 흐름 그대로 유지
                 return (
-                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-wedly-muted mt-1.5 pt-1.5 border-t border-slate-100">
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-wedly-muted mt-1.5 pt-1.5 border-t border-wedly-bd/60">
                     {visible.map((v) => {
                       const norm = (v.label || "").replace(/\s/g, "").toLowerCase();
                       const isLeader = norm === "팀장" || norm === "담당팀장" || norm === "담당사무장";

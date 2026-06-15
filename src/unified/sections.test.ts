@@ -8,7 +8,43 @@ import {
   BASIC_FIELD_SPECS,
   type BasicFieldSpec,
   type ColumnLite,
+  isCommonBasicLabel,
+  DEFAULT_COMMON_BASIC_LABELS,
+  ILLUA_APP_BASIC_FIELDS,
+  isBasicColumnHidden,
 } from "./sections";
+
+// ── isCommonBasicLabel: 공통/앱별 판정 (색 구분·공유 트리거 단일 출처) ──
+describe("isCommonBasicLabel — 공통/앱별 판정", () => {
+  it("기본 공통 라벨은 공통(true)", () => {
+    expect(isCommonBasicLabel("환급금여부")).toBe(true);
+    expect(isCommonBasicLabel("이메일")).toBe(true);
+    expect(isCommonBasicLabel("리포트")).toBe(true);
+  });
+  it("공백·대소문자 무시 매칭", () => {
+    expect(isCommonBasicLabel("DB 분류")).toBe(true);
+    expect(isCommonBasicLabel("내부db분류")).toBe(true);
+    expect(isCommonBasicLabel(" 대표자명 ")).toBe(true);
+  });
+  it("앱별(일루아 전용·하이브 전용) 칸은 false", () => {
+    expect(isCommonBasicLabel("주업종")).toBe(false);
+    expect(isCommonBasicLabel("팀장")).toBe(false);
+    expect(ILLUA_APP_BASIC_FIELDS.every((f) => isCommonBasicLabel(f.label))).toBe(false);
+  });
+  it("빈 라벨은 false", () => {
+    expect(isCommonBasicLabel("")).toBe(false);
+    expect(isCommonBasicLabel("   ")).toBe(false);
+  });
+  it("override.extra 는 공통으로 추가", () => {
+    expect(isCommonBasicLabel("주업종", { extra: ["주업종"] })).toBe(true);
+  });
+  it("override.excluded 는 기본 공통이라도 앱별로 내림", () => {
+    expect(isCommonBasicLabel("연락처", { excluded: ["연락처"] })).toBe(false);
+  });
+  it("기본 공통 라벨은 11개", () => {
+    expect(DEFAULT_COMMON_BASIC_LABELS.length).toBe(11);
+  });
+});
 
 // ── computeUnifiedSections: 시스템/컨테이너 키 제외 (하이브 원본 3건 이전) ──
 describe("computeUnifiedSections — 시스템키 제외", () => {
@@ -71,12 +107,18 @@ describe("buildDomainSubTabs", () => {
 
 // ── COMMON_BASIC_FIELD_SPECS / HIVE_APP_BASIC_FIELDS / BASIC_FIELD_SPECS ──
 describe("기본정보 사양 분리", () => {
-  it("COMMON_BASIC_FIELD_SPECS 는 10개다", () => {
-    expect(COMMON_BASIC_FIELD_SPECS).toHaveLength(10);
+  it("COMMON_BASIC_FIELD_SPECS 는 11개다", () => {
+    expect(COMMON_BASIC_FIELD_SPECS).toHaveLength(11);
   });
 
   it("COMMON_BASIC_FIELD_SPECS 에 환급금여부가 포함된다", () => {
     expect(COMMON_BASIC_FIELD_SPECS.map((s) => s.label)).toContain("환급금여부");
+  });
+
+  it("누가담당 칸(새 이름 'DB 분류') 후보키는 하이브키 우선 + 59DB담당(일루아 18파트너사는 파트너사 칸이라 제외)", () => {
+    const spec = COMMON_BASIC_FIELD_SPECS.find((s) => s.label === "DB 분류");
+    expect(spec?.keys).toEqual(["custom_1779774393414_b1wc", "59DB담당"]);
+    expect(spec?.keys).not.toContain("18파트너사");
   });
 
   it("COMMON_BASIC_FIELD_SPECS 에 진행상태가 포함되지 않는다", () => {
@@ -90,21 +132,21 @@ describe("기본정보 사양 분리", () => {
     expect(labels).toContain("팀원");
   });
 
-  it("BASIC_FIELD_SPECS 는 COMMON 10개 + HIVE 2개 = 12개다", () => {
-    expect(BASIC_FIELD_SPECS).toHaveLength(12);
+  it("BASIC_FIELD_SPECS 는 COMMON 11개 + HIVE 2개 = 13개다", () => {
+    expect(BASIC_FIELD_SPECS).toHaveLength(13);
   });
 
   it("BASIC_FIELD_SPECS 는 COMMON 뒤에 HIVE 가 붙은 순서다", () => {
     const labels = BASIC_FIELD_SPECS.map((s) => s.label);
     const commonLabels = COMMON_BASIC_FIELD_SPECS.map((s) => s.label);
     const hiveLabels = HIVE_APP_BASIC_FIELDS.map((s) => s.label);
-    expect(labels.slice(0, 10)).toEqual(commonLabels);
-    expect(labels.slice(10)).toEqual(hiveLabels);
+    expect(labels.slice(0, 11)).toEqual(commonLabels);
+    expect(labels.slice(11)).toEqual(hiveLabels);
   });
 
-  it("환급금여부 키가 ['환급금여부'] 이고 type 이 select 다", () => {
+  it("환급금여부 키가 하이브키 우선 + 공용키이고 type 이 select 다", () => {
     const spec = COMMON_BASIC_FIELD_SPECS.find((s) => s.label === "환급금여부");
-    expect(spec?.keys).toEqual(["환급금여부"]);
+    expect(spec?.keys).toEqual(["custom_1780316171826", "환급금여부"]);
     expect(spec?.type).toBe("select");
   });
 });
@@ -131,5 +173,51 @@ describe("buildBasicSection", () => {
   it("어느 후보 키도 없으면 그 칸은 건너뛴다", () => {
     const sec = buildBasicSection(specs, cols, {});
     expect(sec.fields.map((f) => f.label)).not.toContain("없는칸");
+  });
+});
+
+import { resolveCommonFieldId } from "./sections";
+
+describe("resolveCommonFieldId — override 반영 공유판정", () => {
+  it("기본 공통칸: 키가 공통 spec 키면 그 라벨 반환", () => {
+    expect(resolveCommonFieldId("53이메일", "이메일")).toBe("이메일");
+    expect(resolveCommonFieldId("03대표자명", "대표자명")).toBe("대표자명");
+  });
+  it("앱별칸: 기본+override 없으면 null", () => {
+    expect(resolveCommonFieldId("25주업종", "주업종")).toBe(null);
+  });
+  it("내림(excluded): 기본 공통칸을 앱별로 내리면 null", () => {
+    expect(resolveCommonFieldId("53이메일", "이메일", { excluded: ["이메일"] })).toBe(null);
+  });
+  it("올림(extra): 앱별칸을 공통으로 올리면 라벨 반환", () => {
+    expect(resolveCommonFieldId("25주업종", "주업종", { extra: ["주업종"] })).toBe("주업종");
+  });
+  it("라벨 매칭은 공백·대소문자 무시", () => {
+    expect(resolveCommonFieldId("25주업종", "주업종", { extra: [" 주 업 종 "] })).toBe("주업종");
+    expect(resolveCommonFieldId("53이메일", "이메일", { excluded: [" 이메일 "] })).toBe(null);
+  });
+  it("이름표로 매칭된 키(표준 키 아님)라도 라벨이 공통이면 공유 + 정규 라벨 통일", () => {
+    expect(resolveCommonFieldId("custom_db_class_x9", "내부 DB 분류")).toBe("내부 DB 분류");
+    expect(resolveCommonFieldId("custom_db_class_x9", "내부db분류")).toBe("내부 DB 분류");
+    expect(resolveCommonFieldId("custom_db_class_x9", "내부 DB 분류", { excluded: ["내부 DB 분류"] })).toBe(null);
+  });
+});
+
+describe("isBasicColumnHidden (앱별 숨김 판정)", () => {
+  it("숨김 목록에 있으면 true", () => {
+    expect(isBasicColumnHidden("연락처", ["연락처"])).toBe(true);
+  });
+  it("공백·대소문자 무시 매칭", () => {
+    expect(isBasicColumnHidden(" 연락처 ", ["연락처"])).toBe(true);
+  });
+  it("숨김 목록에 없으면 false", () => {
+    expect(isBasicColumnHidden("대표자명", ["연락처"])).toBe(false);
+  });
+  it("상호명은 목록에 있어도 항상 보임(보호)", () => {
+    expect(isBasicColumnHidden("상호명", ["상호명"])).toBe(false);
+  });
+  it("빈 라벨·빈 목록은 숨김 아님", () => {
+    expect(isBasicColumnHidden("", ["연락처"])).toBe(false);
+    expect(isBasicColumnHidden("연락처", [])).toBe(false);
   });
 });

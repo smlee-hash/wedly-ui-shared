@@ -12,6 +12,24 @@ export { cn } from "./lib/cn";
 export * from "./lib/utils";
 export * from "./lib/options";
 
+// M2: 공통/앱별 칸 전역 설정 읽기·쓰기 도우미 (관리자 설정 화면 → 각 앱 /api/common-fields 로 연결)
+export {
+  getCachedCommonOverride,
+  fetchCommonFieldsOverride,
+  refreshCommonFieldsOverride,
+  saveCommonFieldsOverride,
+} from "./lib/common-fields-store";
+
+// 앱별 칸 숨김(관리자 설정) 읽기·쓰기 도우미 (각 앱 /api/column-visibility 로 연결)
+// subscribeHiddenBasicColumns: 설정 변경을 구독 → 표·상세창이 새로고침 없이 즉시 반영
+export {
+  getCachedHiddenBasicColumns,
+  fetchHiddenBasicColumns,
+  refreshHiddenBasicColumns,
+  saveHiddenBasicColumns,
+  subscribeHiddenBasicColumns,
+} from "./lib/column-visibility-store";
+
 // 타입
 export type { ColumnDef, FormulaSpec } from "./types/columns";
 
@@ -31,6 +49,10 @@ export { MobileCardList } from "./components/MobileCardList";
 export { DesktopTable } from "./components/DesktopTable";
 
 export { TopControls } from "./components/TopControls";
+
+export { MaximizableSection } from "./components/MaximizableSection";
+export type { MaximizableApi } from "./components/MaximizableSection";
+export { MaximizeButton } from "./components/MaximizeButton";
 
 // 글자·숫자·날짜 입력기 — 표 셀과 상세 모달 양쪽이 같은 부품 사용
 // (AGENTS.md §5-4 cell-detail-parity — 두 화면 100% 동일).
@@ -76,10 +98,13 @@ export * from "./unified";
 
 export { CollabTable } from "./collab/CollabTable";
 export type { CollabTableProps } from "./collab/CollabTable";
+// 정렬 기준 패널(다중 AND 정렬) — ERP·하이브·일루아 첫 화면 공용
+export { SortPanel } from "./collab/SortPanel";
 export {
   filterRowsBySearch,
   sortRows,
   nextSortConfig,
+  normalizeSort,
   orderColumns,
   computeStickyOffsets,
   paginate,
@@ -87,7 +112,7 @@ export {
   reorderList,
   defaultFormatCellValue,
 } from "./collab/collab-table-core";
-export type { RowData, CellValue, SortConfig } from "./collab/collab-table-core";
+export type { RowData, CellValue, SortConfig, SortRule } from "./collab/collab-table-core";
 
 // 상태별 필터 탭 — 순수 로직 + 표시 부품
 export { matchesFilter, matchesTab, filterRowsByTab } from "./collab/collab-filters";
@@ -102,16 +127,58 @@ export { cellChips } from "./collab/collab-cell";
 export type { CellColorMaps, CellChip, CellContent } from "./collab/collab-cell";
 export { ColoredCell, createColoredFieldRenderer } from "./collab/CollabCell";
 
-// 통합 협업 — 경정청구 뷰 프리셋(공용): 새 공용 컬럼 2개 + 하이브식 배치 + 파생 규칙
+// 통합 협업 — 경정청구 뷰 프리셋(공용): 새 공용 컬럼 2개 + 하이브식 배치 + 배지색
 export {
   TAX_AMENDMENT_EXTRA_COLUMNS,
   TAX_AMENDMENT_COLLAB_VISIBLE,
   TAX_AMENDMENT_COLLAB_COLORS,
-  deriveRefundFlag,
 } from "./collab/tax-amendment-collab-view";
 
 // 공용 히스토리(상담기록) 패널 — 하이브·ERP·일루아 공유
 export { HistoryPanel } from "./components/HistoryPanel";
 export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPanel";
 
-export const __MODULE_VERSION__ = "0.32.1";
+// 분야(섹션)별 히스토리 래퍼 — 공용 보관함(secstore) 저장. 앱별 출처/작성자/업로드경로 주입.
+export { default as SectionHistoryPanel } from "./components/SectionHistoryPanel";
+
+// 업체 상세창 "맨 위 상호명" 공용 편집 부품 — 하이브·ERP·일루아 모든 상세 모달 공유 (클릭 → 그 자리 수정)
+export { EditableTitle } from "./components/EditableTitle";
+
+// M2: 관리자용 공통/앱별 칸 설정 화면 부품
+export { CommonFieldsAdmin } from "./unified/CommonFieldsAdmin";
+
+// 틀(레이아웃) — 사이드바 접힘 폭 변화 + 새로고침 유지 (ERP·하이브·일루아 공용)
+export { resolveStoredCollapsed } from "./layout/sidebar-collapse-core";
+export { useSidebarCollapse } from "./layout/useSidebarCollapse";
+export type { SidebarCollapseState } from "./layout/useSidebarCollapse";
+export { CollapsibleShell } from "./layout/CollapsibleShell";
+export type { MainVariant, CollapsibleShellProps } from "./layout/CollapsibleShell";
+
+// 기능요청·제안 패널 — 별도 앱(wedly-dev-request) 임베드 (ERP·하이브·일루아 공용).
+// "요청 페이지" 링크는 고정 주소가 아니라 살아있는 현재 주소를 사용(로그인 창 문제 차단).
+export { DevRequestPanel } from "./components/DevRequestPanel";
+export type { DevRequestPanelProps } from "./components/DevRequestPanel";
+export { buildDevRequestUrl } from "./components/dev-request-url";
+export type { DevRequestUrlParams } from "./components/dev-request-url";
+
+// ─── Phase 1B-2: ERP 통합상세창 공용화 ───────────────────────────────────────
+// UnifiedDetailView + 어댑터 타입 + 유틸 — ERP 어댑터 주입 방식으로 앱 중립화
+export { default as UnifiedDetailView } from "./unified-detail/UnifiedDetailView";
+export type {
+  UnifiedDetailAdapter,
+  UnifiedDetailApi,
+  SectionPanelProps,
+  FieldOptionsBundle,
+  BasicRecord,
+  FileFieldDef,
+  FileMetaLite,
+} from "./unified-detail/adapter-types";
+export { FieldOptionsProvider, useFieldOptions } from "./unified-detail/field-options-context";
+export type { CustomerDetailLite, DomainRowLite } from "./unified-detail/lib/customer-detail";
+export type { DomainGroup } from "./unified-detail/lib/domain-config";
+export { DOMAIN_GROUPS } from "./unified-detail/lib/domain-config";
+export { useFieldOrder } from "./unified-detail/lib/use-field-order";
+// 분야별 정산 차수 탭 래퍼(공용 부품에 ERP 경로 주입) — erp-adapter 가 adapter.components 로 주입.
+export { default as SectionSettlementTab } from "./unified-detail/SectionSettlementTab";
+
+export const __MODULE_VERSION__ = "0.40.0";

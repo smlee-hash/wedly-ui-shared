@@ -117,7 +117,8 @@ export function DesktopTable({
     <div
       className={cn(
         "bg-white rounded-2xl border border-wedly-bd shadow-sm overflow-hidden",
-        mobileViewMode === "table" && "block",
+        // 카드 모드면 표 박스 자체를 숨김(PC 포함). 표 모드면 표시 — 안쪽 스크롤 영역이 폭별 표시를 관장.
+        mobileViewMode === "card" && "hidden",
       )}
     >
       <div
@@ -137,9 +138,9 @@ export function DesktopTable({
             ))}
           </colgroup>
           <thead className="sticky top-0 z-20">
-            <tr className="bg-slate-50/80">
+            <tr className="bg-wedly-bg-gray/80">
               {/* Checkbox header */}
-              <th className="py-2.5 px-3 w-10 text-center sticky left-0 z-30 bg-slate-50/80">
+              <th className="py-2.5 px-3 w-10 text-center sticky left-0 z-30 bg-wedly-bg-gray/80">
                 <input
                   type="checkbox"
                   checked={
@@ -189,7 +190,7 @@ export function DesktopTable({
                     }}
                     className={cn(
                       "py-2.5 px-4 text-left text-[11px] font-semibold text-wedly-muted uppercase tracking-wider whitespace-nowrap select-none relative group",
-                      isSticky && "sticky z-10 bg-slate-50/80",
+                      isSticky && "sticky z-10 bg-wedly-bg-gray/80",
                       dragOverColKey === col.key && dragColKey !== col.key && "bg-wedly-accent/10 border-l-2 border-l-wedly-accent",
                     )}
                     style={{
@@ -265,7 +266,7 @@ export function DesktopTable({
                             setRenamingColKey(col.key);
                             setColMenuKey(null);
                           }}
-                          className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-t2 hover:bg-slate-50 flex items-center gap-2"
+                          className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-t2 hover:bg-wedly-bg-gray flex items-center gap-2"
                         >
                           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                             <path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -278,7 +279,7 @@ export function DesktopTable({
                             handleSort(col.key);
                             setColMenuKey(null);
                           }}
-                          className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-t2 hover:bg-slate-50 flex items-center gap-2"
+                          className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-t2 hover:bg-wedly-bg-gray flex items-center gap-2"
                         >
                           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                             <path d="M3 8h10M8 3v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -291,7 +292,7 @@ export function DesktopTable({
                             removeColFromTab(col.key);
                             setColMenuKey(null);
                           }}
-                          className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red hover:bg-red-50 flex items-center gap-2"
+                          className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red hover:bg-wedly-bg-red flex items-center gap-2"
                         >
                           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -306,7 +307,7 @@ export function DesktopTable({
                       onDoubleClick={() => onResizeDoubleClick(col.key)}
                       className="absolute right-[-2px] top-0 bottom-0 w-[5px] cursor-col-resize z-20 group/resize"
                     >
-                      <div className="absolute inset-y-1 left-1/2 -translate-x-1/2 w-[2px] bg-slate-200 group-hover/resize:bg-wedly-accent group-active/resize:bg-wedly-accent rounded-full" />
+                      <div className="absolute inset-y-1 left-1/2 -translate-x-1/2 w-[2px] bg-wedly-bd group-hover/resize:bg-wedly-accent group-active/resize:bg-wedly-accent rounded-full" />
                     </div>
                   </th>
                 );

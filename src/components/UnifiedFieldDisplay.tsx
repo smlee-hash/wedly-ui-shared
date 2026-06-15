@@ -16,6 +16,7 @@ import {
   classifyUnifiedFieldValue,
   fileHref,
   fileLabel,
+  personChipClasses,
   type FieldDisplayOptions,
 } from "../unified/field-display-core";
 
@@ -32,9 +33,10 @@ export function renderUnifiedFieldValue(
       return <span className="text-wedly-muted">{d.text}</span>;
 
     case "person-chip": {
-      const chipBg = d.isLeader ? "bg-wedly-bg-blue" : "bg-wedly-bg-green";
-      const chipText = d.isLeader ? "text-wedly-accent" : "text-wedly-green";
-      const dotColor = d.isLeader ? "bg-wedly-accent" : "bg-wedly-green";
+      const cc = personChipClasses(d.isLeader ? "leader" : "member");
+      const chipBg = cc.bg;
+      const chipText = cc.text;
+      const dotColor = cc.dot;
       return (
         <span className="inline-flex flex-wrap gap-1">
           {(d.names ?? []).map((n, i) => (
