@@ -190,18 +190,32 @@ function MultiSelectEditor({
   const fo = useFieldOptions();
   const selected = new Set(value ? value.split(", ") : []);
   const ref = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [adding, setAdding] = useState(false);
   const [newOpt, setNewOpt] = useState("");
   const [newColor, setNewColor] = useState(fo.OPTION_COLOR_PALETTE[0]);
   const [liveOptions, setLiveOptions] = useState(options);
   const addInputRef = useRef<HTMLInputElement>(null);
+  // 트리거(칸) 위치 기준 화면 좌표 계산 — 모달 overflow 에 잘리지 않게 createPortal 로 띄운다(SelectEditor 와 동일).
   useEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      const dropH = 300;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const top = spaceBelow >= dropH ? rect.bottom + 4 : Math.max(8, rect.top - dropH - 4);
+      const width = Math.min(Math.max(rect.width, 220), window.innerWidth - 32);
+      setPos({ top, left: rect.left, width });
+    }
+  }, []);
+  useEffect(() => {
+    if (!pos) return;
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [onClose]);
+  }, [onClose, pos]);
   useEffect(() => {
     if (adding) addInputRef.current?.focus();
   }, [adding]);
@@ -221,10 +235,17 @@ function MultiSelectEditor({
     setAdding(false);
   };
   return (
-    <div
-      ref={ref}
-      className="absolute left-0 top-full mt-1 w-full sm:w-[260px] max-w-[calc(100vw-32px)] max-h-[300px] overflow-y-auto bg-white border border-wedly-bd rounded-xl shadow-lg z-50 py-1"
-    >
+    <>
+      {/* 칸 위치를 잡기 위한 0높이 기준점(흐름 안에 둠) */}
+      <div ref={anchorRef} className="h-0" />
+      {pos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={ref}
+            className="fixed max-h-[300px] overflow-y-auto bg-white border border-wedly-bd rounded-xl shadow-lg py-1"
+            style={{ top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+          >
       {liveOptions.map((opt) => {
         const colorClass = fo.getOptionColorClass(opt, fo.STATUS_COLORS, fo.SELECT_BADGE_COLORS);
         return (
@@ -299,7 +320,10 @@ function MultiSelectEditor({
           </button>
         )}
       </div>
-    </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -560,6 +584,7 @@ export function EditableFieldRow({
   colorCommon = false,
   commonOverride,
   loadManagers,
+  isNew = false,
 }: {
   col: ColumnDef;
   value: unknown;
@@ -571,6 +596,8 @@ export function EditableFieldRow({
   commonOverride?: CommonFieldOverride | null;
   /** person 칸 담당자 목록 로드 — 어댑터 경유. 없으면 빈 목록으로 폴백. */
   loadManagers?: () => Promise<{ id: string; name: string }[]>;
+  /** 신규 등록 폼이면 true — 칸마다 저장 확인창을 띄우지 않는다(입력 중 반복 팝업 방지). */
+  isNew?: boolean;
 }) {
   const fo = useFieldOptions();
   const [editing, setEditing] = useState(false);
@@ -585,13 +612,14 @@ export function EditableFieldRow({
       setEditing(false);
       // 의도치 않은 수정 방지 — 단일 값 저장 직전 확인 모달. multi_select(태그 토글)는 매번 묻기 불편하므로 제외(즉시 반영).
       // 값이 안 바뀌면 묻지 않음. 통합 상세창의 기본정보·일반 칸이 모두 이 관문(EditableFieldRow)을 거친다.
-      if (col.type !== "multi_select" && String(newVal ?? "") !== String(value ?? "")) {
+      // 신규 등록 폼(isNew)에선 칸마다 확인창을 띄우지 않는다(입력 중 반복 팝업 방지 — 노션 NO.46).
+      if (!isNew && col.type !== "multi_select" && String(newVal ?? "") !== String(value ?? "")) {
         setPendingSave({ newVal });
         return;
       }
       onUpdate(col.key, newVal);
     },
-    [col.key, col.type, value, onUpdate],
+    [col.key, col.type, value, onUpdate, isNew],
   );
 
   // 표시용 값 — 하이브 EditableFieldRow 와 100% 동일한 형태(빈값 문구·선택 배지·남색 글자·글씨크기).

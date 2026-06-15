@@ -206,6 +206,8 @@ export function buildBasicSection(
   specs: BasicFieldSpec[],
   allColumns: ColumnLite[],
   row: Record<string, unknown> | null,
+  /** 신규 등록 폼: 컬럼/데이터에 아직 없어도 사양 기본키로 칸을 무조건 띄운다(빈 행이라 안 보이던 환급금·영업담당 등 복구 — NO.46). */
+  includeAllSpecs = false,
 ): UnifiedSection {
   const colByKey = new Map(allColumns.map((c) => [c.key, c]));
   const rowKeys = new Set(row ? Object.keys(row) : []);
@@ -226,6 +228,8 @@ export function buildBasicSection(
     }
     let key = candidates.find(hasVal);
     if (!key) key = candidates.find((k) => colByKey.has(k) || rowKeys.has(k));
+    // 신규 등록 폼: 컬럼/데이터에 후보키가 아직 없어도 사양 기본키로 칸을 띄운다(빈 칸 입력 가능하게).
+    if (!key && includeAllSpecs) key = spec.keys[0];
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const def = colByKey.get(key);

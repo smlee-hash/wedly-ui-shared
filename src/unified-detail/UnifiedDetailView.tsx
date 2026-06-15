@@ -928,7 +928,8 @@ function BasicInfoPanel({
   // 상호명은 별도 헤더로 표시하므로 BASIC_FIELD_SPECS에서는 제외 (진행상태는 표시)
   const baseSection = useMemo(() => {
     const withTeam = ensureBasicTeamFields(
-      buildBasicSection(BASIC_FIELD_SPECS, colsLite, row as Record<string, unknown>),
+      // 신규 등록 폼(isNew)에선 빈 행이라도 사양 칸을 모두 띄운다(환급금·영업담당 등 누락 복구 — NO.46).
+      buildBasicSection(BASIC_FIELD_SPECS, colsLite, row as Record<string, unknown>, isNew),
       colsLite,
     );
     // 표 컬럼에 file타입 칸이 없는 앱(일루아)은 기본정보에 파일칸이 안 떠 회사 파일이 안 보인다.
@@ -939,7 +940,7 @@ function BasicInfoPanel({
       return { ...withTeam, fields: [...withTeam.fields, { key: rf.key, label: rf.label ?? "리포트", type: "file" as const }] };
     }
     return withTeam;
-  }, [colsLite, row, adapter]);
+  }, [colsLite, row, adapter, isNew]);
 
   // ── 공용 기본정보 보관함 연결: 사업자번호 + 칸 키 → 공통 식별자(= 공통 스펙 라벨, 앱 중립) ──
   const bizno = useMemo(() => {
@@ -1325,6 +1326,7 @@ function BasicInfoPanel({
                     colorCommon
                     commonOverride={commonOverride}
                     loadManagers={loadManagers}
+                    isNew={isNew}
                   />
                 );
               })}
