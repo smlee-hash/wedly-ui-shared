@@ -51,6 +51,8 @@ type Props = {
   onBulkAlimtalk: () => void;
   /** 알림톡 일괄 버튼 표시 여부(기본 true). 알림톡 미사용 화면에서 false 로 숨김. */
   showBulkAlimtalk?: boolean;
+  /** 일괄 수정 버튼 표시 여부(기본 true). 일괄수정 미지원 화면(일루아 등)에서 false 로 숨김. */
+  showBulkEdit?: boolean;
 
   // 비어드민 새로고침
   onRefresh: () => void;
@@ -101,6 +103,7 @@ export function TopControls({
   deleting,
   onBulkAlimtalk,
   showBulkAlimtalk = true,
+  showBulkEdit = true,
   onRefresh,
   loading,
   mobileViewMode,
@@ -167,7 +170,7 @@ export function TopControls({
         {/* 선택 행 있을 때 동작 버튼 */}
         {checkedCount > 0 && (isAdmin || showBulkAlimtalk) && (
           <div className="flex items-center gap-2 flex-wrap">
-            {isAdmin && (
+            {isAdmin && showBulkEdit && (
               <button
                 onClick={onBulkEdit}
                 className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-white bg-wedly-accent rounded-lg hover:bg-wedly-accent/90 transition-colors"
