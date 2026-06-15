@@ -223,12 +223,13 @@ export function TopControls({
             </button>
           </div>
         )}
+      </div>
 
-        {/* 3줄 — 보기/표시/페이지 박스. PC 폭 820px 통일. 캘린더 뷰 등에서는 안 그림 */}
-        {showPageBox && (
-        <div className="flex flex-wrap items-center gap-2 text-[13px] md:max-w-[820px]">
-        {/* 그룹 1: 보기 (카드/표) */}
-        <div className="flex-1 md:flex-1 md:min-w-0 inline-flex items-center gap-1.5 bg-white border border-wedly-bd rounded-lg px-2.5 h-[44px] md:h-[36px] shadow-sm">
+      {/* 3줄 — 보기/표시/페이지(내용 크기, 좌측) + 정렬·표최대화(우측 끝, 표 오른쪽에 맞춤). 박스는 안 늘려 빈 공간 없이, 도구는 떨어뜨려 분리. 캘린더 뷰 등에서는 안 그림 */}
+      {showPageBox && (
+      <div className={cn("flex flex-wrap items-center gap-2 text-[13px] mt-2", !trailingControls && "md:max-w-[820px]")}>
+        {/* 그룹 1: 보기 (카드/표). trailingControls 있는 화면(통합협업·하이브)은 내용 크기, 없는 화면(고객360 등)은 기존처럼 꽉 채움 */}
+        <div className={cn("flex-1 inline-flex items-center gap-1.5 bg-white border border-wedly-bd rounded-lg px-2.5 h-[44px] md:h-[36px] shadow-sm", trailingControls ? "md:flex-none" : "md:flex-1 md:min-w-0")}>
           <span className="whitespace-nowrap font-semibold text-[12px] leading-none flex-shrink-0 inline-flex items-center gap-1">
             <span className="text-wedly-muted">보기</span>
             <span className="text-wedly-muted/50 font-normal">|</span>
@@ -256,7 +257,7 @@ export function TopControls({
         </div>
 
         {/* 그룹 2: 표시 개수 */}
-        <div className="flex-1 md:flex-[1.2] md:min-w-0 inline-flex items-center gap-1.5 bg-white border border-wedly-bd rounded-lg px-3 h-[44px] md:h-[36px] shadow-sm">
+        <div className={cn("flex-1 inline-flex items-center gap-1.5 bg-white border border-wedly-bd rounded-lg px-3 h-[44px] md:h-[36px] shadow-sm", trailingControls ? "md:flex-none" : "md:flex-[1.2] md:min-w-0")}>
           <span className="whitespace-nowrap font-semibold text-[12px] leading-none flex-shrink-0 inline-flex items-center gap-1">
             <span className="text-wedly-muted">표시</span>
             <span className="text-wedly-muted/50 font-normal">|</span>
@@ -288,7 +289,7 @@ export function TopControls({
 
         {/* 그룹 3: 페이지 이동 (Infinity 가 아니고 1페이지 이상일 때만) */}
         {pageSize !== Infinity && totalPages > 1 && (
-          <div className="w-full md:w-auto md:flex-[2] md:min-w-0 flex items-center bg-white border border-wedly-bd rounded-lg px-3 h-[44px] md:h-[36px] shadow-sm gap-2">
+          <div className={cn("w-full md:w-auto flex items-center bg-white border border-wedly-bd rounded-lg px-3 h-[44px] md:h-[36px] shadow-sm gap-2", trailingControls ? "md:flex-none" : "md:flex-[2] md:min-w-0")}>
             <span className="whitespace-nowrap font-semibold text-[12px] leading-none flex-shrink-0 inline-flex items-center gap-1">
               <span className="text-wedly-muted">페이지</span>
               <span className="text-wedly-muted/50 font-normal">|</span>
@@ -343,13 +344,12 @@ export function TopControls({
         {(pageSize === Infinity || totalPages <= 1) && totalRows > 0 && (
           <span className="text-wedly-muted text-[11px] tabular-nums whitespace-nowrap">총 {totalRows}건</span>
         )}
-        {/* 우측 끝 — 정렬 패널 + 표 최대화 버튼(보기/표시/페이지와 같은 줄) */}
+        {/* 우측 끝 — 정렬 패널 + 표 최대화 버튼(같은 줄, 구분선으로 페이지 컨트롤과 분리) */}
         {trailingControls && (
-          <div className="ml-auto flex items-center gap-2 flex-shrink-0">{trailingControls}</div>
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0 md:pl-3 md:border-l md:border-wedly-bd">{trailingControls}</div>
         )}
         </div>
         )}
-      </div>
     </>
   );
 }
