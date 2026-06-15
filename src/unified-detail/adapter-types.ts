@@ -185,4 +185,9 @@ export interface UnifiedDetailAdapter {
    * ERP·하이브 구현은 detail 을 무시(인자 적은 함수도 호환).
    */
   getAllFiles: (row: Record<string, unknown>, detail?: CustomerDetailLite | null) => FileMetaLite[];
+  /**
+   * 기본정보 파일 칸에서 파일을 열 때 호출(선택). 앱이 만료된 노션 임시링크를 자동 갱신해 안전하게 연다.
+   * 없으면 BasicFilesField 가 기본 동작(주소를 새 창으로 직접 열기). ERP·일루아는 미주입 → 기존 동작 유지.
+   */
+  onOpenFile?: (file: FileMetaLite, entryId: string) => void;
 }

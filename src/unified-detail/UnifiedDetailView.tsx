@@ -297,7 +297,7 @@ function TaxAmendmentPanel({
       <div className="flex-1 overflow-y-auto">
         {/* 히스토리 */}
         {subTab === "history" && (
-          <HistoryPanel pageId={entryId} rowData={localRow} api={historyApi} />
+          <HistoryPanel pageId={entryId} rowData={localRow} api={historyApi} ownSource={(adapter.appName || "ERP").toLowerCase()} isAdmin={isAdmin} />
         )}
 
         {/* 계약정보 차수 */}
@@ -1741,17 +1741,23 @@ export default function UnifiedDetailView({
   onSaved,
   isNew = false,
   adapter,
+  initialView,
 }: {
   row: RowData;
   onClose: () => void;
   onSaved?: () => void;
   isNew?: boolean;
   adapter: UnifiedDetailAdapter;
+  /** "history" 면 열 때 곧장 메인 분야(경정청구 등) 히스토리로 연다(목록 말풍선 클릭). 없으면 기본정보. */
+  initialView?: "history";
 }) {
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TopTab>("__basic__");
+  // 말풍선으로 열면(initialView==="history") 메인 분야 탭으로 시작 → 그 안 히스토리 하위탭(기본값)이 바로 보인다.
+  const [activeTab, setActiveTab] = useState<TopTab>(
+    initialView === "history" ? (adapter.ownDomain as TopTab) : "__basic__",
+  );
   const [subTab, setSubTab] = useState<SubTab>("history");
   const [isAdmin, setIsAdmin] = useState(false);
   // 상단 분야 탭 편집(관리자) — 순서·이름 변경. 하위 탭과 같은 설정 row(detail-tab-config:unified-collab) 공유.

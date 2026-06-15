@@ -90,10 +90,16 @@ export default function HistoryPanel({
   pageId,
   rowData,
   api,
+  ownSource = "erp",
+  isAdmin = false,
 }: {
   pageId: string;
   rowData?: Record<string, unknown> | null;
   api: HistoryPanelApi;
+  /** 이 앱이 쓴 글의 source 값(erp/hive/illua). 내가 쓴 글이면 수정·삭제 허용 판정에 사용. */
+  ownSource?: string;
+  /** 관리자면 남의 글도 수정·삭제 가능. */
+  isAdmin?: boolean;
 }) {
   const [userName, setUserName] = useState("");
   useEffect(() => {
@@ -114,11 +120,12 @@ export default function HistoryPanel({
       pageId={pageId}
       adapter={adapter}
       currentUserName={name}
-      ownSource="erp"
+      isAdmin={isAdmin}
+      ownSource={ownSource}
       enableImagePaste
       timeFormatter={timeAgo}
       pollingIntervalMs={5000}
-      sourceBadge={{ label: "HIVE", isForeign: (s) => s === "hive" }}
+      sourceBadge={{ label: ownSource === "erp" ? "HIVE" : "ERP", isForeign: (s) => !!s && s !== ownSource }}
       seedComments={seed}
       shareEnabled={false}
       hideCategories

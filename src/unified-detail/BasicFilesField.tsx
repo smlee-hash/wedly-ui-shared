@@ -49,19 +49,25 @@ export default function BasicFilesField({
         </button>
       ) : (
         <>
-          {inline.map((f, i) => (
-            <a
-              key={i}
-              href={f.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[13px] text-wedly-t1 hover:text-wedly-accent min-w-0"
-              title={f.name}
-            >
-              <span className="flex-shrink-0">📎</span>
-              <span className="truncate">{f.name}</span>
-            </a>
-          ))}
+          {inline.map((f, i) => {
+            const cls = "flex items-center gap-2 px-3 py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[13px] text-wedly-t1 hover:text-wedly-accent min-w-0 text-left w-full cursor-pointer";
+            const body = (
+              <>
+                <span className="flex-shrink-0">📎</span>
+                <span className="truncate">{f.name}</span>
+              </>
+            );
+            // 앱이 onOpenFile 을 주입하면(하이브) 그걸로 연다 — 만료된 노션 링크 자동 갱신. 없으면 기존처럼 주소 직접 열기.
+            return adapter.onOpenFile ? (
+              <button key={i} type="button" onClick={() => adapter.onOpenFile!(f, entryId)} className={cls} title={f.name}>
+                {body}
+              </button>
+            ) : (
+              <a key={i} href={f.url} target="_blank" rel="noopener noreferrer" className={cls} title={f.name}>
+                {body}
+              </a>
+            );
+          })}
           <div className="flex w-fit items-center gap-2 px-1 text-[12px]">
             <button type="button" onClick={() => setOpen(true)} className="text-wedly-accent font-medium hover:underline">파일 추가</button>
             {files.length >= 3 && (
