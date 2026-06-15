@@ -167,6 +167,7 @@ export { default as UnifiedDetailView } from "./unified-detail/UnifiedDetailView
 export type {
   UnifiedDetailAdapter,
   UnifiedDetailApi,
+  SectionPanelProps,
   FieldOptionsBundle,
   BasicRecord,
   FileFieldDef,

@@ -3,7 +3,7 @@
 // 앱마다 달라지는 API 경로/형태를 어댑터로 격리하고, 공용 UI는 어댑터 메서드만 호출한다.
 
 import type React from "react";
-import type { CustomerDetailLite } from "./lib/customer-detail";
+import type { CustomerDetailLite, DomainRowLite } from "./lib/customer-detail";
 import type { ColumnDef } from "../types/columns";
 import type { UnifiedComment } from "../unified/history-core";
 import type { SelectDropdownColorFamily } from "@wedly/detail-modal-shared";
@@ -163,6 +163,8 @@ export interface UnifiedDetailAdapter {
     ErpFilesPanel: React.ComponentType<any>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     SectionSettlementTab: React.ComponentType<any>;
+    /** 분야 그룹별 커스텀 편집기. 키 = DomainGroup.key. 제공 시 기본 SectionDetailPanel 대신 렌더. 미제공이면 기존 동작(하이브·일루아 불변). */
+    sectionPanels?: Record<string, React.ComponentType<SectionPanelProps>>;
   };
 
   /** 자기 도메인(경정청구) 파일 탭 칸 정의 목록 */
@@ -177,3 +179,14 @@ export interface UnifiedDetailAdapter {
    */
   getAllFiles: (row: Record<string, unknown>) => FileMetaLite[];
 }
+
+/** 어댑터가 분야 그룹별로 주입하는 커스텀 편집기 패널의 props (components.sectionPanels 값). */
+export type SectionPanelProps = {
+  /** 이 그룹에 속한 분야 행들(정책·정부·무상 등). 각 행에 domain·entryId·row 가 있다. */
+  rows: DomainRowLite[];
+  /** 경정청구(앵커) 행 전체 — 새 계약 생성 시 고객 식별값 prefill 용. */
+  primaryRow: Record<string, unknown>;
+  isAdmin: boolean;
+  onSaved?: () => void;
+  adapter: UnifiedDetailAdapter;
+};

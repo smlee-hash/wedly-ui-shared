@@ -1529,6 +1529,22 @@ function GroupDomainPanel({
     );
   }
 
+  // 어댑터가 이 분야 그룹용 커스텀 패널을 제공하면 그것을 렌더(미제공이면 아래 기본 SectionDetailPanel).
+  // 하이브·일루아는 sectionPanels 를 주입하지 않으므로 기존 동작 그대로.
+  const CustomSectionPanel = adapter.components.sectionPanels?.[group.key];
+  if (CustomSectionPanel) {
+    return (
+      <CustomSectionPanel
+        key={group.key}
+        rows={rows}
+        primaryRow={primaryRow as Record<string, unknown>}
+        isAdmin={isAdmin}
+        onSaved={onSaved}
+        adapter={adapter}
+      />
+    );
+  }
+
   // 그 외 분야: 분야별 독립 상세 패널. 저장은 고객(경정청구) 기록에 분야 이름표 칸으로.
   // 데이터 없는 분야(기업인증·특허)도 동일하게 동작(고객 기록에만 저장).
   const primaryId = String((primaryRow as Record<string, unknown>)["_id"] ?? "");
