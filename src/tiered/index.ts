@@ -13,7 +13,8 @@
 
 // "number" 는 일반 숫자, "percent" 는 같은 숫자형이지만 표시·편집 시 % 단위로 다룸
 // "formula" 는 사람이 입력하지 않고 같은 차수의 다른 컬럼들로 자동 계산되는 컬럼(읽기전용)
-export type FieldType = "text" | "date" | "number" | "percent" | "formula";
+// "select" 는 정해둔 보기 목록(options) 중 하나를 고르는 드롭다운 칸. 글자처럼 저장(빈값 "")·수식 참조 불가.
+export type FieldType = "text" | "date" | "number" | "percent" | "formula" | "select";
 
 export interface FieldDef {
   key: string;
@@ -32,6 +33,10 @@ export interface FieldDef {
     conditionFieldKey: string;
     rules: Array<{ whenValue: string; formula: FormulaTerm[] }>;
   };
+  // ── type === "select" 일 때만 사용 (그 외 타입엔 없음) ──
+  //   options: 고를 수 있는 보기 값 목록(순서 보존). optionColors: 보기별 색칩(선택, 미지정 시 기본 회색).
+  options?: string[];
+  optionColors?: Record<string, { bg: string; text: string }>;
 }
 
 // 합계 스코어카드 정의 — 어드민이 카드 제목, 색, 계산식, 추가/삭제 모두 편집 가능.
