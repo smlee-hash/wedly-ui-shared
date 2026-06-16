@@ -26,7 +26,7 @@ import {
   ensureBasicTeamFields,
   type ColumnLite,
 } from "./lib/unified-sections";
-import { basicFieldOptionsFromRow } from "../../unified/sections";
+import { basicFieldOptionsFromRow } from "../unified/sections";
 import { applyTabConfig } from "./lib/unified-tab-config";
 import type { BasicRecord } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
