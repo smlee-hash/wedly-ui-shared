@@ -6,7 +6,7 @@
 // ⚠️ 반응형 필수: 파일 목록은 매 렌더에서 adapter.getAllFiles(row) 로 다시 계산한다.
 //    (useState 로 한 번만 읽어 굳히면 데이터가 늦게 와도 빈 채로 남는다 — 실제 사건의 원인 패턴.)
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { UnifiedDetailAdapter } from "./adapter-types";
 import type { CustomerDetailLite } from "./lib/customer-detail";
@@ -31,6 +31,12 @@ export default function BasicFilesField({
   const files = adapter.getAllFiles(row, detail ?? null); // 매 렌더 재계산 (캐시 금지)
   const ErpFilesPanel = adapter.components.ErpFilesPanel;
   const inline = files.slice(0, 2);
+
+  // 팝업에서 막 업로드/삭제한 결과를 헤더 "전체 N개" 카운트에 즉시 반영(행 갱신 전까지의 시차 제거).
+  // 패널이 현재 표시 중인 파일 수를 올려주고, 행(row)이 새 데이터로 바뀌면 리셋해 행 기준으로 돌아간다.
+  const [liveCount, setLiveCount] = useState<number | null>(null);
+  useEffect(() => { setLiveCount(null); }, [row, detail]);
+  const shownCount = liveCount ?? files.length;
 
   const closePopup = () => {
     setOpen(false);
@@ -92,7 +98,7 @@ export default function BasicFilesField({
             >
               <div className="px-4 py-3 border-b border-wedly-bd/60 flex items-center justify-between sticky top-0 bg-white">
                 <span className="text-[13px] font-semibold text-wedly-t2">
-                  첨부파일 (전체 {files.length}개)
+                  첨부파일 (전체 {shownCount}개)
                 </span>
                 <button
                   type="button"
@@ -112,6 +118,7 @@ export default function BasicFilesField({
                   defaultCategoryKey={adapter.ownFileFields[0]?.key ?? "첨부파일"}
                   readOnly={false}
                   allFiles={files}
+                  onFilesCountChange={setLiveCount}
                 />
               </div>
             </div>
