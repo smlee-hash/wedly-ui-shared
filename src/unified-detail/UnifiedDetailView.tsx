@@ -891,6 +891,7 @@ function BasicInfoPanel({
   isAdmin = false,
   orderedGroups,
   isNew = false,
+  extraBasicColumns,
   draft,
   onDraftChange,
   saveOwnField,
@@ -909,6 +910,8 @@ function BasicInfoPanel({
   orderedGroups: DomainGroup[];
   // 신규 등록 모드: 값은 서버 저장 대신 부모의 임시 보관(draft)으로
   isNew?: boolean;
+  /** 표 "컬럼 표시 설정"에서 켠 칸 정의 — 기본정보에도 union 노출(NO.46 ②). */
+  extraBasicColumns?: { key: string; label: string; type: ColumnLite["type"]; format?: ColumnLite["format"] }[];
   draft?: Record<string, unknown>;
   onDraftChange?: (key: string, val: string | number | boolean | null) => void;
   saveOwnField: SaveOwnFieldFn;
@@ -1026,12 +1029,20 @@ function BasicInfoPanel({
       .map((k) => lookup.get(k))
       .filter((c): c is { key: string; label: string; type: string } => !!c && !baseKeys.has(c.key))
       .map((c) => ({ key: c.key, label: c.label, type: c.type as ColumnDef["type"] }));
-    return [...baseSection.fields, ...added].map((f) => ({
+    const base = [...baseSection.fields, ...added];
+    // 표 "컬럼 표시 설정"에서 켠 칸 중 아직 기본정보에 없는 칸을 더한다(컬럼 설정 ↔ 등록/상세 일치 — 하이브 NO.46 ②).
+    // 시스템키(_*)·자동ID·제목(상호명=헤더 별도)은 제외. 미전달(ERP·일루아)이면 무변화.
+    const shown = new Set(base.map((f) => f.key));
+    const extra: ColumnLite[] = (extraBasicColumns ?? [])
+      .filter((c) => !!c && !!c.key && !shown.has(c.key) && !c.key.startsWith("_")
+        && c.type !== "auto_increment_id" && c.type !== "title")
+      .map((c) => ({ key: c.key, label: c.label, type: c.type, format: c.format }));
+    return [...base, ...extra].map((f) => ({
       ...f,
       label: colLabelOverrides[f.key] ?? f.label,
       type: (colTypeOverrides[f.key] as ColumnDef["type"]) ?? f.type,
     }));
-  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns]);
+  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, extraBasicColumns]);
   const visibleBasicFields = useMemo(
     () => allBasicFields.filter(
       (f) => !basicHiddenColumns.includes(f.key)
@@ -1742,6 +1753,7 @@ export default function UnifiedDetailView({
   isNew = false,
   adapter,
   initialView,
+  extraBasicColumns,
 }: {
   row: RowData;
   onClose: () => void;
@@ -1750,6 +1762,8 @@ export default function UnifiedDetailView({
   adapter: UnifiedDetailAdapter;
   /** "history" 면 열 때 곧장 메인 분야(경정청구 등) 히스토리로 연다(목록 말풍선 클릭). 없으면 기본정보. */
   initialView?: "history";
+  /** 표 "컬럼 표시 설정"에서 켠 칸 정의 — 기본정보에도 함께 노출(앱이 주입, 미전달 시 무변화). 하이브 NO.46 ②. */
+  extraBasicColumns?: { key: string; label: string; type: ColumnLite["type"]; format?: ColumnLite["format"] }[];
 }) {
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2085,6 +2099,7 @@ export default function UnifiedDetailView({
                 orderedGroups={[]}
                 isNew
                 draft={draft}
+                extraBasicColumns={extraBasicColumns}
                 onDraftChange={(key, val) => setDraft((d) => ({ ...d, [key]: val }))}
                 saveOwnField={adapter.api.saveOwnField}
                 ownDomain={adapter.ownDomain}
@@ -2292,6 +2307,7 @@ export default function UnifiedDetailView({
               onSaved={handleSaved}
               isAdmin={isAdmin}
               orderedGroups={orderedGroups}
+              extraBasicColumns={extraBasicColumns}
               saveOwnField={adapter.api.saveOwnField}
               ownDomain={adapter.ownDomain}
               loadColumnConfig={adapter.api.loadColumnConfig}
