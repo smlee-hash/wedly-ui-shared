@@ -9,6 +9,7 @@ import { TextEditor, NumberEditor, isCommonBasicLabel, renderUnifiedFieldValue, 
 // 선택 칸 본문(옵션 추가·색칠)·사람 선택 위젯도 하이브와 같은 공용 부품 사용.
 import { SelectDropdownBody, MultiPersonEditor } from "@wedly/detail-modal-shared";
 import { cn } from "../lib/cn";
+import { shouldConfirmFieldEdit } from "./lib/edit-confirm-gate";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: default format (read-only display)
@@ -610,10 +611,10 @@ export function EditableFieldRow({
   const handleSave = useCallback(
     (newVal: string | number | boolean | null) => {
       setEditing(false);
-      // 의도치 않은 수정 방지 — 단일 값 저장 직전 확인 모달. multi_select(태그 토글)는 매번 묻기 불편하므로 제외(즉시 반영).
-      // 값이 안 바뀌면 묻지 않음. 통합 상세창의 기본정보·일반 칸이 모두 이 관문(EditableFieldRow)을 거친다.
-      // 신규 등록 폼(isNew)에선 칸마다 확인창을 띄우지 않는다(입력 중 반복 팝업 방지 — 노션 NO.46).
-      if (!isNew && col.type !== "multi_select" && String(newVal ?? "") !== String(value ?? "")) {
+      // 의도치 않은 수정 방지 — 단일 값 저장 직전 확인 모달. 값이 있던 칸을 고칠 때만 띄운다.
+      // 빈 칸 최초 입력(NO.44)·multi_select 토글·신규 등록 폼(NO.46)은 묻지 않고 바로 저장.
+      // 통합 상세창의 기본정보·일반 칸이 모두 이 관문(EditableFieldRow)을 거친다.
+      if (shouldConfirmFieldEdit({ oldVal: value, newVal, type: col.type, isNew })) {
         setPendingSave({ newVal });
         return;
       }
