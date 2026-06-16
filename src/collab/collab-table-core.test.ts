@@ -189,4 +189,12 @@ describe("defaultFormatCellValue", () => {
   it("일반 텍스트는 그대로", () => {
     expect(defaultFormatCellValue(col("x", "text"), "안녕")).toBe("안녕");
   });
+  it("percent 는 값 뒤에 % (계산 없이 표시)", () => {
+    expect(defaultFormatCellValue(col("x", "percent"), 5)).toBe("5%");
+    expect(defaultFormatCellValue(col("x", "percent"), 1.65)).toBe("1.65%");
+  });
+  it("percent 빈값은 — (em dash)", () => {
+    expect(defaultFormatCellValue(col("x", "percent"), "")).toBe("—");
+    expect(defaultFormatCellValue(col("x", "percent"), null)).toBe("—");
+  });
 });

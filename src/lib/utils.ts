@@ -3,6 +3,16 @@ export function formatCurrency(value: number | null): string {
   return value.toLocaleString("ko-KR");
 }
 
+/**
+ * 퍼센트 칸 표시 — 숫자면 "값%", 빈값은 "-", 숫자가 아니면 원문 유지.
+ * 계산 없이 표시만 한다(0~1 환산 X). tiered(차수카드)의 percent와는 별개 맥락.
+ */
+export function formatPercent(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? `${n}%` : String(value);
+}
+
 export function formatDate(isoDate: string | null): string {
   if (!isoDate) return "-";
   try {

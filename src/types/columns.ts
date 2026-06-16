@@ -16,6 +16,7 @@ export type ColumnDef = {
     | "title"
     | "text"
     | "number"
+    | "percent"   // 숫자처럼 입력·정렬, 표시만 %(계산 없음). tiered의 percent와 별개 — 환산하지 않음.
     | "date"
     | "select"
     | "multi_select"

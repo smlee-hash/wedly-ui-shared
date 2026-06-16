@@ -1,6 +1,6 @@
 import type { ColumnDef } from "../types/columns";
 import { getOptionColorClass } from "../lib/options";
-import { formatCurrency, formatDate } from "../lib/utils";
+import { formatCurrency, formatDate, formatPercent } from "../lib/utils";
 import { cleanPersonName, detectPersonChipRole, personChipClasses } from "../unified/field-display-core";
 import type { CellValue } from "./collab-table-core";
 
@@ -70,6 +70,11 @@ export function cellChips(col: ColumnDef, value: CellValue, maps: CellColorMaps 
         className: getOptionColorClass(label, maps.statusColors, maps.badgeColors),
       })),
     };
+  }
+
+  if (col.type === "percent") {
+    // 퍼센트도 숫자 표시 → currency kind(tabular-nums) 재사용. CollabCell 무수정.
+    return { kind: "currency", text: formatPercent(value) };
   }
 
   if (col.format === "currency" || (col.type === "formula" && typeof value === "number")) {

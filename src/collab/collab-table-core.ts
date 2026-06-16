@@ -1,5 +1,5 @@
 import type { ColumnDef } from "../types/columns";
-import { formatCurrency, formatDate } from "../lib/utils";
+import { formatCurrency, formatDate, formatPercent } from "../lib/utils";
 
 export type CellValue = string | number | boolean | null;
 export type RowData = Record<string, CellValue>;
@@ -121,6 +121,7 @@ export function reorderList(order: string[], fromKey: string, toKey: string): st
 export function defaultFormatCellValue(col: ColumnDef, value: CellValue): string {
   if (value == null || value === "") return "—";
   if (col.type === "checkbox") return value === true || value === "true" ? "✓" : "—";
+  if (col.type === "percent") return formatPercent(value);
   if (col.type === "number" || col.type === "formula") {
     if (col.format === "currency") {
       const n = typeof value === "number" ? value : Number(String(value).replace(/[^0-9.-]/g, ""));

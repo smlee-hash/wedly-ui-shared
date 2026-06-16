@@ -152,4 +152,12 @@ describe("cellChips — 팀장/팀원 사람 칩(점+알약)", () => {
   it("팀장 라벨이라도 값이 비면 '-'", () => {
     expect(cellChips(col("person", { label: "팀장" }), "", {})).toEqual({ kind: "text", text: "-" });
   });
+
+  it("percent 종류는 currency kind + 값% (tabular-nums 재사용)", () => {
+    expect(cellChips(col("percent"), 5)).toEqual({ kind: "currency", text: "5%" });
+    expect(cellChips(col("percent"), 1.65)).toEqual({ kind: "currency", text: "1.65%" });
+  });
+  it("percent 빈값은 text '-'", () => {
+    expect(cellChips(col("percent"), "")).toEqual({ kind: "text", text: "-" });
+  });
 });
