@@ -3,6 +3,13 @@ export function formatCurrency(value: number | null): string {
   return value.toLocaleString("ko-KR");
 }
 
+/** 퍼센트 칸 표시 — 숫자면 "값%", 빈값/숫자 아님은 방어적 처리. 계산 없이 표시만(환산 X). */
+export function formatPercent(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? `${n}%` : String(value);
+}
+
 export function formatDate(isoDate: string | null): string {
   if (!isoDate) return "-";
   try {
