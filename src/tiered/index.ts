@@ -13,7 +13,8 @@
 
 // "number" 는 일반 숫자, "percent" 는 같은 숫자형이지만 표시·편집 시 % 단위로 다룸
 // "formula" 는 사람이 입력하지 않고 같은 차수의 다른 컬럼들로 자동 계산되는 컬럼(읽기전용)
-export type FieldType = "text" | "date" | "number" | "percent" | "formula";
+// "select" 는 정해둔 보기 목록(options) 중 하나를 고르는 드롭다운 칸. 글자처럼 저장(빈값 "")·수식 참조 불가.
+export type FieldType = "text" | "date" | "number" | "percent" | "formula" | "select";
 
 export interface FieldDef {
   key: string;
@@ -33,6 +34,10 @@ export interface FieldDef {
     conditionFieldKey?: string;
     rules: Array<ConditionalRule>;
   };
+  // ── type === "select" 일 때만 사용 (그 외 타입엔 없음) ──
+  //   options: 고를 수 있는 보기 값 목록(순서 보존). optionColors: 보기별 색칩(선택, 미지정 시 기본 회색).
+  options?: string[];
+  optionColors?: Record<string, { bg: string; text: string }>;
 }
 
 /** 조건 비교 대상(오른쪽): 직접 입력 글자 또는 다른 칸. */
