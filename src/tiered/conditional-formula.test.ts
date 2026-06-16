@@ -111,4 +111,24 @@ describe("evalFormulaForTier — 조건 자기참조 순환 차단", () => {
     ];
     expect(evalFormulaForTier(fields[0], {}, fields, new Set(), { x: "loop" })).toBe(null);
   });
+  it("두 수식칸이 서로 조건분기로 맞물려도 무한재귀 없이 차단(null)", () => {
+    const fields: FieldDef[] = [
+      { key: "a", label: "a", type: "formula",
+        formula: [{ op: "+", unit: "column", columnKey: "b" }],
+        conditional: { rules: [{ leftKey: "x", right: { kind: "text", value: "loop" }, formula: [{ op: "+", unit: "column", columnKey: "b" }] }] } },
+      { key: "b", label: "b", type: "formula",
+        formula: [{ op: "+", unit: "column", columnKey: "a" }],
+        conditional: { rules: [{ leftKey: "x", right: { kind: "text", value: "loop" }, formula: [{ op: "+", unit: "column", columnKey: "a" }] }] } },
+    ];
+    expect(evalFormulaForTier(fields[0], {}, fields, new Set(), { x: "loop" })).toBe(null);
+  });
+  it("조건의 기준칸(leftKey)이 자기 자신(수식칸)이어도 무한재귀 없이 안전", () => {
+    const fields: FieldDef[] = [
+      { key: "self", label: "self", type: "formula",
+        formula: [{ op: "+", unit: "number", value: 7 }],
+        conditional: { rules: [{ leftKey: "self", right: { kind: "text", value: "7" }, formula: [{ op: "+", unit: "number", value: 99 }] }] } },
+    ];
+    // leftKey=self → getCondValue(self)는 순환차단으로 null → 매칭 안 함 → 기본식 7
+    expect(evalFormulaForTier(fields[0], {}, fields, new Set(), {})).toBe(7);
+  });
 });
