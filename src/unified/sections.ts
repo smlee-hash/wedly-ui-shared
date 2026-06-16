@@ -308,6 +308,27 @@ export const BASIC_FIELD_SPECS: BasicFieldSpec[] = [
 ];
 
 /**
+ * 한 행(row)에서 "조건 비교용 기본정보 칸 후보"를 만든다 — { key, label }[].
+ * 각 사양(spec)의 후보 키 중 이 행에 실제로 존재하는 첫 키를 고르고, 라벨은 spec.label 통일.
+ * 조건별 수식 빌더(SettlementInfoTab)의 conditionFieldOptions 로 넘긴다.
+ */
+export function basicFieldOptionsFromRow(
+  row: Record<string, unknown> | null | undefined,
+): Array<{ key: string; label: string }> {
+  if (!row) return [];
+  const rowKeys = new Set(Object.keys(row));
+  const out: Array<{ key: string; label: string }> = [];
+  const seen = new Set<string>();
+  for (const spec of BASIC_FIELD_SPECS) {
+    const key = spec.keys.find((k) => rowKeys.has(k));
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ key, label: spec.label });
+  }
+  return out;
+}
+
+/**
  * 표준 사양(specs)으로 "기본정보" 묶음 한 개를 만든다.
  * 각 칸은 columns(정의) 또는 row(데이터)에 실제 존재하는 첫 후보키로 연결한다(없으면 그 칸은 건너뜀).
  * 라벨은 사양의 라벨로 통일한다(팀장/팀원 색칩 인식이 라벨 기준).

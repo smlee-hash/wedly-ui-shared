@@ -25,13 +25,30 @@ export interface FieldDef {
   formula?: FormulaTerm[];
   formulaResult?: FormulaResultFormat;
   // ── type === "formula" 조건별 식 (선택적) ──
-  //   conditionFieldKey: 기준 필드(기본정보 평면 필드) 키. 예 "54DB분류"
-  //   rules: 기준 값별로 쓸 식. 먼저 맞는 규칙 우선. 매칭 없으면 formula(기본).
-  //   미설정 시 기존과 100% 동일(앞호환).
+  //   rules: 위→아래 우선. 먼저 맞는 규칙의 식 사용, 아무 것도 안 맞으면 formula(그 외/기본).
+  //   각 규칙: leftKey 칸 값이, right(직접 입력 글자 / 다른 칸 값)와 "같으면" 적용.
+  //   ⚠️ 앞호환: 옛 형식 { conditionFieldKey, rules:[{whenValue, formula}] } 도 resolve 단계에서 그대로 흡수.
   conditional?: {
-    conditionFieldKey: string;
-    rules: Array<{ whenValue: string; formula: FormulaTerm[] }>;
+    /** @deprecated 옛 형식 전용. 새 데이터는 규칙별 leftKey 사용. */
+    conditionFieldKey?: string;
+    rules: Array<ConditionalRule>;
   };
+}
+
+/** 조건 비교 대상(오른쪽): 직접 입력 글자 또는 다른 칸. */
+export type ConditionCompare =
+  | { kind: "text"; value: string }
+  | { kind: "field"; key: string };
+
+/** 조건 규칙 한 줄. (옛 형식 whenValue 도 읽기 호환 위해 optional 로 같이 둠) */
+export interface ConditionalRule {
+  /** 기준 칸(정산정보 칸 또는 기본정보 평면 필드) 키. 옛 형식이면 비고 conditionFieldKey 사용. */
+  leftKey?: string;
+  /** 비교 대상. 옛 형식이면 비고 whenValue(텍스트)로 흡수. */
+  right?: ConditionCompare;
+  /** @deprecated 옛 형식 전용. */
+  whenValue?: string;
+  formula: FormulaTerm[];
 }
 
 // 합계 스코어카드 정의 — 어드민이 카드 제목, 색, 계산식, 추가/삭제 모두 편집 가능.
@@ -237,28 +254,35 @@ export function isNumericFieldType(type: FieldType): boolean {
   return type === "number" || type === "percent" || type === "formula";
 }
 
-// 조건별 식 고르기 — field.conditional 가 있으면 conditionValue 에 맞는 규칙의 식을, 없거나 매칭 안 되면 field.formula 를 돌려준다.
-// 매칭: 단일 문자열은 일치, 배열/콤마 문자열(다중 선택)은 그 안에 whenValue 가 '포함'되면 일치. 먼저 맞는 규칙 우선.
-// conditionValue 는 기준 필드의 '저장된 원본 값'(문자열 / 배열 / 콤마문자열) — 화면 표시용 가공값(칩 등)이 아니라 raw 값을 넘길 것.
+// 조건별 식 고르기 — 규칙마다 leftKey 칸 값과 right(글자/다른 칸) 를 "같음" 비교. 먼저 맞는 규칙의 식.
+//   getValue(key): 그 키의 값을 돌려줌(정산정보 칸 우선, 없으면 기본정보 평면 — 호출부가 구성).
+//   매칭: 양쪽을 글자로 보고, 다중값(배열/콤마·줄바꿈)은 공통 값 하나라도 있으면 일치. 빈 값은 매칭 안 함.
+//   옛 형식(conditionFieldKey + whenValue)도 흡수.
 export function resolveConditionalFormula(
   field: FieldDef,
-  conditionValue: unknown,
+  getValue: (key: string) => unknown,
 ): FormulaTerm[] | undefined {
   const cond = field.conditional;
   if (!cond || !Array.isArray(cond.rules) || cond.rules.length === 0) return field.formula;
-  const matches = (when: string): boolean => {
-    const w = when.trim();
-    if (w === "") return false; // 빈 기준값은 매칭 안 함(관리자 공백 실수로 규칙이 조용히 사라지는 것 방지)
-    if (conditionValue === null || conditionValue === undefined) return false;
-    if (Array.isArray(conditionValue)) return conditionValue.some((v) => String(v).trim() === w);
-    const s = String(conditionValue).trim();
-    if (s === w) return true;
-    return s.split(/[,\n;]+/).map((x) => x.trim()).includes(w);
+  const valuesOf = (raw: unknown): string[] => {
+    if (raw === null || raw === undefined) return [];
+    if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter((s) => s !== "");
+    return String(raw).split(/[,\n;]+/).map((x) => x.trim()).filter((s) => s !== "");
+  };
+  const eq = (a: unknown, b: unknown): boolean => {
+    const A = valuesOf(a), B = valuesOf(b);
+    if (A.length === 0 || B.length === 0) return false; // 빈 값은 매칭 안 함
+    return A.some((x) => B.includes(x));
   };
   for (const rule of cond.rules) {
-    if (rule && typeof rule.whenValue === "string" && Array.isArray(rule.formula) && matches(rule.whenValue)) {
-      return rule.formula;
-    }
+    if (!rule || !Array.isArray(rule.formula)) continue;
+    // 새 형식 우선, 없으면 옛 형식 흡수
+    const leftKey = rule.leftKey ?? cond.conditionFieldKey;
+    if (!leftKey) continue;
+    const right = rule.right ?? { kind: "text" as const, value: rule.whenValue ?? "" };
+    const left = getValue(leftKey);
+    const rv = right.kind === "field" ? getValue(right.key) : right.value;
+    if (eq(left, rv)) return rule.formula;
   }
   return field.formula;
 }
@@ -275,13 +299,22 @@ export function evalFormulaForTier(
   seen: ReadonlySet<string> = new Set<string>(),
   conditionValues?: Record<string, unknown>,
 ): number | null {
-  const conditionValue = field.conditional ? conditionValues?.[field.conditional.conditionFieldKey] : undefined;
-  const terms = resolveConditionalFormula(field, conditionValue);
-  if (!Array.isArray(terms) || terms.length === 0) return null;
-  if (seen.has(field.key)) return null; // 순환 참조 차단
+  if (seen.has(field.key)) return null; // 순환 참조 차단 (조건 평가에서 자기 칸 참조 대비 먼저)
   const nextSeen = new Set(seen);
   nextSeen.add(field.key);
   const byKey = new Map(fields.map((f) => [f.key, f]));
+  // 조건 비교용 값 조회: 정산정보 칸(수식 칸이면 계산값, 그 외 저장값) 우선 → 없으면 기본정보 평면 값.
+  const getCondValue = (key: string): unknown => {
+    const ref = byKey.get(key);
+    if (ref && ref.type === "formula") {
+      return evalFormulaForTier(ref, tier, fields, nextSeen, conditionValues);
+    }
+    const tv = ref ? tier[key] : undefined;
+    if (tv !== undefined && tv !== null && tv !== "") return tv;
+    return conditionValues?.[key];
+  };
+  const terms = resolveConditionalFormula(field, getCondValue);
+  if (!Array.isArray(terms) || terms.length === 0) return null;
 
   // 한 항의 값 + "실제 입력이 있었는지" 반환
   const operand = (t: FormulaTerm): { v: number; has: boolean } => {
