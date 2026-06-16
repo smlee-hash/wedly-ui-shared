@@ -15,6 +15,8 @@ export default function SectionSettlementTab({
   isAdmin = false,
   kind = "settlement",
   sectionSettlementBase,
+  enableConditionalFormula,
+  conditionFieldOptions,
 }: {
   section: string;
   rawValue: unknown;
@@ -22,6 +24,9 @@ export default function SectionSettlementTab({
   isAdmin?: boolean;
   kind?: "settlement" | "contract" | "refund";
   sectionSettlementBase: string;
+  // 조건별 수식 게이트 + 비교용 기본정보 칸 후보 (ERP만 주입). 미주입이면 기존과 동일.
+  enableConditionalFormula?: boolean;
+  conditionFieldOptions?: Array<{ key: string; label: string }>;
 }) {
   if (kind === "settlement") {
     return (
@@ -31,6 +36,8 @@ export default function SectionSettlementTab({
         onSave={onSave}
         isAdmin={isAdmin}
         settlementApiBase={sectionSettlementBase}
+        enableConditionalFormula={enableConditionalFormula}
+        conditionFieldOptions={conditionFieldOptions}
       />
     );
   }
@@ -49,6 +56,8 @@ export default function SectionSettlementTab({
       ratioBaseLabel="기준"
       ratioFeeLabel="수수료"
       defaultScoreCards={[]}
+      enableConditionalFormula={enableConditionalFormula}
+      conditionFieldOptions={conditionFieldOptions}
     />
   );
 }

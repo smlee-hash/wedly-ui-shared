@@ -133,6 +133,8 @@ export interface UnifiedDetailAdapter {
   ownDomain: string;    // ERP: "tax-amendment"
   /** 자기 주력 분야 칸 정의 목록 — ERP: COLUMNS(tax-amendment). 기본정보 칸 구성·키 충돌검사에 사용. */
   ownColumns: ColumnDef[];
+  /** 조건별 수식(차수카드) UI 켜기 — ERP만 true. 미설정(하이브·일루아)이면 조건 UI 안 보임. */
+  enableConditionalFormula?: boolean;
   configScope: string;  // ERP: "unified-collab" (탭/칸 설정 scope)
   domains: ColumnDef[] | unknown[]; // 보여줄 분야 탭 목록 — Phase 1A는 기존 DOMAIN_GROUPS 그대로
   api: UnifiedDetailApi;

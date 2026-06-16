@@ -26,6 +26,7 @@ import {
   ensureBasicTeamFields,
   type ColumnLite,
 } from "./lib/unified-sections";
+import { basicFieldOptionsFromRow } from "../../unified/sections";
 import { applyTabConfig } from "./lib/unified-tab-config";
 import type { BasicRecord } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
@@ -413,6 +414,8 @@ function SectionDetailPanel({
     localRowRef.current = localRow;
   }, [localRow]);
   const nk = useCallback((k: string) => `uc:${sectionKey}:${k}`, [sectionKey]);
+  // 조건별 수식 비교용 기본정보 칸 후보 (ERP만 게이트 ON일 때 의미 있음). 래퍼 경로와 동일한 헬퍼 사용.
+  const condFieldOpts = useMemo(() => basicFieldOptionsFromRow(localRow), [localRow]);
 
   // 사업자번호 — 있으면 3앱 공용 보관함, 없으면 기존 행 저장(레거시) 사용.
   const bizno = useMemo(() => normalizeBizno(primaryRow["15사업자번호"]), [primaryRow]);
@@ -673,6 +676,8 @@ function SectionDetailPanel({
                   onSave={onSaveContract}
                   isAdmin={isAdmin}
                   sectionSettlementBase={sectionSettlementBase}
+                  enableConditionalFormula={adapter.enableConditionalFormula}
+                  conditionFieldOptions={condFieldOpts}
                 />
               </>
             )}
@@ -693,6 +698,8 @@ function SectionDetailPanel({
                   onSave={onSaveSettlement}
                   isAdmin={isAdmin}
                   sectionSettlementBase={sectionSettlementBase}
+                  enableConditionalFormula={adapter.enableConditionalFormula}
+                  conditionFieldOptions={condFieldOpts}
                 />
               </>
             )}
@@ -714,6 +721,8 @@ function SectionDetailPanel({
                   onSave={onSaveRefund}
                   isAdmin={isAdmin}
                   sectionSettlementBase={sectionSettlementBase}
+                  enableConditionalFormula={adapter.enableConditionalFormula}
+                  conditionFieldOptions={condFieldOpts}
                 />
               </>
             )}
