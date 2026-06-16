@@ -16,6 +16,7 @@ export type ColumnDef = {
     | "title"
     | "text"
     | "number"
+    | "percent"
     | "date"
     | "select"
     | "multi_select"

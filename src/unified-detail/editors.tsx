@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { ColumnDef } from "../types/columns";
 import { useFieldOptions } from "./field-options-context";
 // 글자·숫자 입력기는 공용 부품(@wedly/ui-shared)을 그대로 사용 — 표 셀·상세창·하이브와 100% 동일.
-import { TextEditor, NumberEditor, isCommonBasicLabel, renderUnifiedFieldValue, detectPersonChipRole, type CommonFieldOverride } from "../index";
+import { TextEditor, NumberEditor, isCommonBasicLabel, renderUnifiedFieldValue, detectPersonChipRole, formatPercent, type CommonFieldOverride } from "../index";
 // 선택 칸 본문(옵션 추가·색칠)·사람 선택 위젯도 하이브와 같은 공용 부품 사용.
 import { SelectDropdownBody, MultiPersonEditor } from "@wedly/detail-modal-shared";
 import { cn } from "../lib/cn";
@@ -21,6 +21,7 @@ export function formatFieldValue(col: ColumnDef, value: unknown): string {
     const n = Number(v.replace(/,/g, ""));
     if (!isNaN(n)) return n.toLocaleString("ko-KR") + "원";
   }
+  if (col.type === "percent") return formatPercent(value);
   if (col.type === "checkbox") return value ? "✓" : "—";
   if (col.type === "file") {
     try {
@@ -663,7 +664,7 @@ export function EditableFieldRow({
       // 하이브는 날짜를 남색으로(굵기 없이) — 금액 칸만 굵게.
       return <span className="text-[15px] sm:text-[13px] text-wedly-navy">{formatFieldValue(col, value)}</span>;
     }
-    if (col.type === "number" && col.format === "currency") {
+    if ((col.type === "number" && col.format === "currency") || col.type === "percent") {
       return (
         <span className="text-[15px] sm:text-[13px] tabular-nums font-medium text-wedly-navy">
           {formatFieldValue(col, value)}
@@ -705,7 +706,7 @@ export function EditableFieldRow({
               col.type === "phone_number") && (
               <TextEditor value={String(value ?? "")} onSave={handleSave} />
             )}
-            {col.type === "number" && (
+            {(col.type === "number" || col.type === "percent") && (
               <NumberEditor
                 value={value != null && value !== "" ? Number(value) : null}
                 onSave={handleSave}
