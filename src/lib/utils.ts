@@ -50,6 +50,12 @@ export function toLocalInputValue(v: string | null | undefined): string {
   }
 }
 
+/** date 전용 input value 변환 — 시간 부분을 떼고 'YYYY-MM-DD' 만 반환 */
+export function toDateInputValue(v: string | null | undefined): string {
+  if (!v) return "";
+  return v.split("T")[0];
+}
+
 export function formatDateTime(isoDate: string | null): string {
   if (!isoDate) return "-";
   try {
