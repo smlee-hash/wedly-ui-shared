@@ -183,3 +183,5 @@ export { default as SectionSettlementTab } from "./unified-detail/SectionSettlem
 export const __MODULE_VERSION__ = "0.40.0";
 export * from "./tier-link/config";
 export * from "./tier-link/sync";
+export { default as ColumnTierLinksManager } from "./components/ColumnTierLinksManager";
+export type { TierLinkAdapter, TierFieldDef } from "./components/ColumnTierLinksManager";
