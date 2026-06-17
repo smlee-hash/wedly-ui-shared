@@ -414,3 +414,21 @@ export function mirrorCommonPair(
   data[partner] = value;
   return partner;
 }
+
+/**
+ * 기본정보 필드 목록에서 COMMON_KEY_MIRROR 통일쌍이 둘 다 들어 있으면 정식키(미러 본체) 하나로 합친다.
+ * 정식키 = 키가 custom_ 가 아닌 쪽(예: 59DB담당). custom_ 미러키는 본체의 정식키로 환원해 같은 묶음으로 본다.
+ * 같은 묶음에선 정식키 칸을 남기고, 등장 순서는 처음 나온 위치를 유지한다(순수 함수).
+ * (하이브 신규 등록 폼에서 'DB 분류'가 미러쌍 custom_…_b1wc ↔ 59DB담당 때문에 두 번 보이던 중복 제거 — NO.46 재작업.)
+ */
+export function collapseMirrorBasicFields<T extends { key: string }>(fields: T[]): T[] {
+  const canon = (k: string) => (k.startsWith("custom_") && COMMON_KEY_MIRROR[k]) ? COMMON_KEY_MIRROR[k] : k;
+  const byCanon = new Map<string, T>();
+  for (const f of fields) {
+    const ck = canon(f.key);
+    const cur = byCanon.get(ck);
+    if (!cur) { byCanon.set(ck, f); continue; }
+    if (f.key === ck && cur.key !== ck) byCanon.set(ck, f); // 충돌 시 정식키(미러 아님) 우선
+  }
+  return [...byCanon.values()];
+}

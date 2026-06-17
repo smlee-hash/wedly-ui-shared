@@ -26,6 +26,7 @@ import {
   ensureBasicTeamFields,
   type ColumnLite,
 } from "./lib/unified-sections";
+import { collapseMirrorBasicFields } from "../unified/sections";
 import { applyTabConfig } from "./lib/unified-tab-config";
 import type { BasicRecord } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
@@ -1037,12 +1038,18 @@ function BasicInfoPanel({
       .filter((c) => !!c && !!c.key && !shown.has(c.key) && !c.key.startsWith("_")
         && c.type !== "auto_increment_id" && c.type !== "title")
       .map((c) => ({ key: c.key, label: c.label, type: c.type, format: c.format }));
-    return [...base, ...extra].map((f) => ({
+    // 신규 등록 폼: 통일쌍(예: custom_…_b1wc ↔ 59DB담당)이 둘 다 떠 'DB 분류'가 두 번 보이던 중복을
+    // 정식키 하나로 합친다(하이브 NO.46 재작업). isNew 한정 — 빈 폼이라 값 손실이 없고, 기존 행 상세는
+    // 한쪽 미러키에만 값이 남아 있을 수 있어 손대지 않는다.
+    const merged: ColumnLite[] = isNew
+      ? collapseMirrorBasicFields([...base, ...extra])
+      : [...base, ...extra];
+    return merged.map((f) => ({
       ...f,
       label: colLabelOverrides[f.key] ?? f.label,
       type: (colTypeOverrides[f.key] as ColumnDef["type"]) ?? f.type,
     }));
-  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, extraBasicColumns]);
+  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, extraBasicColumns, isNew]);
   const visibleBasicFields = useMemo(
     () => allBasicFields.filter(
       (f) => !basicHiddenColumns.includes(f.key)
