@@ -278,6 +278,27 @@ export function resolveConditionalFormula(
   return field.formula;
 }
 
+// 항 사슬을 순차 계산(왼→오, 우선순위 없음). 묶음(group) 안에서도 재사용한다.
+// operand: 한 항의 값과 "실제 입력이 있었는지". (group 항은 호출부 operand 가 재귀 처리)
+function evalTermChain(
+  terms: FormulaTerm[],
+  operand: (t: FormulaTerm) => { v: number; has: boolean },
+): { v: number; has: boolean } {
+  let cur = 0;
+  let anyInput = false;
+  for (let i = 0; i < terms.length; i++) {
+    const { v, has } = operand(terms[i]);
+    if (has) anyInput = true;
+    if (i === 0) { cur = v; continue; }
+    const op = terms[i].op;
+    if (op === "+") cur += v;
+    else if (op === "-") cur -= v;
+    else if (op === "*") cur *= v;
+    else if (op === "/") cur = v === 0 ? cur : cur / v; // 0 으로 나누기 안전 처리
+  }
+  return { v: cur, has: anyInput };
+}
+
 // 한 차수(tier)에서 수식 컬럼(field)의 값을 계산한다.
 //   - 숫자 컬럼: 저장값 그대로
 //   - 퍼센트 컬럼/퍼센트 값: 0~1 비율로 환산 (10% → 0.1) — 곱셈이 자연스럽게 맞도록
@@ -300,6 +321,12 @@ export function evalFormulaForTier(
 
   // 한 항의 값 + "실제 입력이 있었는지" 반환
   const operand = (t: FormulaTerm): { v: number; has: boolean } => {
+    if (t.unit === "group") {
+      const inner = Array.isArray(t.terms) ? t.terms : [];
+      if (inner.length === 0) return { v: 0, has: false };
+      const r = evalTermChain(inner, operand); // 묶음 안 먼저 계산
+      return r.has ? { v: r.v, has: true } : { v: 0, has: false };
+    }
     if (t.unit === "number") {
       const v = typeof t.value === "number" && Number.isFinite(t.value) ? t.value : 0;
       return { v, has: true };
@@ -322,20 +349,9 @@ export function evalFormulaForTier(
     return { v: ref.type === "percent" ? num / 100 : num, has: true };
   };
 
-  let cur = 0;
-  let anyInput = false;
-  for (let i = 0; i < terms.length; i++) {
-    const { v, has } = operand(terms[i]);
-    if (has) anyInput = true;
-    if (i === 0) { cur = v; continue; }
-    const op = terms[i].op;
-    if (op === "+") cur += v;
-    else if (op === "-") cur -= v;
-    else if (op === "*") cur *= v;
-    else if (op === "/") cur = v === 0 ? cur : cur / v; // 0 으로 나누기 안전 처리
-  }
-  if (!anyInput || !Number.isFinite(cur)) return null;
-  return cur;
+  const result = evalTermChain(terms, operand);
+  if (!result.has || !Number.isFinite(result.v)) return null;
+  return result.v;
 }
 
 // 수식 계산 결과를 표시 문자열로. number → "1,234,567원", percent → "12.5%".
