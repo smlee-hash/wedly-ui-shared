@@ -12,6 +12,10 @@
     "./section-store": {
       "types": "./src/section-store/index.ts",
       "default": "./src/section-store/index.ts"
+    },
+    "./tier-link": {
+      "types": "./src/tier-link/index.ts",
+      "default": "./src/tier-link/index.ts"
     }
   },
   "files": [
