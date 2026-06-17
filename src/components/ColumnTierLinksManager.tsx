@@ -40,6 +40,8 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
   const [mode, setMode] = useState<LinkMode>("sum");
   const [areaFields, setAreaFields] = useState<TierFieldDef[]>([]);
   const [usingBase, setUsingBase] = useState(false); // 빈 섹션 기본 틀 사용중 표시
+  // 적용 전 미리보기 모달 — 바뀔 건수를 확인하고 [적용]을 눌러야 실제 반영(옛 하이브 흐름 복원)
+  const [preview, setPreview] = useState<null | { migrate: number; conflict: number; aligned: number; link: ColumnTierLink }>(null);
 
   const linkableCols = useMemo(
     () => buildLinkableColumns(adapter.staticColumns, adapter.customColumns ?? [], adapter.erpCustomColumns ?? []),
@@ -89,17 +91,33 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
     else setNotice(res.error || "저장 실패");
   }
 
-  async function addLink() {
+  // 1단계: 미리보기 — 바뀔 건수를 받아 확인 모달을 띄운다(어댑터가 미리보기를 안 주면 바로 추가).
+  async function runPreview() {
     if (!colKey || !fieldKey) { setNotice("컬럼과 차수 칸을 고르세요."); return; }
     if (links.some((l) => l.columnKey === colKey)) { setNotice("이미 연결된 컬럼입니다."); return; }
     const link: ColumnTierLink = { columnKey: colKey, section, area, tierFieldKey: fieldKey, mode };
     if (adapter.previewMigrate && adapter.applyMigrate) {
-      const pv = await adapter.previewMigrate(link);
-      if (pv) setNotice(`이동 ${pv.migrate} · 충돌 ${pv.conflict} · 정렬 ${pv.aligned} 적용합니다.`);
-      const mig = await adapter.applyMigrate(link);
+      const pv = await adapter.previewMigrate(link).catch(() => null);
+      if (!pv) { setNotice("미리보기 실패"); return; }
+      setPreview({ ...pv, link });
+      return;
+    }
+    await persist([...links, link]); // 미리보기 미지원 어댑터: 바로 추가
+    setColKey("");
+  }
+
+  // 2단계: 적용 — 실제 이동 실행 후 연결 목록에 저장. 실패하면 모달을 유지해 오류를 보여준다.
+  async function applyPreview() {
+    if (!preview) return;
+    const link = preview.link;
+    if (adapter.applyMigrate) {
+      setSaving(true);
+      const mig = await adapter.applyMigrate(link).catch(() => ({ ok: false, error: "이동 실패" }));
+      setSaving(false);
       if (!mig.ok) { setNotice(mig.error || "이동 실패"); return; }
     }
     await persist([...links, link]);
+    setPreview(null);
     setColKey("");
   }
 
@@ -173,10 +191,31 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
           </div>
         </div>
 
-        <button onClick={addLink} disabled={saving} className="mt-2 px-4 py-2 text-[13px] font-bold text-white bg-wedly-accent rounded-lg hover:brightness-110 transition-colors">연결 추가</button>
+        <button onClick={runPreview} disabled={saving} className="mt-2 px-4 py-2 text-[13px] font-bold text-white bg-wedly-accent rounded-lg hover:brightness-110 transition-colors">{adapter.previewMigrate ? "미리보기" : "연결 추가"}</button>
       </div>
 
       {notice && <div className="mt-3 text-[12px] text-wedly-t2">{notice}</div>}
+
+      {/* 미리보기 모달 — 적용 전 바뀔 건수 확인(옛 하이브 흐름 복원) */}
+      {preview && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-wedly-bd bg-white shadow-2xl">
+            <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60">
+              <h3 className="text-[15px] font-bold text-wedly-navy">연결 적용 미리보기</h3>
+              <p className="mt-1 text-[12px] text-wedly-muted">{colLabelMap[preview.link.columnKey] || preview.link.columnKey} ↔ {sectionLabel(preview.link.section ?? adapter.ownDomain)} · {AREA_LABEL[preview.link.area]}</p>
+            </div>
+            <div className="px-5 py-4 text-[13px] text-wedly-t2 space-y-1">
+              <p>차수로 옮길(반영할) 항목: <b className="text-wedly-t1">{preview.migrate}건</b></p>
+              <p>값이 달라 충돌(차수 값 유지): <b className="text-wedly-t1">{preview.conflict}건</b></p>
+              <p>표시 정렬만: <b className="text-wedly-t1">{preview.aligned}건</b></p>
+            </div>
+            <div className="px-5 py-3 bg-wedly-bg-gray/50 border-t border-wedly-bd/60 flex justify-end gap-2">
+              <button onClick={() => setPreview(null)} disabled={saving} className="px-4 py-2 text-[13px] font-medium text-wedly-t2 bg-white border border-wedly-bd rounded-lg hover:bg-wedly-bg-gray transition-colors disabled:opacity-40">취소</button>
+              <button onClick={applyPreview} disabled={saving} className="px-4 py-2 text-[13px] font-bold text-white bg-wedly-accent rounded-lg hover:brightness-110 transition-colors disabled:opacity-40">적용</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
