@@ -7,6 +7,7 @@ import {
   AREA_CONTAINER_KEY,
   isLinkArea,
   isLinkMode,
+  isReadonlyLink,
 } from "./config";
 
 const OWN = "tax-amendment";
@@ -60,5 +61,17 @@ describe("형식 가드", () => {
     expect(isLinkArea("x")).toBe(false);
     expect(isLinkMode("sum")).toBe(true);
     expect(isLinkMode("y")).toBe(false);
+  });
+});
+
+describe("isReadonlyLink", () => {
+  it("sum 은 읽기전용", () => {
+    expect(isReadonlyLink({ columnKey: "c", area: "contract", tierFieldKey: "t", mode: "sum" })).toBe(true);
+  });
+  it("latest 는 편집 가능", () => {
+    expect(isReadonlyLink({ columnKey: "c", area: "contract", tierFieldKey: "t", mode: "latest" })).toBe(false);
+  });
+  it("readonly 플래그면 latest 라도 읽기전용(자동계산 칸)", () => {
+    expect(isReadonlyLink({ columnKey: "c", area: "contract", tierFieldKey: "t", mode: "latest", readonly: true })).toBe(true);
   });
 });
