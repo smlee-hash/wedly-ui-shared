@@ -1,6 +1,6 @@
 // src/tiered/conditional-formula.test.ts
 import { describe, it, expect } from "vitest";
-import { resolveConditionalFormula, evalFormulaForTier, type FieldDef, type FormulaTerm } from "./index";
+import { resolveConditionalFormula, evalFormulaForTier, parseFormulaTerms, type FieldDef, type FormulaTerm } from "./index";
 
 const baseFormula: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "A" }];
 const hiveFormula: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "B" }];
@@ -117,5 +117,37 @@ describe("evalFormulaForTier — 조건별 재귀/순환", () => {
   it("매칭된 규칙의 식이 빈 배열이면 계산값 null", () => {
     const f: FieldDef = { key: "f", label: "f", type: "formula", formula: [{ op: "+", unit: "number", value: 5 }], conditional: { conditionFieldKey: "x", rules: [{ whenValue: "하이브", formula: [] }] } };
     expect(evalFormulaForTier(f, {}, [f], new Set(), { x: "하이브" })).toBe(null);
+  });
+});
+
+describe("parseFormulaTerms — 묶음(group)", () => {
+  it("group 항을 안쪽 terms 와 함께 보존", () => {
+    const raw = [
+      { op: "+", unit: "column", columnKey: "A" },
+      { op: "-", unit: "group", terms: [
+        { op: "+", unit: "column", columnKey: "A" },
+        { op: "*", unit: "percent", value: 33.3 },
+      ] },
+    ];
+    const out = parseFormulaTerms(raw);
+    expect(out).toHaveLength(2);
+    expect(out[1].unit).toBe("group");
+    expect(out[1].terms).toHaveLength(2);
+    expect(out[1].terms![1]).toMatchObject({ op: "*", unit: "percent", value: 33.3 });
+  });
+  it("빈 묶음은 버린다", () => {
+    const out = parseFormulaTerms([{ op: "+", unit: "group", terms: [] }]);
+    expect(out).toHaveLength(0);
+  });
+  it("두 겹 중첩은 평탄화(안쪽 group 제거)", () => {
+    const raw = [{ op: "+", unit: "group", terms: [
+      { op: "+", unit: "group", terms: [{ op: "+", unit: "number", value: 5 }] },
+      { op: "+", unit: "number", value: 2 },
+    ] }];
+    const out = parseFormulaTerms(raw);
+    expect(out[0].unit).toBe("group");
+    // 안쪽 group 은 제거되고 number 항만 남음
+    expect(out[0].terms).toHaveLength(1);
+    expect(out[0].terms![0]).toMatchObject({ unit: "number", value: 2 });
   });
 });
