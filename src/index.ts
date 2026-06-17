@@ -181,7 +181,5 @@ export { useFieldOrder } from "./unified-detail/lib/use-field-order";
 export { default as SectionSettlementTab } from "./unified-detail/SectionSettlementTab";
 
 export const __MODULE_VERSION__ = "0.40.0";
-export * from "./tier-link/config";
-export * from "./tier-link/sync";
-export { default as ColumnTierLinksManager } from "./components/ColumnTierLinksManager";
-export type { TierLinkAdapter, TierFieldDef } from "./components/ColumnTierLinksManager";
+// 차수↔컬럼 연결은 메인 배럴에 넣지 않는다 — 서버는 ./tier-link(순수), 화면부품은 ./tier-link-ui(클라이언트)로 분리.
+// (배럴에 클라이언트 부품을 추가하면 배럴을 거치는 서버 라우트가 Turbopack 경계 오류를 낸다.)

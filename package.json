@@ -16,6 +16,10 @@
     "./tier-link": {
       "types": "./src/tier-link/index.ts",
       "default": "./src/tier-link/index.ts"
+    },
+    "./tier-link-ui": {
+      "types": "./src/tier-link-ui/index.ts",
+      "default": "./src/tier-link-ui/index.ts"
     }
   },
   "files": [
