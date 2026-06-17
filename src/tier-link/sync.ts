@@ -1,13 +1,19 @@
 // 차수 카드 ↔ 리스트 컬럼 양방향 연동 — 순수 계산(섹션 인식).
 import {
   AREA_CONTAINER_KEY,
+  isReadonlyLink,
   linkSection,
   parseContainerKey,
   resolveContainerKey,
   type ColumnTierLink,
 } from "./config";
+import { evalFormulaForTier, type FieldDef, type TierData } from "../tiered";
 
 type Tier = Record<string, unknown>;
+
+// computeLinkedValue 가 formula 차수 칸을 계산하려면 그 (섹션·영역)의 칸 정의가 필요하다.
+// 미제공 시 기존 동작(저장값 읽기) 그대로 = 완전 뒤호환.
+export type ComputeCtx = { fields?: FieldDef[] };
 
 function toNum(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -33,16 +39,24 @@ export function parseTierContainer(raw: unknown): { tiers: Tier[]; ok: boolean }
   return { tiers: [], ok: false };
 }
 
-export function computeLinkedValue(tiers: Tier[], link: ColumnTierLink): number | string | null {
+export function computeLinkedValue(tiers: Tier[], link: ColumnTierLink, ctx?: ComputeCtx): number | string | null {
+  const field = ctx?.fields?.find((f) => f.key === link.tierFieldKey);
+  const isFormula = field?.type === "formula";
+  // formula 차수 칸은 값이 저장돼 있지 않다 → 차수 카드와 동일한 계산기로 그때그때 계산(PARITY).
+  const valAt = (t: Tier): number | null =>
+    isFormula
+      ? evalFormulaForTier(field as FieldDef, t as unknown as TierData, ctx!.fields as FieldDef[])
+      : toNum(t[link.tierFieldKey]);
   if (link.mode === "sum") {
     let any = false, total = 0;
     for (const t of tiers) {
-      const n = toNum(t[link.tierFieldKey]);
+      const n = valAt(t);
       if (n !== null) { any = true; total += n; }
     }
     return any ? total : null;
   }
   if (tiers.length === 0) return null;
+  if (isFormula) return valAt(tiers[tiers.length - 1]); // formula 최신차수: 계산값(없으면 null)
   const last = tiers[tiers.length - 1];
   const v = last[link.tierFieldKey];
   if (v === null || v === undefined || v === "") return null;
@@ -65,6 +79,7 @@ export function recomputeFlatForContainer(
   links: ColumnTierLink[],
   containerKey: string,
   ownDomain: string,
+  fields?: FieldDef[],
 ): Record<string, number | string | null> {
   const parsed = parseContainerKey(containerKey, ownDomain);
   if (!parsed) return {};
@@ -74,7 +89,7 @@ export function recomputeFlatForContainer(
   for (const link of links) {
     if (linkSection(link, ownDomain) !== parsed.section) continue;
     if (link.area !== parsed.area) continue;
-    out[link.columnKey] = computeLinkedValue(tiers, link);
+    out[link.columnKey] = computeLinkedValue(tiers, link, { fields });
   }
   return out;
 }
@@ -88,21 +103,25 @@ export function applyColumnTierSync(
   value: unknown,
   links: ColumnTierLink[],
   ownDomain: string,
+  fields?: FieldDef[],
 ): SyncOutcome {
   // 경우 A — 차수 컨테이너 저장
   if (parseContainerKey(key, ownDomain)) {
-    return { synced: recomputeFlatForContainer(data, links, key, ownDomain) };
+    return { synced: recomputeFlatForContainer(data, links, key, ownDomain, fields) };
   }
   // 경우 B — 연결된 컬럼 직접 수정
   const link = links.find((l) => l.columnKey === key);
   if (link) {
-    if (link.mode === "sum") return { rejected: `'${key}' 은 합계(읽기전용) 연결이라 직접 수정할 수 없습니다.` };
+    if (isReadonlyLink(link)) {
+      const why = link.mode === "sum" ? "합계" : "자동계산";
+      return { rejected: `'${key}' 은 ${why}(읽기전용) 연결이라 직접 수정할 수 없습니다. 차수 카드에서 수정하세요.` };
+    }
     const section = linkSection(link, ownDomain);
     const containerKey = resolveContainerKey(section, link.area, ownDomain);
     const { tiers, ok } = parseTierContainer(data[containerKey]);
     if (!ok) return { synced: {} };
     data[containerKey] = applyLatestEdit(tiers, link, value);
-    return { synced: recomputeFlatForContainer(data, links, containerKey, ownDomain) };
+    return { synced: recomputeFlatForContainer(data, links, containerKey, ownDomain, fields) };
   }
   // 경우 C — 무관
   return { synced: {} };
