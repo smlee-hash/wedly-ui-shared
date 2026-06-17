@@ -1,11 +1,11 @@
 // 차수 카드 ↔ 리스트 컬럼 양방향 연동 — 순수 계산(섹션 인식).
 import {
-  AREA_CONTAINER_KEY,
   isReadonlyLink,
   linkSection,
   parseContainerKey,
   resolveContainerKey,
   type ColumnTierLink,
+  type LinkArea,
 } from "./config";
 import { evalFormulaForTier, type FieldDef, type TierData } from "../tiered";
 
@@ -73,7 +73,27 @@ export function applyLatestEdit(tiers: Tier[], link: ColumnTierLink, value: unkn
   return out;
 }
 
-// 한 컨테이너가 바뀌었을 때 그 (섹션,영역)에 걸린 연결의 평면값 재계산. data[containerKey]는 이미 새 값.
+// 주어진 차수 배열로 그 (섹션,영역)에 걸린 연결의 평면값 계산. 저장소 무관 — 호출자가 차수 제공.
+// (자기분야는 entry.data 컨테이너에서, 다른 섹션은 별도 보관함(secstore)에서 차수를 읽어 넘긴다.)
+// fields: formula 차수 칸 계산용 (섹션·영역) 칸 정의. 미제공 시 formula 칸은 저장값(보통 빈값)으로 처리.
+export function recomputeFlatFromTiers(
+  tiers: Tier[],
+  links: ColumnTierLink[],
+  section: string,
+  area: LinkArea,
+  ownDomain: string,
+  fields?: FieldDef[],
+): Record<string, number | string | null> {
+  const out: Record<string, number | string | null> = {};
+  for (const link of links) {
+    if (linkSection(link, ownDomain) !== section) continue;
+    if (link.area !== area) continue;
+    out[link.columnKey] = computeLinkedValue(tiers, link, { fields });
+  }
+  return out;
+}
+
+// 한 컨테이너(entry.data)가 바뀌었을 때 그 (섹션,영역)에 걸린 연결의 평면값 재계산. data[containerKey]는 이미 새 값.
 export function recomputeFlatForContainer(
   data: Record<string, unknown>,
   links: ColumnTierLink[],
@@ -85,13 +105,7 @@ export function recomputeFlatForContainer(
   if (!parsed) return {};
   const { tiers, ok } = parseTierContainer(data[containerKey]);
   if (!ok) return {};
-  const out: Record<string, number | string | null> = {};
-  for (const link of links) {
-    if (linkSection(link, ownDomain) !== parsed.section) continue;
-    if (link.area !== parsed.area) continue;
-    out[link.columnKey] = computeLinkedValue(tiers, link, { fields });
-  }
-  return out;
+  return recomputeFlatFromTiers(tiers, links, parsed.section, parsed.area, ownDomain, fields);
 }
 
 export type SyncOutcome = { synced: Record<string, number | string | null> } | { rejected: string };
@@ -117,6 +131,9 @@ export function applyColumnTierSync(
       return { rejected: `'${key}' 은 ${why}(읽기전용) 연결이라 직접 수정할 수 없습니다. 차수 카드에서 수정하세요.` };
     }
     const section = linkSection(link, ownDomain);
+    // 다른 섹션 차수는 별도 보관함(secstore)에 있어 이 경로(entry.data)로는 동기화 못 함.
+    // 표에서의 직접 편집은 무시(읽기 전용 거울) — 차수 편집은 상세창(→ secstore 저장 훅)에서 반영된다.
+    if (section !== ownDomain) return { synced: {} };
     const containerKey = resolveContainerKey(section, link.area, ownDomain);
     const { tiers, ok } = parseTierContainer(data[containerKey]);
     if (!ok) return { synced: {} };
