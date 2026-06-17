@@ -164,3 +164,53 @@ describe("parseFormulaTerms — 묶음(group)", () => {
     expect(out[0].terms![0]).toMatchObject({ unit: "number", value: 2 });
   });
 });
+
+describe("evalFormulaForTier — 묶음(group) 우선 계산", () => {
+  const fields: FieldDef[] = [
+    { key: "A", label: "총예상", type: "number" },
+    { key: "fee", label: "fee", type: "formula", formula: [
+      { op: "+", unit: "column", columnKey: "A" },
+      { op: "-", unit: "group", terms: [
+        { op: "+", unit: "column", columnKey: "A" },
+        { op: "*", unit: "percent", value: 33.3 },
+        { op: "*", unit: "percent", value: 25 },
+      ] },
+    ] },
+  ];
+  it("A − (A×33.3%×25%) = A − 0.08325A", () => {
+    // A=1,000,000 → 1,000,000 − (1,000,000×0.333×0.25)=1,000,000−83,250=916,750
+    expect(evalFormulaForTier(fields[1], { A: 1_000_000 }, fields)).toBeCloseTo(916_750, 4);
+  });
+  it("묶음 안 입력 전부 없음 → 묶음은 has=false (무시)", () => {
+    const f: FieldDef[] = [
+      { key: "X", label: "X", type: "number" },
+      { key: "g", label: "g", type: "formula", formula: [
+        { op: "+", unit: "number", value: 10 },
+        { op: "+", unit: "group", terms: [{ op: "+", unit: "column", columnKey: "X" }] },
+      ] },
+    ];
+    expect(evalFormulaForTier(f[1], {}, f)).toBe(10); // 묶음(X 빈값) 무시, 시작 10
+  });
+  it("묶음 안 0 나누기 안전", () => {
+    const f: FieldDef[] = [
+      { key: "g", label: "g", type: "formula", formula: [
+        { op: "+", unit: "number", value: 100 },
+        { op: "/", unit: "group", terms: [{ op: "+", unit: "number", value: 0 }] },
+      ] },
+    ];
+    expect(evalFormulaForTier(f[0], {}, f)).toBe(100); // /0 → 그대로
+  });
+  it("시작값이 묶음: (A+50)×2", () => {
+    const f: FieldDef[] = [
+      { key: "A", label: "A", type: "number" },
+      { key: "g", label: "g", type: "formula", formula: [
+        { op: "+", unit: "group", terms: [
+          { op: "+", unit: "column", columnKey: "A" },
+          { op: "+", unit: "number", value: 50 },
+        ] },
+        { op: "*", unit: "number", value: 2 },
+      ] },
+    ];
+    expect(evalFormulaForTier(f[1], { A: 100 }, f)).toBe(300); // (100+50)*2
+  });
+});
