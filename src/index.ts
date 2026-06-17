@@ -199,6 +199,6 @@ export { useFieldOrder } from "./unified-detail/lib/use-field-order";
 // 분야별 정산 차수 탭 래퍼(공용 부품에 ERP 경로 주입) — erp-adapter 가 adapter.components 로 주입.
 export { default as SectionSettlementTab } from "./unified-detail/SectionSettlementTab";
 
-export const __MODULE_VERSION__ = "0.40.0";
+export const __MODULE_VERSION__ = "0.41.0";
 // 차수↔컬럼 연결은 메인 배럴에 넣지 않는다 — 서버는 ./tier-link(순수), 화면부품은 ./tier-link-ui(클라이언트)로 분리.
 // (배럴에 클라이언트 부품을 추가하면 배럴을 거치는 서버 라우트가 Turbopack 경계 오류를 낸다.)
