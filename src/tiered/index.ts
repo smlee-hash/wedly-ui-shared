@@ -79,15 +79,19 @@ export interface CustomFormulaItem {
 //   예) [{unit:"column",columnKey:"예상국세환급액"}, {op:"*",unit:"column",columnKey:"국세환급액수수료율"}]
 //       → 예상국세환급액 × 국세환급액수수료율(%)  (퍼센트 컬럼은 자동으로 0~1 비율로 환산)
 export type FormulaResultFormat = "number" | "percent";
+// 묶음(괄호) 단위 추가 — group 이면 terms 안의 식을 먼저(괄호처럼) 계산. (한 겹만)
+export type FormulaTermUnit = CustomFormulaUnit | "group";
 export interface FormulaTerm {
   op: CustomFormulaOp;        // 첫 항은 무시됨 (시작값)
-  unit: CustomFormulaUnit;    // "column" | "number" | "percent"
+  unit: FormulaTermUnit;      // "column" | "number" | "percent" | "group"
   columnKey?: string;         // unit="column" 일 때 참조 컬럼 키
   value?: number;             // unit="number" | "percent" 일 때 값
+  terms?: FormulaTerm[];      // unit="group" 일 때 묶음 안 식 (안쪽은 group 불가)
 }
 
 // 저장된 수식 항 배열을 안전하게 파싱 — 알 수 없는 값은 기본값으로 보정.
-export function parseFormulaTerms(raw: unknown): FormulaTerm[] {
+// allowGroup=false 면 묶음(group)을 일반 항으로도 안 잡아 제거(한 겹 강제).
+export function parseFormulaTerms(raw: unknown, allowGroup = true): FormulaTerm[] {
   if (!Array.isArray(raw)) return [];
   const allowedOps: CustomFormulaOp[] = ["+", "-", "*", "/"];
   const allowedUnits: CustomFormulaUnit[] = ["number", "percent", "column"];
@@ -96,6 +100,12 @@ export function parseFormulaTerms(raw: unknown): FormulaTerm[] {
     if (!it || typeof it !== "object") continue;
     const o = it as Record<string, unknown>;
     const op = allowedOps.includes(o.op as CustomFormulaOp) ? (o.op as CustomFormulaOp) : "+";
+    if (o.unit === "group") {
+      if (!allowGroup) continue; // 안쪽의 group 은 버림(한 겹만 허용)
+      const inner = parseFormulaTerms(o.terms, false);
+      if (inner.length > 0) out.push({ op, unit: "group", terms: inner });
+      continue; // 빈 묶음은 버림
+    }
     const unit = allowedUnits.includes(o.unit as CustomFormulaUnit) ? (o.unit as CustomFormulaUnit) : "number";
     const value = typeof o.value === "number" && Number.isFinite(o.value) ? o.value : 0;
     const term: FormulaTerm = { op, unit, value };

@@ -1,6 +1,6 @@
 // src/tiered/conditional-formula.test.ts
 import { describe, it, expect } from "vitest";
-import { resolveConditionalFormula, evalFormulaForTier, type FieldDef, type FormulaTerm } from "./index";
+import { resolveConditionalFormula, evalFormulaForTier, parseFormulaTerms, type FieldDef, type FormulaTerm } from "./index";
 
 const base: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "A" }];
 const hive: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "B" }];
@@ -130,5 +130,37 @@ describe("evalFormulaForTier — 조건 자기참조 순환 차단", () => {
     ];
     // leftKey=self → getCondValue(self)는 순환차단으로 null → 매칭 안 함 → 기본식 7
     expect(evalFormulaForTier(fields[0], {}, fields, new Set(), {})).toBe(7);
+  });
+});
+
+describe("parseFormulaTerms — 묶음(group)", () => {
+  it("group 항을 안쪽 terms 와 함께 보존", () => {
+    const raw = [
+      { op: "+", unit: "column", columnKey: "A" },
+      { op: "-", unit: "group", terms: [
+        { op: "+", unit: "column", columnKey: "A" },
+        { op: "*", unit: "percent", value: 33.3 },
+      ] },
+    ];
+    const out = parseFormulaTerms(raw);
+    expect(out).toHaveLength(2);
+    expect(out[1].unit).toBe("group");
+    expect(out[1].terms).toHaveLength(2);
+    expect(out[1].terms![1]).toMatchObject({ op: "*", unit: "percent", value: 33.3 });
+  });
+  it("빈 묶음은 버린다", () => {
+    const out = parseFormulaTerms([{ op: "+", unit: "group", terms: [] }]);
+    expect(out).toHaveLength(0);
+  });
+  it("두 겹 중첩은 평탄화(안쪽 group 제거)", () => {
+    const raw = [{ op: "+", unit: "group", terms: [
+      { op: "+", unit: "group", terms: [{ op: "+", unit: "number", value: 5 }] },
+      { op: "+", unit: "number", value: 2 },
+    ] }];
+    const out = parseFormulaTerms(raw);
+    expect(out[0].unit).toBe("group");
+    // 안쪽 group 은 제거되고 number 항만 남음
+    expect(out[0].terms).toHaveLength(1);
+    expect(out[0].terms![0]).toMatchObject({ unit: "number", value: 2 });
   });
 });
