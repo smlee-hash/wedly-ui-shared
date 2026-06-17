@@ -182,3 +182,5 @@ export { useFieldOrder } from "./unified-detail/lib/use-field-order";
 export { default as SectionSettlementTab } from "./unified-detail/SectionSettlementTab";
 
 export const __MODULE_VERSION__ = "0.40.0";
+export * from "./tier-link/config";
+export * from "./tier-link/sync";
