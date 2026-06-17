@@ -180,7 +180,7 @@ export { useFieldOrder } from "./unified-detail/lib/use-field-order";
 // 분야별 정산 차수 탭 래퍼(공용 부품에 ERP 경로 주입) — erp-adapter 가 adapter.components 로 주입.
 export { default as SectionSettlementTab } from "./unified-detail/SectionSettlementTab";
 
-export const __MODULE_VERSION__ = "0.40.0";
+export const __MODULE_VERSION__ = "0.41.0";
 export * from "./tier-link/config";
 export * from "./tier-link/sync";
 export { default as ColumnTierLinksManager } from "./components/ColumnTierLinksManager";
