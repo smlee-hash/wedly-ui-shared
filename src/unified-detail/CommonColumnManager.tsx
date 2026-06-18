@@ -23,11 +23,14 @@ const norm = (s: string) => (s || "").replace(/\s+/g, "").toLowerCase();
 
 export function CommonColumnManager({
   ownColumns = [],
+  reservedLabels = [],
   loadDefs,
   saveDefs,
   onChanged,
 }: {
   ownColumns?: Array<{ key: string; label: string; type?: string; options?: string[] }>;
+  // 이미 기본정보에 보이는 칸(표준 11칸 등)의 라벨 — 표에서 불러오기 후보에서 제외(중복·값분리 방지).
+  reservedLabels?: string[];
   loadDefs: () => Promise<BasicColDef[]>;
   saveDefs: (fields: BasicColDef[]) => Promise<{ ok: boolean; error?: string }>;
   onChanged?: () => void;
@@ -95,12 +98,13 @@ export function CommonColumnManager({
     await persist(removeDef(defs, key));
   };
 
-  // "표에서 불러오기" 후보 = 이미 추가된 칸을 뺀 표 칸(라벨 기준 중복도 제외)
+  // "표에서 불러오기" 후보 = 이미 추가된 칸 + 이미 기본정보에 보이는 표준 칸을 뺀 표 칸.
+  // (표준 칸을 다른 키로 불러오면 같은 칸이 두 줄 생기고 값이 갈라지므로 라벨 기준으로 제외.)
   const pullCandidates = useMemo(() => {
     const usedKeys = new Set(defs.map((d) => d.key));
-    const usedLabels = new Set(defs.map((d) => norm(d.label)));
+    const usedLabels = new Set([...defs.map((d) => norm(d.label)), ...reservedLabels.map(norm)]);
     return ownColumns.filter((c) => c && c.key && !usedKeys.has(c.key) && !usedLabels.has(norm(c.label)));
-  }, [ownColumns, defs]);
+  }, [ownColumns, defs, reservedLabels]);
 
   if (loading) return <div className="text-[14px] text-wedly-muted">불러오는 중…</div>;
 

@@ -10,6 +10,7 @@ import type { BasicColDef } from "../lib/basic-col-manager";
 export function CommonFieldsLauncher({
   appSpecificLabels = [],
   ownColumns,
+  reservedLabels,
   loadDefs,
   saveDefs,
   onChanged,
@@ -17,6 +18,7 @@ export function CommonFieldsLauncher({
   appSpecificLabels?: string[];
   // 추가 칸 관리(이 둘이 다 있을 때만 노출 — 미배선 앱은 표준 토글만 보임)
   ownColumns?: Array<{ key: string; label: string; type?: string; options?: string[] }>;
+  reservedLabels?: string[];
   loadDefs?: () => Promise<BasicColDef[]>;
   saveDefs?: (fields: BasicColDef[]) => Promise<{ ok: boolean; error?: string }>;
   onChanged?: () => void;
@@ -59,6 +61,7 @@ export function CommonFieldsLauncher({
               <div className="mb-5">
                 <CommonColumnManager
                   ownColumns={ownColumns}
+                  reservedLabels={reservedLabels}
                   loadDefs={loadDefs!}
                   saveDefs={saveDefs!}
                   onChanged={onChanged}

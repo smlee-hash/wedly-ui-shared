@@ -1215,6 +1215,7 @@ function BasicInfoPanel({
               <CommonFieldsLauncher
                 appSpecificLabels={ERP_APP_BASIC_FIELDS.map((f) => f.label)}
                 ownColumns={ownColumns.map((c) => ({ key: c.key, label: c.label, type: c.type, options: c.options }))}
+                reservedLabels={baseSection.fields.map((f) => f.label)}
                 loadDefs={adapter.api.loadBasicFieldDefs ? () => adapter.api.loadBasicFieldDefs!(ownDomain) : undefined}
                 saveDefs={adapter.api.saveBasicFieldDefs ? (fields) => adapter.api.saveBasicFieldDefs!(ownDomain, fields as Array<Record<string, unknown>>) : undefined}
                 onChanged={() => { setDefsReloadKey((k) => k + 1); refreshCommonFieldsOverride().then(setCommonOverride); }}
