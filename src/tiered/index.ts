@@ -45,12 +45,17 @@ export type ConditionCompare =
   | { kind: "text"; value: string }
   | { kind: "field"; key: string };
 
+/** 조건 비교 방식. 미지정(옛 데이터)은 "eq"(같음)로 취급 — 앞호환. */
+export type ConditionOp = "eq" | "neq" | "contains" | "notContains";
+
 /** 조건 규칙 한 줄. (옛 형식 whenValue 도 읽기 호환 위해 optional 로 같이 둠) */
 export interface ConditionalRule {
   /** 기준 칸(정산정보 칸 또는 기본정보 평면 필드) 키. 옛 형식이면 비고 conditionFieldKey 사용. */
   leftKey?: string;
   /** 비교 대상. 옛 형식이면 비고 whenValue(텍스트)로 흡수. */
   right?: ConditionCompare;
+  /** 비교 방식(같음/다름/포함/미포함). 미지정이면 "eq"(같음). */
+  op?: ConditionOp;
   /** @deprecated 옛 형식 전용. */
   whenValue?: string;
   formula: FormulaTerm[];
@@ -284,10 +289,21 @@ export function resolveConditionalFormula(
     if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter((s) => s !== "");
     return String(raw).split(/[,\n;]+/).map((x) => x.trim()).filter((s) => s !== "");
   };
-  const eq = (a: unknown, b: unknown): boolean => {
+  // 한 값을 글자로 — 배열이면 쉼표로 이어 붙임(부분 포함 비교용).
+  const asText = (raw: unknown): string => {
+    if (raw === null || raw === undefined) return "";
+    if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter((s) => s !== "").join(", ");
+    return String(raw).trim();
+  };
+  // op 별 일치 판정. 기준 칸/비교 값 중 하나라도 비면 어떤 op 도 매칭 안 함 → 기본식.
+  const matches = (op: ConditionOp, a: unknown, b: unknown): boolean => {
     const A = valuesOf(a), B = valuesOf(b);
-    if (A.length === 0 || B.length === 0) return false; // 빈 값은 매칭 안 함
-    return A.some((x) => B.includes(x));
+    if (A.length === 0 || B.length === 0) return false;
+    const tokenEq = A.some((x) => B.includes(x)); // 토큰(쉼표/줄바꿈) 교집합 = 같음 기준
+    if (op === "neq") return !tokenEq;
+    if (op === "contains") return asText(a).includes(asText(b));
+    if (op === "notContains") return !asText(a).includes(asText(b));
+    return tokenEq; // "eq" 및 미지정 기본
   };
   for (const rule of cond.rules) {
     if (!rule || !Array.isArray(rule.formula)) continue;
@@ -297,7 +313,7 @@ export function resolveConditionalFormula(
     const right = rule.right ?? { kind: "text" as const, value: rule.whenValue ?? "" };
     const left = getValue(leftKey);
     const rv = right.kind === "field" ? getValue(right.key) : right.value;
-    if (eq(left, rv)) return rule.formula;
+    if (matches(rule.op ?? "eq", left, rv)) return rule.formula;
   }
   return field.formula;
 }
