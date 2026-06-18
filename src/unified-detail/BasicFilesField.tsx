@@ -74,14 +74,19 @@ export default function BasicFilesField({
               </a>
             );
           })}
+          {files.length > inline.length && (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg border border-wedly-accent/40 bg-wedly-bg-blue/30 text-[13px] text-wedly-accent font-medium hover:border-wedly-accent hover:bg-wedly-bg-blue/50 transition-colors"
+              title={`첨부파일 전체 ${files.length}개 보기`}
+            >
+              <span aria-hidden className="flex-shrink-0">📎</span>
+              <span>외 {files.length - inline.length}개 더 보기</span>
+            </button>
+          )}
           <div className="flex w-fit items-center gap-2 px-1 text-[12px]">
             <button type="button" onClick={() => setOpen(true)} className="text-wedly-accent font-medium hover:underline">파일 추가</button>
-            {files.length >= 3 && (
-              <>
-                <span className="text-wedly-muted">|</span>
-                <button type="button" onClick={() => setOpen(true)} className="text-wedly-accent font-medium hover:underline">모든 파일 보기</button>
-              </>
-            )}
           </div>
         </>
       )}
