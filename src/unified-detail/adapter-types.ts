@@ -115,6 +115,10 @@ export interface UnifiedDetailApi {
   /** 기본정보 칸 1개 저장 — PUT /api/basic-store/{bizno} */
   saveBasicField(bizno: string, app: string, fieldId: string, value: unknown): Promise<BasicRecord | null>;
 
+  /** 3앱 공용 기본정보 추가 칸(공통) 읽기 — ERP에서 추가한 공통 칸 정의를 같은 공용 보관함에서 읽는다.
+   *  미제공/빈 배열이면 옵셔널 체이닝으로 무시. options: 드롭다운 칸의 선택지(셀 편집기 폴백). */
+  loadCommonBasicFields?(domain?: string): Promise<Array<{ key: string; label: string; type: string; options?: string[] }>>;
+
   /** 섹션 보관함 읽기 — GET /api/section-store/{bizno}/{section}?kind= */
   loadSectionStore(bizno: string, section: string, kind: string): Promise<unknown>;
 

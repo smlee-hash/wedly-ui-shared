@@ -23,6 +23,7 @@ export type ColumnLite = {
   label: string;
   type?: ColumnDef["type"];
   format?: ColumnDef["format"];
+  options?: string[]; // select/multi_select 선택지(공용 추가 칸 정의에서 실려옴)
 };
 
 export type UnifiedSection = {
