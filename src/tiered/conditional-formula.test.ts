@@ -214,3 +214,38 @@ describe("evalFormulaForTier — 묶음(group) 우선 계산", () => {
     expect(evalFormulaForTier(f[1], { A: 100 }, f)).toBe(300); // (100+50)*2
   });
 });
+
+describe("resolveConditionalFormula — 비교 연산자(op)", () => {
+  const mk = (op: "eq" | "neq" | "contains" | "notContains"): FieldDef => ({
+    key: "f", label: "f", type: "formula", formula: base,
+    conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "하이브" }, op, formula: hive }] },
+  });
+  it("op 미지정이면 eq(같음)로 동작 — 앞호환", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base,
+      conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "하이브" }, formula: hive }] } };
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브정밀" }))).toBe(base);
+  });
+  it("eq: 정확히 같을 때만", () => {
+    expect(resolveConditionalFormula(mk("eq"), gv({ 분류: "하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("eq"), gv({ 분류: "하이브정밀" }))).toBe(base);
+  });
+  it("neq: 다르면 일치, 같으면 기본식", () => {
+    expect(resolveConditionalFormula(mk("neq"), gv({ 분류: "위들리" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("neq"), gv({ 분류: "하이브" }))).toBe(base);
+  });
+  it("contains: 부분 글자 포함(다중값 포함)", () => {
+    expect(resolveConditionalFormula(mk("contains"), gv({ 분류: "하이브정밀" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("contains"), gv({ 분류: "서월, 하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("contains"), gv({ 분류: "위들리" }))).toBe(base);
+  });
+  it("notContains: 포함 안 하면 일치", () => {
+    expect(resolveConditionalFormula(mk("notContains"), gv({ 분류: "위들리" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("notContains"), gv({ 분류: "하이브정밀" }))).toBe(base);
+  });
+  it("빈 기준 칸은 어떤 op 도 매칭 안 함 → 기본식", () => {
+    expect(resolveConditionalFormula(mk("neq"), gv({}))).toBe(base);
+    expect(resolveConditionalFormula(mk("notContains"), gv({}))).toBe(base);
+    expect(resolveConditionalFormula(mk("eq"), gv({}))).toBe(base);
+  });
+});
