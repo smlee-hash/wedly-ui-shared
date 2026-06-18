@@ -10,6 +10,7 @@ import { TextEditor, NumberEditor, isCommonBasicLabel, renderUnifiedFieldValue, 
 import { SelectDropdownBody, MultiPersonEditor } from "@wedly/detail-modal-shared";
 import { cn } from "../lib/cn";
 import { shouldConfirmFieldEdit } from "./lib/edit-confirm-gate";
+import { parseUploadSuccess } from "./upload-response";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: default format (read-only display)
@@ -430,6 +431,7 @@ function FileEditor({
       }
       const uploaded: { name: string; url: string }[] = [];
       const failed: string[] = [];
+      let skipped = 0;
       for (const file of Array.from(selectedFiles)) {
         if (file.size > 2 * 1024 * 1024 * 1024) {
           failed.push(`${file.name}: 파일 크기 초과`);
@@ -446,7 +448,11 @@ function FileEditor({
           }
           const uploadJson = await uploadRes.json();
           if (uploadJson.success) {
-            uploaded.push({ name: uploadJson.data.fileName, url: uploadJson.data.url });
+            // ZIP 자동 해제 — 압축 안의 여러 파일이면 각각 추가, 단일 파일이면 data 하나.
+            // (하이브 업로드는 ZIP 을 풀어 { files:[...] } 로 응답 — data 만 읽으면 조용히 실패했음)
+            const parsed = parseUploadSuccess(uploadJson);
+            uploaded.push(...parsed.files);
+            skipped += parsed.skipped;
           } else {
             failed.push(`${file.name}: ${uploadJson.error || "알 수 없는 오류"}`);
           }
@@ -455,6 +461,9 @@ function FileEditor({
         }
       }
       if (failed.length > 0) alert(`파일 업로드 실패:\n${failed.join("\n")}`);
+      if (skipped > 0) {
+        alert(`압축 안의 ${skipped}개 파일은 제외됐습니다.\n(위험 형식, 크기 초과, 또는 개수 한도 초과)`);
+      }
       if (uploaded.length === 0) return;
       const allFiles = [...existingFiles, ...uploaded];
       onSave(JSON.stringify(allFiles));
