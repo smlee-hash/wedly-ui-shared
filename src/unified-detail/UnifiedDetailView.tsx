@@ -893,6 +893,7 @@ function BasicInfoPanel({
   orderedGroups,
   isNew = false,
   extraBasicColumns,
+  hiddenColumnKeys = [],
   draft,
   onDraftChange,
   saveOwnField,
@@ -913,6 +914,8 @@ function BasicInfoPanel({
   isNew?: boolean;
   /** 표 "컬럼 표시 설정"에서 켠 칸 정의 — 기본정보에도 union 노출(NO.46 ②). */
   extraBasicColumns?: { key: string; label: string; type: ColumnLite["type"]; format?: ColumnLite["format"] }[];
+  /** 표 컬럼 표시 설정 OFF 칸 키(표준 포함) — visibleBasicFields 균일 제외(NO.56). */
+  hiddenColumnKeys?: string[];
   draft?: Record<string, unknown>;
   onDraftChange?: (key: string, val: string | number | boolean | null) => void;
   saveOwnField: SaveOwnFieldFn;
@@ -1070,9 +1073,10 @@ function BasicInfoPanel({
     () => allBasicFields.filter(
       (f) => !basicHiddenColumns.includes(f.key)
         && !deletedColumns.includes(f.key)
-        && !isBasicColumnHidden(f.label, hiddenBasicCols),
+        && !isBasicColumnHidden(f.label, hiddenBasicCols)
+        && !hiddenColumnKeys.includes(f.key), // 표 컬럼 표시 설정 OFF 칸(표준 포함) — NO.56
     ),
-    [allBasicFields, basicHiddenColumns, deletedColumns, hiddenBasicCols],
+    [allBasicFields, basicHiddenColumns, deletedColumns, hiddenBasicCols, hiddenColumnKeys],
   );
   const hiddenBasicFields = useMemo(
     () => allBasicFields.filter((f) => basicHiddenColumns.includes(f.key)),
@@ -1333,7 +1337,16 @@ function BasicInfoPanel({
                 // 파일 칸: 회사 전체 파일을 한곳에 모아 2개 미리보기 + "더 보기" 팝업으로 표시(공용 BasicFilesField).
                 // 신규 등록 모드는 아직 항목(저장 대상)이 없어 생략한다.
                 if (col.type === "file") {
-                  if (isNew) return null;
+                  // 신규 등록: 파일 칸도 폼에 "보이게" 한다(상세와 동일 구성 — NO.56). 단 공용 파일 부품이
+                  // "저장된 항목에만 업로드" 설계라, 항목을 만들기 전에는 첨부를 그 항목에 매달 수 없다 → 안내만.
+                  if (isNew) {
+                    return (
+                      <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
+                        <div className="w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal text-wedly-muted">{col.label}</div>
+                        <div className="flex-1 min-w-0 text-[12px] text-wedly-muted">항목을 저장한 뒤 파일을 첨부할 수 있어요.</div>
+                      </div>
+                    );
+                  }
                   const r = row as Record<string, unknown>;
                   return (
                     <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
@@ -1778,6 +1791,7 @@ export default function UnifiedDetailView({
   adapter,
   initialView,
   extraBasicColumns,
+  hiddenColumnKeys,
 }: {
   row: RowData;
   onClose: () => void;
@@ -1788,6 +1802,8 @@ export default function UnifiedDetailView({
   initialView?: "history";
   /** 표 "컬럼 표시 설정"에서 켠 칸 정의 — 기본정보에도 함께 노출(앱이 주입, 미전달 시 무변화). 하이브 NO.46 ②. */
   extraBasicColumns?: { key: string; label: string; type: ColumnLite["type"]; format?: ColumnLite["format"] }[];
+  /** 표 "컬럼 표시 설정"에서 OFF(숨김)한 칸 키 — 기본정보에서 표준 칸 포함 균일 제외(NO.56). */
+  hiddenColumnKeys?: string[];
 }) {
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2124,6 +2140,7 @@ export default function UnifiedDetailView({
                 isNew
                 draft={draft}
                 extraBasicColumns={extraBasicColumns}
+                hiddenColumnKeys={hiddenColumnKeys}
                 onDraftChange={(key, val) => setDraft((d) => ({ ...d, [key]: val }))}
                 saveOwnField={adapter.api.saveOwnField}
                 ownDomain={adapter.ownDomain}
@@ -2332,6 +2349,7 @@ export default function UnifiedDetailView({
               isAdmin={isAdmin}
               orderedGroups={orderedGroups}
               extraBasicColumns={extraBasicColumns}
+              hiddenColumnKeys={hiddenColumnKeys}
               saveOwnField={adapter.api.saveOwnField}
               ownDomain={adapter.ownDomain}
               loadColumnConfig={adapter.api.loadColumnConfig}
