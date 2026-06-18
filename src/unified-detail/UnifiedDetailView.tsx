@@ -16,6 +16,7 @@ import { FieldOptionsProvider } from "./field-options-context";
 import SectionHistoryPanel from "./SectionHistoryPanel";
 import { EditableFieldRow } from "./editors";
 import BasicFilesField from "./BasicFilesField";
+import NewEntryReportUpload, { type DraftFile } from "./NewEntryReportUpload";
 import { CommonFieldsLauncher } from "./CommonFieldsLauncher";
 import { UNIFIED_TYPE_OPTIONS } from "./lib/column-type-options";
 import { useFieldOrder } from "./lib/use-field-order";
@@ -917,7 +918,7 @@ function BasicInfoPanel({
   /** 표 컬럼 표시 설정 OFF 칸 키(표준 포함) — visibleBasicFields 균일 제외(NO.56). */
   hiddenColumnKeys?: string[];
   draft?: Record<string, unknown>;
-  onDraftChange?: (key: string, val: string | number | boolean | null) => void;
+  onDraftChange?: (key: string, val: unknown) => void;
   saveOwnField: SaveOwnFieldFn;
   ownDomain: string;
   loadColumnConfig: () => Promise<unknown>;
@@ -1337,16 +1338,8 @@ function BasicInfoPanel({
                 // 파일 칸: 회사 전체 파일을 한곳에 모아 2개 미리보기 + "더 보기" 팝업으로 표시(공용 BasicFilesField).
                 // 신규 등록 모드는 아직 항목(저장 대상)이 없어 생략한다.
                 if (col.type === "file") {
-                  // 신규 등록: 파일 칸도 폼에 "보이게" 한다(상세와 동일 구성 — NO.56). 단 공용 파일 부품이
-                  // "저장된 항목에만 업로드" 설계라, 항목을 만들기 전에는 첨부를 그 항목에 매달 수 없다 → 안내만.
-                  if (isNew) {
-                    return (
-                      <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
-                        <div className="w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal text-wedly-muted">{col.label}</div>
-                        <div className="flex-1 min-w-0 text-[12px] text-wedly-muted">항목을 저장한 뒤 파일을 첨부할 수 있어요.</div>
-                      </div>
-                    );
-                  }
+                  // 신규 등록: 기존 파일 칸은 생략(중복 방지). 첨부는 아래 전용 "리포트" 칸이 담당(NO.56 #2).
+                  if (isNew) return null;
                   const r = row as Record<string, unknown>;
                   return (
                     <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
@@ -1378,6 +1371,18 @@ function BasicInfoPanel({
                   />
                 );
               })}
+              {/* 신규 등록 전용 "리포트" 첨부 칸 — 등록 단계에서 바로 파일 첨부(저장 시 함께 등록). NO.56 #2. */}
+              {isNew && (
+                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
+                  <div className="w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal text-wedly-muted">리포트</div>
+                  <div className="flex-1 min-w-0">
+                    <NewEntryReportUpload
+                      files={Array.isArray(draft?.["_files"]) ? (draft!["_files"] as DraftFile[]) : []}
+                      onChange={(f) => onDraftChange?.("_files", f)}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
