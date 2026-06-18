@@ -70,9 +70,7 @@ export function CommonColumnManager({
 
   const takenKeys = useMemo(() => new Set(defs.map((d) => d.key)), [defs]);
 
-  const addColumn = async (def: BasicColDef) => {
-    await persist(upsertDef(defs, def));
-  };
+  const addColumn = (def: BasicColDef): Promise<boolean> => persist(upsertDef(defs, def));
   const handleAddFromForm = async () => {
     if (!label.trim() || busy) return;
     const key = uniqueColKey(`custom_${Date.now()}`, takenKeys);
