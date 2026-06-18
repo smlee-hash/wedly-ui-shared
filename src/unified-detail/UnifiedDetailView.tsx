@@ -295,9 +295,15 @@ function TaxAmendmentPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {/* 히스토리 */}
+        {/* 히스토리 — 항목이 아직 없으면(빈 자기분야 첫 입력 전) 저장 대상이 없어 안내만. 입력해 항목이 생기면 정상 동작. */}
         {subTab === "history" && (
-          <HistoryPanel pageId={entryId} rowData={localRow} api={historyApi} />
+          entryId ? (
+            <HistoryPanel pageId={entryId} rowData={localRow} api={historyApi} />
+          ) : (
+            <div className="py-12 text-center text-[13px] text-wedly-muted">
+              계약 정보를 입력하면 히스토리를 남길 수 있습니다.
+            </div>
+          )
         )}
 
         {/* 계약정보 차수 */}
@@ -1471,6 +1477,107 @@ function BasicInfoPanel({
 // 경정청구 그룹: TaxAmendmentPanel(자체 저장소·편집). 그 외 분야: SectionDetailPanel — 분야별 독립
 // 정산/미팅/파일/히스토리(고객 기록에 분야 이름표 칸으로 저장). 계약·환불은 준비 중(3b).
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// EmptyOwnDomainPanel — 자기분야인데 항목이 0건일 때(예: 일루아 정부지원금) 막다른 화면 대신
+//   다른 섹션·ERP처럼 입력 카드·탭을 바로 보여준다. 처음 입력하면 항목(entry)을 딱 한 번 자동 생성한 뒤 저장.
+//   회사 식별값(상호명·사업자번호 등)을 prefill 로 넘겨 새 항목이 이 회사로 연결되게 한다.
+//   경정청구(tax-amendment)가 자기분야인 ERP·하이브는 이 경로를 쓰지 않는다(GroupDomainPanel 분기).
+// ─────────────────────────────────────────────────────────────────────────────
+function EmptyOwnDomainPanel({
+  group,
+  primaryRow,
+  subTab,
+  onSubTabChange,
+  onSaved,
+  isAdmin = false,
+  saveOwnField,
+  ownDomain,
+  loadColumnConfig,
+  saveColumnConfig,
+  loadTabConfig,
+  saveTabConfig,
+  historyApi,
+  ownTieredFieldsPath,
+  adapter,
+}: {
+  group: DomainGroup;
+  primaryRow: RowData;
+  subTab: SubTab;
+  onSubTabChange: (t: SubTab) => void;
+  onSaved?: () => void;
+  isAdmin?: boolean;
+  saveOwnField: SaveOwnFieldFn;
+  ownDomain: string;
+  loadColumnConfig: () => Promise<unknown>;
+  saveColumnConfig: (cfg: unknown) => Promise<void>;
+  loadTabConfig: () => Promise<unknown>;
+  saveTabConfig: (cfg: unknown) => Promise<void>;
+  historyApi: HistoryPanelApi;
+  ownTieredFieldsPath: (kind: "contract" | "refund") => string;
+  adapter: UnifiedDetailAdapter;
+}) {
+  const pr = primaryRow as Record<string, unknown>;
+  // 빈 상태에서 자동 생성한 항목 id 기억 + 진행 중 생성 약속 — 동시에 여러 칸을 저장해도 항목을 딱 한 번만 만든다.
+  const createdIdRef = useRef<string>("");
+  const createPromiseRef = useRef<Promise<string> | null>(null);
+  // 다른 회사로 바뀌면 직전 회사에서 만든 항목 id를 잊는다(엉뚱한 항목에 저장 방지).
+  const anchorKey = String(pr["15사업자번호"] ?? pr["_id"] ?? pr["02상호명"] ?? "");
+  useEffect(() => {
+    createdIdRef.current = "";
+    createPromiseRef.current = null;
+  }, [anchorKey]);
+
+  const saveOwnFieldOrCreate = useCallback<SaveOwnFieldFn>(
+    async (entryId, key, value) => {
+      let id = entryId || createdIdRef.current;
+      if (!id) {
+        if (!createPromiseRef.current) {
+          // 회사 식별값을 prefill — 새 항목이 이 회사로 연결되게.
+          const prefill: Record<string, unknown> = {};
+          for (const k of ["02상호명", "15사업자번호", "03대표자명", "04연락처"]) {
+            const v = pr[k];
+            if (v != null && String(v).trim() !== "") prefill[k] = v;
+          }
+          createPromiseRef.current = adapter.api
+            .createEntry(prefill)
+            .then((r) => {
+              createdIdRef.current = r.id;
+              return r.id;
+            })
+            .catch((e) => {
+              createPromiseRef.current = null; // 실패 시 다음 저장에서 재시도 가능
+              throw e;
+            });
+        }
+        id = await createPromiseRef.current;
+      }
+      await saveOwnField(id, key, value);
+    },
+    [adapter, pr, saveOwnField],
+  );
+
+  const emptyRow: DomainRowLite = { domain: ownDomain, domainLabel: group.label, entryId: "", row: {} };
+
+  return (
+    <TaxAmendmentPanel
+      key={group.key}
+      domainRow={emptyRow}
+      subTab={subTab}
+      onSubTabChange={onSubTabChange}
+      onSaved={onSaved}
+      isAdmin={isAdmin}
+      saveOwnField={saveOwnFieldOrCreate}
+      loadColumnConfig={loadColumnConfig}
+      saveColumnConfig={saveColumnConfig}
+      loadTabConfig={loadTabConfig}
+      saveTabConfig={saveTabConfig}
+      historyApi={historyApi}
+      ownTieredFieldsPath={ownTieredFieldsPath}
+      adapter={adapter}
+    />
+  );
+}
+
 function GroupDomainPanel({
   group,
   rows,
@@ -1511,10 +1618,34 @@ function GroupDomainPanel({
   // 자기 분야 그룹은 기존 편집 패널(자체 저장소) — 그대로 유지
   if (group.key === ownDomain) {
     if (rows.length === 0) {
+      // 경정청구(tax-amendment)가 자기분야인 ERP·하이브는 기존 그대로 — 빈 안내.
+      if (ownDomain === "tax-amendment") {
+        return (
+          <div className="flex flex-col items-center justify-center py-16 gap-1 text-[13px] text-wedly-muted">
+            <span>경정청구 데이터가 없습니다.</span>
+          </div>
+        );
+      }
+      // 그 외 자기분야(예: 일루아 정부지원금)는 막다른 화면 대신 입력 카드·탭을 바로 보여주고,
+      // 처음 입력 시 항목을 자동 생성한다(다른 섹션·ERP와 동일한 사용감).
       return (
-        <div className="flex flex-col items-center justify-center py-16 gap-1 text-[13px] text-wedly-muted">
-          <span>경정청구 데이터가 없습니다.</span>
-        </div>
+        <EmptyOwnDomainPanel
+          group={group}
+          primaryRow={primaryRow}
+          subTab={subTab}
+          onSubTabChange={onSubTabChange}
+          onSaved={onSaved}
+          isAdmin={isAdmin}
+          saveOwnField={saveOwnField}
+          ownDomain={ownDomain}
+          loadColumnConfig={loadColumnConfig}
+          saveColumnConfig={saveColumnConfig}
+          loadTabConfig={loadTabConfig}
+          saveTabConfig={saveTabConfig}
+          historyApi={historyApi}
+          ownTieredFieldsPath={ownTieredFieldsPath}
+          adapter={adapter}
+        />
       );
     }
     return (
