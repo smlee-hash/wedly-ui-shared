@@ -249,3 +249,25 @@ describe("resolveConditionalFormula — 비교 연산자(op)", () => {
     expect(resolveConditionalFormula(mk("eq"), gv({}))).toBe(base);
   });
 });
+
+describe("resolveConditionalFormula — 연산자 엣지(가드·다중값 일관성)", () => {
+  it("공백만 있는 값은 어떤 op 도 매칭 안 함(가드) — 전체 행 오매칭 방지", () => {
+    const wsRight = (op: "eq" | "contains" | "notContains") => ({
+      key: "f", label: "f", type: "formula" as const, formula: base,
+      conditional: { rules: [{ leftKey: "분류", right: { kind: "text" as const, value: "   " }, op, formula: hive }] },
+    });
+    expect(resolveConditionalFormula(wsRight("contains"), gv({ 분류: "하이브" }))).toBe(base);
+    expect(resolveConditionalFormula(wsRight("eq"), gv({ 분류: "하이브" }))).toBe(base);
+    // 기준 칸이 공백뿐 → 미매칭 → 기본식
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base,
+      conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "하이브" }, op: "notContains", formula: hive }] } };
+    expect(resolveConditionalFormula(f, gv({ 분류: "   " }))).toBe(base);
+  });
+  it("contains: 비교값이 콤마 다중값이면 토큰 중 하나라도 부분 포함하면 일치(같음과 의미축 통일)", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base,
+      conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "서월, 하이브" }, op: "contains", formula: hive }] } };
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브정밀" }))).toBe(hive); // "하이브" 토큰 부분 포함
+    expect(resolveConditionalFormula(f, gv({ 분류: "서월기업" }))).toBe(hive);   // "서월" 토큰 부분 포함
+    expect(resolveConditionalFormula(f, gv({ 분류: "위들리" }))).toBe(base);      // 둘 다 미포함
+  });
+});

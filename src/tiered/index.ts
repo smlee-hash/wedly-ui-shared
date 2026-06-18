@@ -301,8 +301,10 @@ export function resolveConditionalFormula(
     if (A.length === 0 || B.length === 0) return false;
     const tokenEq = A.some((x) => B.includes(x)); // 토큰(쉼표/줄바꿈) 교집합 = 같음 기준
     if (op === "neq") return !tokenEq;
-    if (op === "contains") return asText(a).includes(asText(b));
-    if (op === "notContains") return !asText(a).includes(asText(b));
+    // 포함/미포함: 비교값을 토큰으로 나눠(같음과 같은 축) 그 중 하나라도 기준칸 글자에 부분 포함되면 일치.
+    //   (비교값이 단일 값이면 "기준칸이 그 글자를 부분 포함" 과 동일. 콤마 다중값이면 OR 로 일관.)
+    if (op === "contains") return B.some((t) => asText(a).includes(t));
+    if (op === "notContains") return !B.some((t) => asText(a).includes(t));
     return tokenEq; // "eq" 및 미지정 기본
   };
   for (const rule of cond.rules) {
