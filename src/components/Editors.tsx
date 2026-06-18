@@ -18,7 +18,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toLocalInputValue } from "../lib/utils";
+import { toLocalInputValue, toDateInputValue } from "../lib/utils";
 
 const BASE_CLASS =
   "w-full rounded-lg border border-wedly-bd bg-white px-2 py-1 text-sm text-wedly-navy outline-none focus:border-wedly-accent focus:ring-1 focus:ring-wedly-accent/30";
@@ -109,14 +109,16 @@ export function DateEditor({
   value,
   onSave,
   onClose,
+  withTime = false,
 }: {
   value: string;
   onSave: (v: string) => void;
   onClose?: () => void;
+  withTime?: boolean;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const initialValue = value ? toLocalInputValue(value) : "";
+  const initialValue = value ? (withTime ? toLocalInputValue(value) : toDateInputValue(value)) : "";
   const [draft, setDraft] = useState(initialValue);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const usePortal = !!onClose;
@@ -150,7 +152,7 @@ export function DateEditor({
     return (
       <input
         ref={ref}
-        type="datetime-local"
+        type={withTime ? "datetime-local" : "date"}
         className={BASE_CLASS}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -175,7 +177,7 @@ export function DateEditor({
       {pos && typeof document !== "undefined" && createPortal(
         <input
           ref={ref}
-          type="datetime-local"
+          type={withTime ? "datetime-local" : "date"}
           autoFocus
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

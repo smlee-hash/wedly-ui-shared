@@ -18,6 +18,7 @@ export type ColumnDef = {
     | "number"
     | "percent"
     | "date"
+    | "datetime"  // date + 시간(예: 방문일시). 표시는 값에 시간 있으면 자동 포함.
     | "select"
     | "multi_select"
     | "person"
