@@ -122,8 +122,22 @@ export interface UnifiedDetailApi {
   saveSectionStore(bizno: string, section: string, kind: string, data: unknown): Promise<void>;
 
   /** 3앱 공용 기본정보 추가 칸(공통) 읽기 — ERP: GET /api/basic-fields/{ownDomain}.
-   *  미구현 앱(하이브·일루아 초기)은 미제공/빈 배열이면 옵셔널 체이닝으로 무시. */
-  loadCommonBasicFields?(): Promise<Array<{ key: string; label: string; type: string }>>;
+   *  미구현 앱(하이브·일루아 초기)은 미제공/빈 배열이면 옵셔널 체이닝으로 무시.
+   *  options: 드롭다운 칸의 선택지(셀 편집기에 전달). */
+  loadCommonBasicFields?(): Promise<Array<{ key: string; label: string; type: string; options?: string[] }>>;
+
+  /** 기본정보 추가 칸 정의 전체(공통+커스텀, 범위·선택지 포함) 읽기 — "공통 컬럼 관리" 화면용.
+   *  ERP: GET /api/basic-fields/{domain}. 미구현 앱은 미제공. */
+  loadBasicFieldDefs?(
+    domain: string,
+  ): Promise<Array<{ key: string; label: string; type: string; scope?: "common" | "custom"; options?: string[] }>>;
+
+  /** 기본정보 칸 정의 저장(공통/커스텀 분리는 서버가 scope 로 처리) — "공통 컬럼 관리" 화면용.
+   *  ERP: PUT /api/basic-fields/{domain}. 저장 성공/실패를 정직하게 반환(조용한 실패 금지). */
+  saveBasicFieldDefs?(
+    domain: string,
+    fields: Array<Record<string, unknown>>,
+  ): Promise<{ ok: boolean; error?: string }>;
 
   /** 현재 로그인 사용자 정보 — GET /api/auth/me */
   currentUser(): Promise<{ name: string; email?: string; role?: string } | null>;
