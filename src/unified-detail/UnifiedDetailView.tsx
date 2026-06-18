@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
+import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, refreshCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
 import { type ColumnDef } from "../types/columns";
 import {
   customerKeyFromTaxRow,
@@ -960,14 +960,16 @@ function BasicInfoPanel({
   const [commonOverride, setCommonOverride] = useState<CommonFieldOverride>(getCachedCommonOverride());
   useEffect(() => { fetchCommonFieldsOverride().then(setCommonOverride); }, []);
   // 3앱 공용 기본정보 추가 칸(공통). 같은 공용 부품을 쓰는 앱이면 같은 공용 칸을 본다.
-  const [commonBasicFields, setCommonBasicFields] = useState<Array<{ key: string; label: string; type: string }>>([]);
+  // 공통 칸 추가/변경 후 다시 불러오기 위한 새로고침 신호(reloadDefs).
+  const [defsReloadKey, setDefsReloadKey] = useState(0);
+  const [commonBasicFields, setCommonBasicFields] = useState<Array<{ key: string; label: string; type: string; options?: string[] }>>([]);
   useEffect(() => {
     let cancelled = false;
-    Promise.resolve(adapter.api.loadCommonBasicFields?.() ?? [])
+    Promise.resolve(adapter.api.loadCommonBasicFields?.(ownDomain) ?? [])
       .then((list) => { if (!cancelled) setCommonBasicFields(Array.isArray(list) ? list : []); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [adapter]);
+  }, [adapter, ownDomain, defsReloadKey]);
   // 이 앱(ERP)에서 관리자가 숨긴 기본정보 칸(라벨). 상세창 열릴 때 1회 불러옴.
   const [hiddenBasicCols, setHiddenBasicCols] = useState<string[]>([]);
   useEffect(() => {
@@ -1030,7 +1032,7 @@ function BasicInfoPanel({
     const presentKeys = new Set([...baseSection.fields.map((f) => f.key), ...added.map((f) => f.key)]);
     const shared: ColumnLite[] = commonBasicFields
       .filter((c) => c && typeof c.key === "string" && !presentKeys.has(c.key))
-      .map((c) => ({ key: c.key, label: c.label, type: c.type as ColumnDef["type"] }));
+      .map((c) => ({ key: c.key, label: c.label, type: c.type as ColumnDef["type"], options: Array.isArray(c.options) ? c.options : undefined }));
     return [...baseSection.fields, ...added, ...shared].map((f) => ({
       ...f,
       label: colLabelOverrides[f.key] ?? f.label,
@@ -1210,7 +1212,13 @@ function BasicInfoPanel({
           <span className="text-[12px] font-semibold text-wedly-t2">{baseSection.label || "기본정보"}</span>
           {isAdmin && (
             <div className="flex items-center gap-1.5">
-              <CommonFieldsLauncher appSpecificLabels={ERP_APP_BASIC_FIELDS.map((f) => f.label)} />
+              <CommonFieldsLauncher
+                appSpecificLabels={ERP_APP_BASIC_FIELDS.map((f) => f.label)}
+                ownColumns={ownColumns.map((c) => ({ key: c.key, label: c.label, type: c.type, options: c.options }))}
+                loadDefs={adapter.api.loadBasicFieldDefs ? () => adapter.api.loadBasicFieldDefs!(ownDomain) : undefined}
+                saveDefs={adapter.api.saveBasicFieldDefs ? (fields) => adapter.api.saveBasicFieldDefs!(ownDomain, fields as Array<Record<string, unknown>>) : undefined}
+                onChanged={() => { setDefsReloadKey((k) => k + 1); refreshCommonFieldsOverride().then(setCommonOverride); }}
+              />
               <SectionAdminMenu
                 sectionId="basic"
                 sectionLabel={baseSection.label || "기본정보"}
@@ -1309,6 +1317,7 @@ function BasicInfoPanel({
                   type: (f.type ?? "text") as ColumnDef["type"],
                   defaultVisible: true,
                   format: f.format,
+                  options: f.options, // 공용 추가 칸의 드롭다운 선택지(셀 편집기 폴백)
                 };
                 // 파일 칸: 회사 전체 파일을 한곳에 모아 2개 미리보기 + "더 보기" 팝업으로 표시(공용 BasicFilesField).
                 // 신규 등록 모드는 아직 항목(저장 대상)이 없어 생략한다.

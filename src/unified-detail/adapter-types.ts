@@ -121,10 +121,11 @@ export interface UnifiedDetailApi {
   /** 섹션 보관함 저장 — PUT /api/section-store/{bizno}/{section}?kind= */
   saveSectionStore(bizno: string, section: string, kind: string, data: unknown): Promise<void>;
 
-  /** 3앱 공용 기본정보 추가 칸(공통) 읽기 — ERP: GET /api/basic-fields/{ownDomain}.
+  /** 3앱 공용 기본정보 추가 칸(공통+그 분야 커스텀) 읽기 — ERP: GET /api/basic-fields/{domain}.
+   *  공통 칸은 전역(분야 무관)이라 어느 분야로 읽어도 같이 오고, 커스텀은 그 분야만 온다.
    *  미구현 앱(하이브·일루아 초기)은 미제공/빈 배열이면 옵셔널 체이닝으로 무시.
    *  options: 드롭다운 칸의 선택지(셀 편집기에 전달). */
-  loadCommonBasicFields?(): Promise<Array<{ key: string; label: string; type: string; options?: string[] }>>;
+  loadCommonBasicFields?(domain?: string): Promise<Array<{ key: string; label: string; type: string; options?: string[] }>>;
 
   /** 기본정보 추가 칸 정의 전체(공통+커스텀, 범위·선택지 포함) 읽기 — "공통 컬럼 관리" 화면용.
    *  ERP: GET /api/basic-fields/{domain}. 미구현 앱은 미제공. */
