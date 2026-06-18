@@ -121,6 +121,10 @@ export interface UnifiedDetailApi {
   /** 섹션 보관함 저장 — PUT /api/section-store/{bizno}/{section}?kind= */
   saveSectionStore(bizno: string, section: string, kind: string, data: unknown): Promise<void>;
 
+  /** 3앱 공용 기본정보 추가 칸(공통) 읽기 — ERP: GET /api/basic-fields/{ownDomain}.
+   *  미구현 앱(하이브·일루아 초기)은 미제공/빈 배열이면 옵셔널 체이닝으로 무시. */
+  loadCommonBasicFields?(): Promise<Array<{ key: string; label: string; type: string }>>;
+
   /** 현재 로그인 사용자 정보 — GET /api/auth/me */
   currentUser(): Promise<{ name: string; email?: string; role?: string } | null>;
 

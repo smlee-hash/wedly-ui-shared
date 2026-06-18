@@ -956,25 +956,24 @@ function BasicInfoPanel({
     );
     return raw.replace(/\D/g, "");
   }, [baseSection, row]);
-  const keyToFieldId = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const f of baseSection.fields) m.set(f.key, f.label);
-    return m;
-  }, [baseSection]);
   // 공통/앱별 전역 설정(관리자 토글) — 색·공유 판정에 함께 반영. 상세창 열릴 때 1회 불러옴.
   const [commonOverride, setCommonOverride] = useState<CommonFieldOverride>(getCachedCommonOverride());
   useEffect(() => { fetchCommonFieldsOverride().then(setCommonOverride); }, []);
+  // 3앱 공용 기본정보 추가 칸(공통). 같은 공용 부품을 쓰는 앱이면 같은 공용 칸을 본다.
+  const [commonBasicFields, setCommonBasicFields] = useState<Array<{ key: string; label: string; type: string }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve(adapter.api.loadCommonBasicFields?.() ?? [])
+      .then((list) => { if (!cancelled) setCommonBasicFields(Array.isArray(list) ? list : []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [adapter]);
   // 이 앱(ERP)에서 관리자가 숨긴 기본정보 칸(라벨). 상세창 열릴 때 1회 불러옴.
   const [hiddenBasicCols, setHiddenBasicCols] = useState<string[]>([]);
   useEffect(() => {
     fetchHiddenBasicColumns().then(setHiddenBasicCols);
     return subscribeHiddenBasicColumns(setHiddenBasicCols);
   }, []);
-  const commonFieldIdForKey = useCallback(
-    (k: string) => resolveCommonFieldId(k, keyToFieldId.get(k) ?? "", commonOverride),
-    [keyToFieldId, commonOverride],
-  );
-
   // ── 관리자 칸 편집 설정 — 공용 config 저장소 재사용 (표·경정청구와 같은 구조 본부) ──
   // basicAddedColumns: 기본정보에 추가한 사용자 칸 키 / basicHiddenColumns: 기본정보에서 숨긴 칸 키
   const [customColumns, setCustomColumns] = useState<Array<{ key: string; label: string; type: string }>>([]);
@@ -1027,12 +1026,27 @@ function BasicInfoPanel({
       .map((k) => lookup.get(k))
       .filter((c): c is { key: string; label: string; type: string } => !!c && !baseKeys.has(c.key))
       .map((c) => ({ key: c.key, label: c.label, type: c.type as ColumnDef["type"] }));
-    return [...baseSection.fields, ...added].map((f) => ({
+    // 3앱 공용 칸: 표준·앱별 추가 칸에 없는 것만 뒤에 합친다(키 기준 중복 제거).
+    const presentKeys = new Set([...baseSection.fields.map((f) => f.key), ...added.map((f) => f.key)]);
+    const shared: ColumnLite[] = commonBasicFields
+      .filter((c) => c && typeof c.key === "string" && !presentKeys.has(c.key))
+      .map((c) => ({ key: c.key, label: c.label, type: c.type as ColumnDef["type"] }));
+    return [...baseSection.fields, ...added, ...shared].map((f) => ({
       ...f,
       label: colLabelOverrides[f.key] ?? f.label,
       type: (colTypeOverrides[f.key] as ColumnDef["type"]) ?? f.type,
     }));
-  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns]);
+  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, commonBasicFields]);
+  // 값 연동 식별자 지도 — 표준 칸뿐 아니라 추가 공통 칸까지 라벨을 찾도록 전체 칸 기준.
+  const keyToFieldId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const f of allBasicFields) m.set(f.key, f.label);
+    return m;
+  }, [allBasicFields]);
+  const commonFieldIdForKey = useCallback(
+    (k: string) => resolveCommonFieldId(k, keyToFieldId.get(k) ?? "", commonOverride),
+    [keyToFieldId, commonOverride],
+  );
   const visibleBasicFields = useMemo(
     () => allBasicFields.filter(
       (f) => !basicHiddenColumns.includes(f.key)
