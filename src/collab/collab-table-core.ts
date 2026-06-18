@@ -129,7 +129,7 @@ export function defaultFormatCellValue(col: ColumnDef, value: CellValue): string
     }
     return String(value);
   }
-  if (col.type === "date" || col.type === "last_edited_time") {
+  if (col.type === "date" || col.type === "datetime" || col.type === "last_edited_time") {
     return formatDate(String(value));
   }
   return String(value);

@@ -539,7 +539,7 @@ export function CollabTable({
 
   // 편집 가능 종류(기본) — formula·last_edited_time·last_edited_by·auto_increment_id·file·person 은 편집 안 함.
   const DEFAULT_EDITABLE_TYPES = useMemo(() => new Set<ColumnDef["type"]>([
-    "text", "title", "email", "phone_number", "number", "percent", "date", "select", "status", "checkbox", "multi_select",
+    "text", "title", "email", "phone_number", "number", "percent", "date", "datetime", "select", "status", "checkbox", "multi_select",
   ]), []);
 
   const isCellEditable = useCallback((col: ColumnDef) => {
@@ -811,6 +811,13 @@ export function CollabTable({
                 ) : col.type === "number" || col.type === "percent" ? (
                   <NumberEditor
                     value={v != null && v !== "" ? Number(v) : null}
+                    onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv); }}
+                  />
+                ) : col.type === "datetime" ? (
+                  <DateEditor
+                    value={String(v ?? "")}
+                    withTime
+                    onClose={() => setEditingCell(null)}
                     onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv); }}
                   />
                 ) : col.type === "date" ? (

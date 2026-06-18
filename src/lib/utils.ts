@@ -53,6 +53,21 @@ export function toLocalInputValue(v: string | null | undefined): string {
   }
 }
 
+/** date input value 변환 ('YYYY-MM-DD') — 시간 제거(날짜만 칸용) */
+export function toDateInputValue(v: string | null | undefined): string {
+  if (!v) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+  try {
+    const d = new Date(v);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  } catch {
+    return "";
+  }
+}
+
 export function formatDateTime(isoDate: string | null): string {
   if (!isoDate) return "-";
   try {

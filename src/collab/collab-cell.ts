@@ -82,7 +82,7 @@ export function cellChips(col: ColumnDef, value: CellValue, maps: CellColorMaps 
     return { kind: "currency", text: Number.isFinite(n) ? formatCurrency(n) : String(value) };
   }
 
-  if (col.type === "date" || col.type === "last_edited_time") {
+  if (col.type === "date" || col.type === "datetime" || col.type === "last_edited_time") {
     return { kind: "text", text: formatDate(String(value)) };
   }
 

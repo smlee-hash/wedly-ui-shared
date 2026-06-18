@@ -18,6 +18,7 @@ export type ColumnDef = {
     | "number"
     | "percent"   // 숫자처럼 입력·정렬, 표시만 %(계산 없음). tiered의 percent와 별개 — 환산하지 않음.
     | "date"
+    | "datetime"  // date + 시간(예: 방문일시). 표시는 값에 시간 있으면 자동 포함.
     | "select"
     | "multi_select"
     | "person"
