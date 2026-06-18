@@ -186,3 +186,5 @@ export * from "./tier-link/config";
 export * from "./tier-link/sync";
 export { default as ColumnTierLinksManager } from "./components/ColumnTierLinksManager";
 export type { TierLinkAdapter, TierFieldDef } from "./components/ColumnTierLinksManager";
+export { ExcelImportWizard } from "./components/ExcelImportWizard";
+export type { ExcelImportWizardProps, MappingPreset, ImportResult } from "./components/ExcelImportWizard";
