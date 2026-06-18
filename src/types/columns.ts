@@ -36,4 +36,5 @@ export type ColumnDef = {
   sticky?: boolean;
   format?: "currency";
   formula?: FormulaSpec;                 // type === "formula" 일 때만 사용 (customColumns 한정)
+  options?: string[];                    // select/multi_select 선택지(정의에 실려온 폴백) — 셀 편집기에 전달
 };

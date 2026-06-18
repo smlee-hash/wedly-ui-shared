@@ -12,6 +12,13 @@ import { cn } from "../lib/cn";
 import { shouldConfirmFieldEdit } from "./lib/edit-confirm-gate";
 import { parseUploadSuccess } from "./upload-response";
 
+// 칸 정의에 실려온 선택지(공용 추가 칸)를 앞에 두고, 앱 동적 선택지를 뒤에 합친다(중복 제거).
+// 정의 선택지가 없으면 기존 동작(앱 선택지)을 그대로 — 표준 칸·기존 커스텀 칸 무영향.
+function mergeColOptions(defOptions: string[] | undefined, appOptions: string[]): string[] {
+  if (!defOptions || defOptions.length === 0) return appOptions;
+  return Array.from(new Set([...defOptions, ...appOptions]));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: default format (read-only display)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -763,7 +770,7 @@ export function EditableFieldRow({
             {(col.type === "select" || col.type === "status") && (
               <SelectEditor
                 value={String(value ?? "")}
-                options={fo.getFieldOptions(col.key)}
+                options={mergeColOptions(col.options, fo.getFieldOptions(col.key))}
                 fieldKey={col.key}
                 onSave={(v) => handleSave(v || null)}
                 onClose={() => setEditing(false)}
@@ -773,7 +780,7 @@ export function EditableFieldRow({
             {col.type === "multi_select" && (
               <MultiSelectEditor
                 value={String(value ?? "")}
-                options={fo.getFieldOptions(col.key)}
+                options={mergeColOptions(col.options, fo.getFieldOptions(col.key))}
                 fieldKey={col.key}
                 /* 토글마다 저장하되 창은 닫지 않음(여러 개 선택 가능). 바깥 클릭(onClose) 때만 닫는다. */
                 onSave={(v) => onUpdate(col.key, v || null)}

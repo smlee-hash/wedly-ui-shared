@@ -959,24 +959,24 @@ function BasicInfoPanel({
     );
     return raw.replace(/\D/g, "");
   }, [baseSection, row]);
-  const keyToFieldId = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const f of baseSection.fields) m.set(f.key, f.label);
-    return m;
-  }, [baseSection]);
   // 공통/앱별 전역 설정(관리자 토글) — 색·공유 판정에 함께 반영. 상세창 열릴 때 1회 불러옴.
   const [commonOverride, setCommonOverride] = useState<CommonFieldOverride>(getCachedCommonOverride());
   useEffect(() => { fetchCommonFieldsOverride().then(setCommonOverride); }, []);
-  // 이 앱(ERP)에서 관리자가 숨긴 기본정보 칸(라벨). 상세창 열릴 때 1회 불러옴.
+  // 3앱 공용 기본정보 추가 칸(공통). ERP에서 추가한 공통 칸을 같은 공용 보관함에서 읽어 함께 표시·값연동.
+  const [commonBasicFields, setCommonBasicFields] = useState<Array<{ key: string; label: string; type: string; options?: string[] }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve(adapter.api.loadCommonBasicFields?.(ownDomain) ?? [])
+      .then((list) => { if (!cancelled) setCommonBasicFields(Array.isArray(list) ? list : []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [adapter, ownDomain]);
+  // 이 앱에서 관리자가 숨긴 기본정보 칸(라벨). 상세창 열릴 때 1회 불러옴.
   const [hiddenBasicCols, setHiddenBasicCols] = useState<string[]>([]);
   useEffect(() => {
     fetchHiddenBasicColumns().then(setHiddenBasicCols);
     return subscribeHiddenBasicColumns(setHiddenBasicCols);
   }, []);
-  const commonFieldIdForKey = useCallback(
-    (k: string) => resolveCommonFieldId(k, keyToFieldId.get(k) ?? "", commonOverride),
-    [keyToFieldId, commonOverride],
-  );
 
   // ── 관리자 칸 편집 설정 — 공용 config 저장소 재사용 (표·경정청구와 같은 구조 본부) ──
   // basicAddedColumns: 기본정보에 추가한 사용자 칸 키 / basicHiddenColumns: 기본정보에서 숨긴 칸 키
@@ -1038,18 +1038,34 @@ function BasicInfoPanel({
       .filter((c) => !!c && !!c.key && !shown.has(c.key) && !c.key.startsWith("_")
         && c.type !== "auto_increment_id" && c.type !== "title")
       .map((c) => ({ key: c.key, label: c.label, type: c.type, format: c.format }));
+    // 3앱 공용 칸: 표준·추가·표시 칸에 없는 것만 뒤에 합친다(키 기준 중복 제거). ERP에서 추가한 공통 칸이
+    // 같은 모양으로 여기에도 뜬다(값연동은 keyToFieldId/commonFieldIdForKey 가 처리).
+    const presentForShared = new Set([...base, ...extra].map((f) => f.key));
+    const shared: ColumnLite[] = commonBasicFields
+      .filter((c) => c && typeof c.key === "string" && !presentForShared.has(c.key))
+      .map((c) => ({ key: c.key, label: c.label, type: c.type as ColumnDef["type"], options: Array.isArray(c.options) ? c.options : undefined }));
     // 신규 등록 폼: 통일쌍(예: custom_…_b1wc ↔ 59DB담당)이 둘 다 떠 'DB 분류'가 두 번 보이던 중복을
     // 정식키 하나로 합친다(하이브 NO.46 재작업). isNew 한정 — 빈 폼이라 값 손실이 없고, 기존 행 상세는
     // 한쪽 미러키에만 값이 남아 있을 수 있어 손대지 않는다.
     const merged: ColumnLite[] = isNew
-      ? collapseMirrorBasicFields([...base, ...extra])
-      : [...base, ...extra];
+      ? collapseMirrorBasicFields([...base, ...extra, ...shared])
+      : [...base, ...extra, ...shared];
     return merged.map((f) => ({
       ...f,
       label: colLabelOverrides[f.key] ?? f.label,
       type: (colTypeOverrides[f.key] as ColumnDef["type"]) ?? f.type,
     }));
-  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, extraBasicColumns, isNew]);
+  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, extraBasicColumns, commonBasicFields, isNew]);
+  // 값 연동 식별자 지도 — 표준 칸뿐 아니라 추가 공통 칸까지 라벨을 찾도록 전체 칸 기준(2A 다리).
+  const keyToFieldId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const f of allBasicFields) m.set(f.key, f.label);
+    return m;
+  }, [allBasicFields]);
+  const commonFieldIdForKey = useCallback(
+    (k: string) => resolveCommonFieldId(k, keyToFieldId.get(k) ?? "", commonOverride),
+    [keyToFieldId, commonOverride],
+  );
   const visibleBasicFields = useMemo(
     () => allBasicFields.filter(
       (f) => !basicHiddenColumns.includes(f.key)
@@ -1312,6 +1328,7 @@ function BasicInfoPanel({
                   type: (f.type ?? "text") as ColumnDef["type"],
                   defaultVisible: true,
                   format: f.format,
+                  options: f.options, // 공용 추가 칸의 드롭다운 선택지(셀 편집기 폴백)
                 };
                 // 파일 칸: 회사 전체 파일을 한곳에 모아 2개 미리보기 + "더 보기" 팝업으로 표시(공용 BasicFilesField).
                 // 신규 등록 모드는 아직 항목(저장 대상)이 없어 생략한다.
