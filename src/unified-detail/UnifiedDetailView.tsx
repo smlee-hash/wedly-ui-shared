@@ -1107,6 +1107,16 @@ function BasicInfoPanel({
   // 순서·드래그 — 같은 데이터원(경정청구)과 동일 scope/tab. 권한=관리자(서버도 ADMIN 재검증).
   // 드래그는 "수정 모드에서만 드래그 목록을 렌더"해 제한 → 순서 초기화는 모드와 무관하게 동작.
   const basicOrder = useFieldOrder<ColumnLite>("tax-amendment", "basic", visibleBasicFields, isAdmin);
+  // 공통 칸은 항상 위, 커스텀 칸은 아래로 묶는다(NO.73). 안정 정렬이라 그룹 안에서의 순서(저장된 순서/드래그)는 그대로 유지되고,
+  // 그룹을 넘는 드래그는 자동으로 제자리(공통은 공통 묶음 안, 커스텀은 커스텀 묶음 안)로 정돈된다. 배지와 같은 기준(isCommonBasicLabel).
+  const groupedFields = useMemo<ColumnLite[]>(() => {
+    const common: ColumnLite[] = [];
+    const custom: ColumnLite[] = [];
+    for (const f of basicOrder.orderedFields) {
+      (isCommonBasicLabel(f.label, commonOverride) ? common : custom).push(f);
+    }
+    return [...common, ...custom];
+  }, [basicOrder.orderedFields, commonOverride]);
 
   // ── 칸 편집 핸들러 ──
   const handleAddColumn = useCallback((label: string, type: string) => {
@@ -1302,7 +1312,7 @@ function BasicInfoPanel({
               sectionId="basic"
               isAdmin={isAdmin}
               editMode
-              orderedFields={basicOrder.orderedFields}
+              orderedFields={groupedFields}
               isOrderLoaded
               draggingKey={basicOrder.draggingKey}
               dragOverKey={basicOrder.dragOverKey}
@@ -1326,7 +1336,7 @@ function BasicInfoPanel({
           ) : isAdmin && deleteMode ? (
             // 삭제 모드 — 숨기기 / (추가 칸)삭제 (드래그 없음)
             <div className="divide-y divide-wedly-bd/60">
-              {basicOrder.orderedFields.map((f) => (
+              {groupedFields.map((f) => (
                 <BasicEditRow
                   key={f.key}
                   field={f}
@@ -1342,10 +1352,10 @@ function BasicInfoPanel({
           ) : (
             // 일반 모드 — 값 입력 (저장된 순서 반영)
             <div className="divide-y divide-wedly-bd/60">
-              {basicOrder.orderedFields.length === 0 && (
+              {groupedFields.length === 0 && (
                 <div className="py-4 text-center text-[12px] text-wedly-muted">표시할 칸이 없습니다.</div>
               )}
-              {basicOrder.orderedFields.filter((f) => !isNew || !NEW_FORM_EXCLUDED_TYPES.has(f.type ?? "")).map((f) => {
+              {groupedFields.filter((f) => !isNew || !NEW_FORM_EXCLUDED_TYPES.has(f.type ?? "")).map((f) => {
                 const col: ColumnDef = {
                   key: f.key,
                   label: f.label,
@@ -1363,8 +1373,8 @@ function BasicInfoPanel({
                   return (
                     <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
                       <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
-                        <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
                         <BasicScopeBadge label={col.label} override={commonOverride} />
+                        <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <BasicFilesField
@@ -1397,8 +1407,8 @@ function BasicInfoPanel({
               {isNew && (
                 <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
                   <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
-                    <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel("리포트", commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>리포트</span>
                     <BasicScopeBadge label="리포트" override={commonOverride} />
+                    <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel("리포트", commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>리포트</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <NewEntryReportUpload
