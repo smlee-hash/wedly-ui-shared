@@ -1061,10 +1061,11 @@ function BasicInfoPanel({
     () => allBasicFields.filter(
       (f) => !basicHiddenColumns.includes(f.key)
         && !deletedColumns.includes(f.key)
-        && !isBasicColumnHidden(f.label, hiddenBasicCols)
-        && !hiddenColumnKeys.includes(f.key), // 표 컬럼 표시 설정 OFF 칸(표준 포함) — NO.56
+        && !isBasicColumnHidden(f.label, hiddenBasicCols),
+        // ★기본정보 노출은 "공통·앱별 칸 설정"(공통 + 이 앱만 숨김)만 기준 — 표 "컬럼 표시 설정"은 기본정보에
+        //   영향 주지 않는다. (공통으로 켠 칸은 표 토글과 무관하게 무조건 노출. 사장님 결정 2026-06-19, NO.56 정정.)
     ),
-    [allBasicFields, basicHiddenColumns, deletedColumns, hiddenBasicCols, hiddenColumnKeys],
+    [allBasicFields, basicHiddenColumns, deletedColumns, hiddenBasicCols],
   );
   const hiddenBasicFields = useMemo(
     () => allBasicFields.filter((f) => basicHiddenColumns.includes(f.key)),
