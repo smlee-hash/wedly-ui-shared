@@ -603,6 +603,21 @@ function ConfirmEditDialog({
   );
 }
 
+// 상세창 기본정보에서 그 칸이 '공통(3앱 공유)'인지 '커스텀(이 앱만)'인지 한눈에 보이는 작은 배지 (NO.73).
+export function BasicScopeBadge({ label, override }: { label: string; override?: CommonFieldOverride | null }) {
+  const isCommon = isCommonBasicLabel(label, override);
+  return (
+    <span
+      className={`flex-shrink-0 rounded px-1 text-[9px] leading-[15px] font-medium ${
+        isCommon ? "bg-wedly-accent/10 text-wedly-accent" : "bg-wedly-bg-gray text-wedly-muted"
+      }`}
+      title={isCommon ? "공통 칸 — 3개 앱이 값을 함께 씁니다" : "커스텀 칸 — 이 앱에서만 보입니다"}
+    >
+      {isCommon ? "공통" : "커스텀"}
+    </span>
+  );
+}
+
 export function EditableFieldRow({
   col,
   value,
@@ -735,12 +750,15 @@ export function EditableFieldRow({
   return (
     // 모바일 2단(라벨 위/값 아래), 데스크탑 가로 정렬 — 하이브 EditableFieldRow 와 동일.
     <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 py-3 sm:py-2 px-1 sm:min-h-[36px] group">
-      <div
-        className={`w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal leading-tight sm:truncate ${
-          colorCommon && isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"
-        }`}
-      >
-        {col.label}
+      <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
+        <span
+          className={`text-[13px] font-medium sm:font-normal leading-tight sm:truncate ${
+            colorCommon && isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"
+          }`}
+        >
+          {col.label}
+        </span>
+        {colorCommon && <BasicScopeBadge label={col.label} override={commonOverride} />}
       </div>
       <div className="flex-1 text-[15px] sm:text-[13px] text-wedly-t1 min-w-0 relative">
         {col.type === "file" ? (
