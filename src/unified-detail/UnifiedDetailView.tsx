@@ -14,7 +14,7 @@ import { normalizeBizno } from "./lib/secstore";
 import HistoryPanel, { type HistoryPanelApi } from "./HistoryPanel";
 import { FieldOptionsProvider } from "./field-options-context";
 import SectionHistoryPanel from "./SectionHistoryPanel";
-import { EditableFieldRow } from "./editors";
+import { EditableFieldRow, BasicScopeBadge } from "./editors";
 import BasicFilesField from "./BasicFilesField";
 import NewEntryReportUpload, { type DraftFile } from "./NewEntryReportUpload";
 import { CommonFieldsLauncher } from "./CommonFieldsLauncher";
@@ -1355,7 +1355,10 @@ function BasicInfoPanel({
                   const r = row as Record<string, unknown>;
                   return (
                     <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
-                      <div className={`w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</div>
+                      <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
+                        <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
+                        <BasicScopeBadge label={col.label} override={commonOverride} />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <BasicFilesField
                           row={r}
@@ -1385,7 +1388,10 @@ function BasicInfoPanel({
               {/* 신규 등록 전용 "리포트" 첨부 칸 — 등록 단계에서 바로 파일 첨부(저장 시 함께 등록). NO.56 #2. */}
               {isNew && (
                 <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
-                  <div className={`w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal ${isCommonBasicLabel("리포트", commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>리포트</div>
+                  <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
+                    <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel("리포트", commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>리포트</span>
+                    <BasicScopeBadge label="리포트" override={commonOverride} />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <NewEntryReportUpload
                       files={Array.isArray(draft?.["_files"]) ? (draft!["_files"] as DraftFile[]) : []}
