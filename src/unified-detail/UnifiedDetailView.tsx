@@ -1354,8 +1354,8 @@ function BasicInfoPanel({
                   return (
                     <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
                       <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
-                        <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
                         <BasicScopeBadge label={col.label} override={commonOverride} />
+                        <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <TaxbotCtl row={r} entryId={String(r["_id"] ?? "")} onSaved={onSaved} />
@@ -1372,8 +1372,8 @@ function BasicInfoPanel({
                   return (
                     <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
                       <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
-                        <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
                         <BasicScopeBadge label={col.label} override={commonOverride} />
+                        <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <BasicFilesField
@@ -1404,8 +1404,8 @@ function BasicInfoPanel({
               {isNew && (
                 <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
                   <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
-                    <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel("리포트", commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>리포트</span>
                     <BasicScopeBadge label="리포트" override={commonOverride} />
+                    <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel("리포트", commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>리포트</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <NewEntryReportUpload
