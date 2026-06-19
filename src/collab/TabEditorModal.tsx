@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CustomSelect } from "@wedly/detail-modal-shared";
-import { buildTabFromDraft } from "./collab-filters";
+import { buildTabFromDraft, EMPTY_OPTION_VALUE } from "./collab-filters";
 import type { ViewTab, FilterCondition, FilterOperator } from "./collab-filters";
 
 type FieldDef = { key: string; label: string; type: string };
@@ -217,7 +217,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
                   <div className="mt-2">
                     {isMulti && options.length > 0 ? (
                       <div className="grid max-h-36 grid-cols-2 gap-1 overflow-y-auto">
-                        {options.map((opt) => {
+                        {(filter.operator === "in" ? [EMPTY_OPTION_VALUE, ...options] : options).map((opt) => {
                           const sel = Array.isArray(filter.value) && filter.value.includes(opt);
                           return (
                             <label key={opt} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[12px] hover:bg-white">
@@ -249,7 +249,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
                         value={typeof filter.value === "string" ? filter.value : ""}
                         onChange={(v) => updateFilter(idx, { value: v })}
                         placeholder="선택…"
-                        options={[{ value: "", label: "선택…" }, ...options.map((o) => ({ value: o, label: o }))]}
+                        options={[{ value: "", label: "선택…" }, { value: EMPTY_OPTION_VALUE, label: EMPTY_OPTION_VALUE }, ...options.map((o) => ({ value: o, label: o }))]}
                       />
                     ) : fieldDef?.type === "date" ? (
                       <input
