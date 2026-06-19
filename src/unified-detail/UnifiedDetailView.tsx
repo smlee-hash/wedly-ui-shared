@@ -1035,31 +1035,26 @@ function BasicInfoPanel({
       .filter((c): c is { key: string; label: string; type: string } => !!c && !baseKeys.has(c.key))
       .map((c) => ({ key: c.key, label: c.label, type: c.type as ColumnDef["type"] }));
     const base = [...baseSection.fields, ...added];
-    // 표 "컬럼 표시 설정"에서 켠 칸 중 아직 기본정보에 없는 칸을 더한다(컬럼 설정 ↔ 등록/상세 일치 — 하이브 NO.46 ②).
-    // 시스템키(_*)·자동ID·제목(상호명=헤더 별도)은 제외. 미전달(ERP·일루아)이면 무변화.
-    const shown = new Set(base.map((f) => f.key));
-    const extra: ColumnLite[] = (extraBasicColumns ?? [])
-      .filter((c) => !!c && !!c.key && !shown.has(c.key) && !c.key.startsWith("_")
-        && c.type !== "auto_increment_id" && c.type !== "title")
-      .map((c) => ({ key: c.key, label: c.label, type: c.type, format: c.format }));
-    // 3앱 공용 칸: 표준·추가·표시 칸에 없는 것만 뒤에 합친다(키 기준 중복 제거). ERP에서 추가한 공통 칸이
+    // ★표 "컬럼 표시 설정"에서 켠 칸은 기본정보에 더하지 않는다 — 기본정보 노출은 '공통·앱별 칸 설정'(패널)
+    //   기준(공통 + 앱전용/커스텀)만. 표에서 켠 그외 칸은 기본정보에서 제외. (사장님 결정 2026-06-19, NO.56 정정)
+    // 3앱 공용 칸: 표준·추가 칸에 없는 것만 뒤에 합친다(키 기준 중복 제거). ERP에서 추가한 공통 칸이
     // 같은 모양으로 여기에도 뜬다(값연동은 keyToFieldId/commonFieldIdForKey 가 처리).
-    const presentForShared = new Set([...base, ...extra].map((f) => f.key));
+    const presentForShared = new Set(base.map((f) => f.key));
     const shared: ColumnLite[] = commonBasicFields
       .filter((c) => c && typeof c.key === "string" && !presentForShared.has(c.key))
       .map((c) => ({ key: c.key, label: c.label, type: c.type as ColumnDef["type"], options: Array.isArray(c.options) ? c.options : undefined }));
     // 신규 등록 폼: 통일쌍(예: custom_…_b1wc ↔ 59DB담당)이 둘 다 떠 'DB 분류'가 두 번 보이던 중복을
-    // 정식키 하나로 합친다(하이브 NO.46 재작업). isNew 한정 — 빈 폼이라 값 손실이 없고, 기존 행 상세는
-    // 한쪽 미러키에만 값이 남아 있을 수 있어 손대지 않는다.
+    // 정식키 하나로 합친다. isNew 한정 — 빈 폼이라 값 손실이 없고, 기존 행 상세는 한쪽 미러키에만 값이
+    // 남아 있을 수 있어 손대지 않는다.
     const merged: ColumnLite[] = isNew
-      ? collapseMirrorBasicFields([...base, ...extra, ...shared])
-      : [...base, ...extra, ...shared];
+      ? collapseMirrorBasicFields([...base, ...shared])
+      : [...base, ...shared];
     return merged.map((f) => ({
       ...f,
       label: colLabelOverrides[f.key] ?? f.label,
       type: (colTypeOverrides[f.key] as ColumnDef["type"]) ?? f.type,
     }));
-  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, extraBasicColumns, commonBasicFields, isNew]);
+  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, commonBasicFields, isNew]);
   // 값 연동 식별자 지도 — 표준 칸뿐 아니라 추가 공통 칸까지 라벨을 찾도록 전체 칸 기준(2A 다리).
   const keyToFieldId = useMemo(() => {
     const m = new Map<string, string>();
