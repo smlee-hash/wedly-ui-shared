@@ -1037,12 +1037,17 @@ function BasicInfoPanel({
     const shared: ColumnLite[] = commonBasicFields
       .filter((c) => c && typeof c.key === "string" && !presentKeys.has(c.key))
       .map((c) => ({ key: c.key, label: c.label, type: c.type as ColumnDef["type"], options: Array.isArray(c.options) ? c.options : undefined }));
-    return [...baseSection.fields, ...added, ...shared].map((f) => ({
+    const mapped = [...baseSection.fields, ...added, ...shared].map((f) => ({
       ...f,
       label: colLabelOverrides[f.key] ?? f.label,
       type: (colTypeOverrides[f.key] as ColumnDef["type"]) ?? f.type,
     }));
-  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, commonBasicFields]);
+    // ERP 전용: 기본정보에 "택스봇 자동 리포트" 칸 추가(어댑터가 컨트롤을 줄 때만 — 하이브·일루아엔 미주입이라 불변).
+    if (adapter.components.TaxbotReportControl) {
+      mapped.push({ key: "__taxbot_report__", label: "택스봇 자동 리포트", type: "text" as ColumnDef["type"] });
+    }
+    return mapped;
+  }, [baseSection, basicAddedColumns, customColumns, colLabelOverrides, colTypeOverrides, ownColumns, commonBasicFields, adapter]);
   // 값 연동 식별자 지도 — 표준 칸뿐 아니라 추가 공통 칸까지 라벨을 찾도록 전체 칸 기준.
   const keyToFieldId = useMemo(() => {
     const m = new Map<string, string>();
@@ -1325,6 +1330,22 @@ function BasicInfoPanel({
                   format: f.format,
                   options: f.options, // 공용 추가 칸의 드롭다운 선택지(셀 편집기 폴백)
                 };
+                // ERP 전용 "택스봇 자동 리포트" 칸: 압축 올리면 자동 생성→"리포트"에 첨부(어댑터가 컨트롤 줄 때만).
+                // 신규 등록 모드는 아직 저장 대상이 없어 생략(저장 후 사용).
+                if (col.key === "__taxbot_report__") {
+                  if (isNew) return null;
+                  const TaxbotCtl = adapter.components.TaxbotReportControl;
+                  if (!TaxbotCtl) return null;
+                  const r = row as Record<string, unknown>;
+                  return (
+                    <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
+                      <div className="w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal text-wedly-muted">{col.label}</div>
+                      <div className="flex-1 min-w-0">
+                        <TaxbotCtl row={r} entryId={String(r["_id"] ?? "")} onSaved={onSaved} />
+                      </div>
+                    </div>
+                  );
+                }
                 // 파일 칸: 회사 전체 파일을 한곳에 모아 2개 미리보기 + "더 보기" 팝업으로 표시(공용 BasicFilesField).
                 // 신규 등록 모드는 아직 항목(저장 대상)이 없어 생략한다.
                 if (col.type === "file") {
