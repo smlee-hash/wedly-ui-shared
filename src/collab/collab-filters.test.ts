@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchesFilter, matchesTab, filterRowsByTab, type ViewTab } from "./collab-filters";
+import { matchesFilter, matchesTab, filterRowsByTab, buildTabFromDraft, type ViewTab } from "./collab-filters";
 import type { RowData } from "./collab-table-core";
 
 describe("matchesFilter", () => {
@@ -82,5 +82,27 @@ describe("matchesFilter — multi_select 다중값(하이브 동일화)", () => 
   });
   it("in: 다중값 어느 것도 안 맞으면 비매칭", () => {
     expect(matchesFilter({ s: "가망, 계약대기" } as RowData, { field: "s", operator: "in", value: ["계약완료"] })).toBe(false);
+  });
+});
+
+describe("buildTabFromDraft — 탭 편집 시 숨은 정보 보존", () => {
+  it("이름·조건만 바꾸고 columns/isPreset/viewMode 는 그대로 보존한다", () => {
+    const original = {
+      id: "all",
+      label: "전체",
+      filters: [],
+      columns: ["a", "b"],
+      isPreset: true,
+      viewMode: "calendar",
+    } as unknown as ViewTab;
+    const result = buildTabFromDraft(original, "전체(수정)", [
+      { field: "05진행상태", operator: "equals", value: "정산완료" },
+    ]) as unknown as Record<string, unknown>;
+    expect(result.label).toBe("전체(수정)");
+    expect(result.filters).toEqual([{ field: "05진행상태", operator: "equals", value: "정산완료" }]);
+    expect(result.columns).toEqual(["a", "b"]);
+    expect(result.isPreset).toBe(true);
+    expect(result.viewMode).toBe("calendar");
+    expect(result.id).toBe("all");
   });
 });
