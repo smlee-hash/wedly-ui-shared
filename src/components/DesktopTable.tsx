@@ -130,7 +130,7 @@ export function DesktopTable({
         )}
         style={{ maxHeight: "calc(100vh - 320px)", scrollbarWidth: "thin", scrollbarColor: "#74B0FF #F8F9FA" }}
       >
-        <table className="text-sm" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
+        <table className="text-sm" style={{ tableLayout: "fixed", width: 40 + activeColumns.reduce((sum, c) => sum + (colWidths[c.key] || 100), 0), minWidth: "100%" }}>
           <colgroup>
             <col style={{ width: 40 }} />
             {activeColumns.map((col) => (
