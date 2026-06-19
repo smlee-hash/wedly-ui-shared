@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CustomSelect } from "@wedly/detail-modal-shared";
+import { buildTabFromDraft } from "./collab-filters";
 import type { ViewTab, FilterCondition, FilterOperator } from "./collab-filters";
 
 type FieldDef = { key: string; label: string; type: string };
@@ -44,7 +45,7 @@ function operatorsForType(type: string | undefined): OperatorChoice[] {
     case "status":
       return mk(["equals", "in", "is_empty", "is_not_empty"]);
     case "multi_select":
-      return mk(["in", "contains", "is_empty", "is_not_empty"]);
+      return mk(["in", "equals", "contains", "is_empty", "is_not_empty"]);
     case "date":
     case "last_edited_time":
       return mk(["is_empty", "is_not_empty", "on_or_before", "equals"]);
@@ -65,8 +66,6 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
     filters: (tab.filters || []).map((f) => ({ ...f })),
   }));
 
-  // '전체' 탭은 항상 모든 항목을 보여주므로 거르기 조건을 잠근다(실수로 전체가 걸러지는 것 방지).
-  const isAllTab = draft.id === "all";
   const currentMode = draft.viewMode || viewModes?.[0]?.value || "table";
 
   const setLabel = (label: string) => setDraft((d) => ({ ...d, label }));
@@ -107,9 +106,10 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
 
   const handleSave = () => {
     if (!canSave) return;
-    // '전체' 탭은 항상 조건 없음. 그 외에는 항목 안 고른 빈 조건만 제외.
-    const cleaned = isAllTab ? [] : draft.filters.filter((f) => f.field);
-    onSave({ ...draft, label: draft.label.trim(), filters: cleaned });
+    // 항목 안 고른 빈 조건만 제외. '전체' 탭도 조건을 가질 수 있다.
+    // buildTabFromDraft 로 통째 보존(columns/isPreset/viewMode 등 숨은 필드 유지).
+    const cleaned = draft.filters.filter((f) => f.field);
+    onSave(buildTabFromDraft(draft, draft.label.trim(), cleaned));
   };
 
   const modeHint = viewModes?.find((vm) => vm.value === currentMode)?.hint;
@@ -168,9 +168,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
           </div>
         )}
 
-        {!isAllTab ? (
-          <>
-        {/* 거르기 조건 */}
+        {/* 거르기 조건 — '전체' 탭 포함 모든 탭에서 표시. 조건이 없으면 전체를 보여준다. */}
         <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-medium text-wedly-t2">거르기 조건</span>
           <span className="text-[12px] text-wedly-muted">모든 조건을 동시에 만족하는 항목만 표시</span>
@@ -279,12 +277,6 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
         <button onClick={addCondition} className="mt-2 text-[13px] font-medium text-wedly-accent hover:underline">
           + 조건 추가
         </button>
-          </>
-        ) : (
-          <p className="rounded-lg bg-wedly-bg-gray/60 px-3 py-2 text-[13px] text-wedly-muted">
-            ‘전체’ 탭은 항상 모든 항목을 보여줍니다(거르기 조건 없음).
-          </p>
-        )}
 
         <div className="mt-5 flex items-center justify-between">
           <div>
