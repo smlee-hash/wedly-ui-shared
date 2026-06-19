@@ -25,6 +25,13 @@ export type ViewTab = {
   viewMode?: string;
 };
 
+/**
+ * 값 목록에서 "값이 비어 있는(미입력) 항목"을 골라 거르기 위한 특수 선택지.
+ * 거르기 값(equals/in)에 이 문자열이 들어오면 빈 값(미입력)에 매칭한다.
+ * 표시용 토큰 — 실제 상태값과 충돌할 가능성이 사실상 없는 라벨을 쓴다.
+ */
+export const EMPTY_OPTION_VALUE = "(미입력)";
+
 /** 한 행이 한 조건에 맞는지 판정(하이브와 동일). */
 export function matchesFilter(row: RowData, filter: FilterCondition): boolean {
   const rawVal = row[filter.field];
@@ -38,11 +45,15 @@ export function matchesFilter(row: RowData, filter: FilterCondition): boolean {
   switch (filter.operator) {
     case "equals": {
       const target = String(filter.value || "");
+      // '(미입력)' 을 고른 경우 = 빈 값(미입력) 항목에 매칭.
+      if (target === EMPTY_OPTION_VALUE) return isEmpty;
       return strVal === target || (parts ? parts.includes(target) : false);
     }
     case "in": {
       const fv = filter.value;
       if (!Array.isArray(fv)) return false;
+      // 빈 값(미입력) 항목은 목록에 '(미입력)' 이 포함됐을 때만 매칭.
+      if (isEmpty) return fv.includes(EMPTY_OPTION_VALUE);
       return fv.includes(strVal) || (parts ? parts.some((p) => fv.includes(p)) : false);
     }
     case "is_empty":
