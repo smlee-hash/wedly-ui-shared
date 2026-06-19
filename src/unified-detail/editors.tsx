@@ -566,7 +566,7 @@ export function BasicScopeBadge({ label, override }: { label: string; override?:
   const isCommon = isCommonBasicLabel(label, override);
   return (
     <>
-      <span className="flex-shrink-0 text-[11px] leading-none text-wedly-bd" aria-hidden>|</span>
+      <span className="flex-shrink-0 text-[12px] leading-none text-wedly-muted" aria-hidden>|</span>
       <span
         className={`flex-shrink-0 rounded px-1 text-[9px] leading-[15px] font-medium ${
           isCommon ? "bg-wedly-accent/10 text-wedly-accent" : "bg-wedly-bg-gray text-wedly-muted"
