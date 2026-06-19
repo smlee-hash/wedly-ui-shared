@@ -232,7 +232,7 @@ export function DesktopTable({
                               aria-hidden="true"
                             />
                           )}
-                          {getColLabel(col)}
+                          <span className="truncate min-w-0">{getColLabel(col)}</span>
                           {isSorted && (
                             <span className="text-wedly-accent">{sortConfig?.direction === "asc" ? "↑" : "↓"}</span>
                           )}
