@@ -1,0 +1,111 @@
+// 상세창 기본정보 "공통 컬럼 관리" 화면이 쓰는 순수 로직.
+// 칸 정의(def) 배열을 불변(immutable)으로 추가/삭제/범위변경하고, 표 칸·선택지 입력을 def 로 만든다.
+// 저장 위치(공통=basic-fields-common 전역 / 커스텀=ERP columnConfig)는 호출부(UnifiedDetailView)가 정한다.
+
+// 기본정보 칸 1개 정의. 서버(validateBasicColumnDefs)가 받는 형태와 호환:
+//   key/label/type 필수, scope 는 저장 위치(공통/커스텀) 표시, options 는 드롭다운 선택지.
+export type BasicColDef = {
+  key: string;
+  label: string;
+  type: string;
+  scope?: "common" | "custom";
+  options?: string[];
+};
+
+// 폼에서 고를 수 있는 칸 종류 — 서버 BASIC_COLUMN_TYPES 와 1:1(formula·person 등 제외).
+export const BASIC_COL_TYPE_CHOICES: { value: string; label: string }[] = [
+  { value: "text", label: "글자" },
+  { value: "number", label: "숫자" },
+  { value: "date", label: "날짜" },
+  { value: "select", label: "드롭다운(하나 선택)" },
+  { value: "multi_select", label: "드롭다운(여러 선택)" },
+  { value: "phone_number", label: "연락처" },
+  { value: "email", label: "이메일" },
+  { value: "file", label: "파일" },
+];
+
+const ALLOWED_TYPES = new Set(BASIC_COL_TYPE_CHOICES.map((c) => c.value));
+
+export function isAllowedBasicType(type: string): boolean {
+  return ALLOWED_TYPES.has(type);
+}
+
+// 드롭다운(select/multi_select)처럼 선택지가 필요한 종류인지.
+export function isChoiceType(type: string): boolean {
+  return type === "select" || type === "multi_select";
+}
+
+// 선택지 입력(줄바꿈 또는 쉼표로 구분)을 깔끔한 목록으로 — 앞뒤 공백 제거·빈값 제거·중복 제거(표기 유지).
+export function parseChoices(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of (text || "").split(/[\n,]/)) {
+    const v = raw.trim();
+    if (!v || seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
+// 이미 쓰인 키와 안 겹치는 칸 키를 만든다. base 가 비었으면 그대로, 겹치면 _2, _3… 접미사.
+export function uniqueColKey(base: string, taken: Iterable<string>): string {
+  const used = new Set(taken);
+  if (!used.has(base)) return base;
+  let n = 2;
+  while (used.has(`${base}_${n}`)) n += 1;
+  return `${base}_${n}`;
+}
+
+// def 배열에 추가/교체(같은 key 면 교체). 입력 불변, 새 배열 반환.
+export function upsertDef(defs: BasicColDef[], def: BasicColDef): BasicColDef[] {
+  const i = defs.findIndex((d) => d.key === def.key);
+  if (i < 0) return [...defs, def];
+  const next = defs.slice();
+  next[i] = def;
+  return next;
+}
+
+// def 배열에서 key 제거. 입력 불변.
+export function removeDef(defs: BasicColDef[], key: string): BasicColDef[] {
+  return defs.filter((d) => d.key !== key);
+}
+
+// def 의 범위(공통/커스텀) 표시만 바꾼다. 입력 불변.
+export function setDefScope(defs: BasicColDef[], key: string, scope: "common" | "custom"): BasicColDef[] {
+  return defs.map((d) => (d.key === key ? { ...d, scope } : d));
+}
+
+// 표(테이블) 칸 1개를 기본정보 def 로 변환. 종류가 허용 밖이면 글자로 안전 폴백.
+export function colDefFromOwnColumn(
+  col: { key: string; label: string; type?: string; options?: string[] },
+  scope: "common" | "custom",
+): BasicColDef {
+  const type = col.type && isAllowedBasicType(col.type) ? col.type : "text";
+  const def: BasicColDef = { key: col.key, label: col.label, type, scope };
+  if (isChoiceType(type) && Array.isArray(col.options) && col.options.length) {
+    def.options = parseChoices(col.options.join("\n"));
+  }
+  return def;
+}
+
+// 폼 입력 → def. 선택지가 필요한 종류만 options 를 싣는다(빈 배열은 생략).
+export function buildDefFromForm(input: {
+  key: string;
+  label: string;
+  type: string;
+  scope: "common" | "custom";
+  choicesText?: string;
+}): BasicColDef {
+  const def: BasicColDef = {
+    key: input.key,
+    label: input.label.trim(),
+    type: isAllowedBasicType(input.type) ? input.type : "text",
+    scope: input.scope,
+  };
+  if (isChoiceType(def.type)) {
+    const ch = parseChoices(input.choicesText || "");
+    if (ch.length) def.options = ch;
+  }
+  return def;
+}
