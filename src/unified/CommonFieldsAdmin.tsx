@@ -14,7 +14,7 @@ import {
   PROTECTED_FROM_HIDE,
   type CommonFieldOverride,
 } from "./sections";
-import { fetchCommonFieldsOverride, saveCommonFieldsOverride } from "../lib/common-fields-store";
+import { fetchCommonFieldsOverride, refreshCommonFieldsOverride, saveCommonFieldsOverride } from "../lib/common-fields-store";
 import { fetchHiddenBasicColumns, saveHiddenBasicColumns } from "../lib/column-visibility-store";
 import {
   BASIC_COL_TYPE_CHOICES,
@@ -189,7 +189,9 @@ export function CommonFieldsAdmin({
     const res = await saveDefs(next).catch(() => ({ ok: false, error: "저장 중 오류가 발생했습니다." }));
     if (res?.ok) {
       setDefs(next);
-      const o = await fetchCommonFieldsOverride().catch(() => null);
+      // 서버가 scope→공통 인식(override)을 막 동기화했으므로, 캐시를 비우고 새로 읽어야 한다.
+      // (fetch 는 캐시가 있으면 옛값을 돌려줘 def 칸 이동이 모달 안에서 즉시 반영 안 됨 — refresh 로 강제 재조회)
+      const o = await refreshCommonFieldsOverride().catch(() => null);
       if (o) setOverride(o);
       onChanged?.();
     } else {
