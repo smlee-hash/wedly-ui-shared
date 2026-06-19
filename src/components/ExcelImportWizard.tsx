@@ -2,7 +2,8 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
   computeHeaderSignature, autoMatchMapping, validateRequiredMapping, applyMapping,
-  type TargetField, type ColumnMapping,
+  applyFixedValues, availableFixedFields, mappingTargetsExcludingFixed,
+  type TargetField, type ColumnMapping, type FixedValues,
 } from "../excel-import";
 
 export type MappingPreset = { id?: string; name: string; signature: string; mapping: ColumnMapping; headerAsFirstRow: boolean };
@@ -11,9 +12,10 @@ export type ImportResult = { created: number; updated: number; skipped: number }
 export type ExcelImportWizardProps = {
   title?: string;
   description?: string;
-  targetFields: TargetField[];
+  targetFields: TargetField[];              // 매핑 대상 칸 (엑셀 열 → 앱 칸)
+  fixedFields?: TargetField[];              // 고정값 대상 칸 카탈로그 (없으면 targetFields 사용)
   onClose: () => void;
-  onImport: (args: { file: File; mapping: ColumnMapping; headerAsFirstRow: boolean }) => Promise<ImportResult>;
+  onImport: (args: { file: File; mapping: ColumnMapping; headerAsFirstRow: boolean; fixedValues: FixedValues }) => Promise<ImportResult>;
   loadPresets: (signature: string) => Promise<{ matched: MappingPreset | null; all: MappingPreset[] }>;
   savePreset: (preset: MappingPreset) => Promise<void>;
   onToast?: (t: { message: string; type: "success" | "error" }) => void;
@@ -23,11 +25,13 @@ type Parsed = { headers: string[]; rows: Record<string, unknown>[] };
 
 export function ExcelImportWizard(props: ExcelImportWizardProps) {
   const { title = "엑셀 업로드 (대량등록)", description, targetFields, onClose, onImport, loadPresets, savePreset, onToast } = props;
+  const fixedFields = props.fixedFields ?? targetFields;
   const [step, setStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
   const [headerAsFirstRow, setHeaderAsFirstRow] = useState(true);
   const [parsed, setParsed] = useState<Parsed | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping>({});
+  const [fixedValues, setFixedValues] = useState<FixedValues>({});
   const [presetName, setPresetName] = useState("");
   const [savePresetChecked, setSavePresetChecked] = useState(false);
   const [autoMatchedName, setAutoMatchedName] = useState<string | null>(null);
@@ -37,8 +41,22 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
 
   const signature = useMemo(() => (parsed ? computeHeaderSignature(parsed.headers) : ""), [parsed]);
   const missingRequired = useMemo(() => validateRequiredMapping(mapping, targetFields), [mapping, targetFields]);
-  const previewRows = useMemo(() => (parsed ? applyMapping(parsed.rows.slice(0, 5), mapping) : []), [parsed, mapping]);
-  const usedTargets = useMemo(() => targetFields.filter((f) => Object.values(mapping).includes(f.key)), [mapping, targetFields]);
+  const previewRows = useMemo(
+    () => (parsed ? applyFixedValues(applyMapping(parsed.rows.slice(0, 5), mapping), fixedValues) : []),
+    [parsed, mapping, fixedValues],
+  );
+  // 매핑 드롭다운이 보여줄 칸 (고정값 지정 칸 제외 — 상호배타)
+  const mappingOptions = useMemo(
+    () => mappingTargetsExcludingFixed(targetFields, fixedValues),
+    [targetFields, fixedValues],
+  );
+  // 미리보기 표 컬럼 = 매핑된 칸 + 고정값 칸 (중복 제거)
+  const usedTargets = useMemo(() => {
+    const mapped = targetFields.filter((f) => Object.values(mapping).includes(f.key));
+    const fixed = fixedFields.filter((f) => f.key in fixedValues);
+    const seen = new Set<string>();
+    return [...mapped, ...fixed].filter((f) => (seen.has(f.key) ? false : (seen.add(f.key), true)));
+  }, [mapping, fixedValues, targetFields, fixedFields]);
 
   async function handleFile(f: File) {
     setFile(f);
@@ -69,7 +87,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
     if (!file || missingRequired.length) return;
     setBusy(true);
     try {
-      const res = await onImport({ file, mapping, headerAsFirstRow });
+      const res = await onImport({ file, mapping, headerAsFirstRow, fixedValues });
       if (savePresetChecked && presetName.trim()) {
         await savePreset({ name: presetName.trim(), signature, mapping, headerAsFirstRow });
       }
@@ -119,22 +137,89 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               {autoMatchedName && <div className="mb-2 rounded-md bg-wedly-bg-blue px-3 py-2 text-xs text-wedly-accent">저장된 매핑 &apos;{autoMatchedName}&apos;을 자동 적용했어요. 확인만 하세요.</div>}
+              <p className="mb-2 text-xs text-wedly-muted">체크를 끄면 그 열은 올리지 않습니다.</p>
               <div className="max-h-72 overflow-auto">
-                {parsed.headers.map((h) => (
-                  <div key={h} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-wedly-bd/60 py-2 text-sm">
-                    <span className="truncate text-wedly-t2">{h}</span>
-                    <span className="text-wedly-muted">→</span>
-                    <select className="rounded-md border border-wedly-bd px-2 py-1 text-sm" value={mapping[h] ?? ""}
-                      onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })}>
-                      <option value="">사용 안 함</option>
-                      {targetFields.map((f) => <option key={f.key} value={f.key}>{f.label}{f.required ? " (필수)" : ""}{f.role === "dedupKey" ? " · 중복 기준" : ""}</option>)}
-                    </select>
-                  </div>
-                ))}
+                {parsed.headers.map((h) => {
+                  const included = (mapping[h] ?? "") !== "";
+                  return (
+                    <div key={h} className={`grid grid-cols-[auto_1fr_auto_1fr] items-center gap-2 border-b border-wedly-bd/60 py-2 text-sm ${included ? "" : "opacity-40"}`}>
+                      <input
+                        type="checkbox"
+                        aria-label={`${h} 포함`}
+                        checked={included}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const auto = autoMatchMapping([h], mappingOptions)[h] || mappingOptions[0]?.key || "";
+                            setMapping({ ...mapping, [h]: auto });
+                          } else {
+                            setMapping({ ...mapping, [h]: "" });
+                          }
+                        }}
+                      />
+                      <span className="truncate text-wedly-t2">{h}</span>
+                      <span className="text-wedly-muted">→</span>
+                      <select
+                        className="rounded-md border border-wedly-bd px-2 py-1 text-sm disabled:bg-wedly-bg-gray"
+                        value={mapping[h] ?? ""}
+                        disabled={!included}
+                        onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })}
+                      >
+                        <option value="">선택…</option>
+                        {mappingOptions.map((f) => (
+                          <option key={f.key} value={f.key}>
+                            {f.label}{f.required ? " (필수)" : ""}{f.role === "dedupKey" ? " · 중복 기준" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })}
               </div>
               {missingRequired.length
                 ? <div className="mt-2 text-xs text-wedly-red">필수 항목 미지정: {missingRequired.join(", ")}</div>
                 : <div className="mt-2 text-xs text-wedly-green">필수 항목 모두 지정됨</div>}
+
+              {/* 고정값 지정 — 모든 줄에 같은 값 (매핑된 칸과 상호배타) */}
+              <div className="mt-4 rounded-xl border border-wedly-bd/60 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-medium text-wedly-t1">고정값 지정 (모든 줄에 같은 값)</span>
+                </div>
+                {Object.keys(fixedValues).length === 0 && (
+                  <p className="mb-2 text-xs text-wedly-muted">특정 칸을 항상 같은 값으로 채우려면 추가하세요.</p>
+                )}
+                <div className="space-y-2">
+                  {Object.entries(fixedValues).map(([k, v]) => {
+                    const field = fixedFields.find((f) => f.key === k);
+                    if (!field) return null;
+                    return (
+                      <div key={k} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                        <span className="truncate text-sm text-wedly-t2">{field.label}</span>
+                        <FixedValueInput field={field} value={v} onChange={(nv) => setFixedValues({ ...fixedValues, [k]: nv })} />
+                        <button
+                          type="button"
+                          aria-label={`${field.label} 고정값 삭제`}
+                          className="text-wedly-muted hover:text-wedly-red"
+                          onClick={() => { const next = { ...fixedValues }; delete next[k]; setFixedValues(next); }}
+                        >✕</button>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(() => {
+                  const addable = availableFixedFields(fixedFields, mapping, fixedValues);
+                  if (addable.length === 0) return null;
+                  return (
+                    <select
+                      className="mt-2 rounded-md border border-wedly-bd px-2 py-1 text-sm"
+                      value=""
+                      onChange={(e) => { if (e.target.value) setFixedValues({ ...fixedValues, [e.target.value]: "" }); }}
+                    >
+                      <option value="">+ 고정값 추가할 칸 선택…</option>
+                      {addable.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                    </select>
+                  );
+                })()}
+              </div>
             </div>
             <PreviewTable fields={usedTargets} rows={previewRows} />
           </div>
@@ -165,6 +250,23 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
       </div>
     </div>
   );
+}
+
+function FixedValueInput({ field, value, onChange }: { field: TargetField; value: string; onChange: (v: string) => void }) {
+  const t = field.type ?? "text";
+  const base = "w-full rounded-md border border-wedly-bd px-2 py-1 text-sm";
+  if ((t === "select" || t === "person") && field.options && field.options.length > 0) {
+    return (
+      <select className={base} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">선택…</option>
+        {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+  if (t === "date" || t === "datetime") return <input type="date" className={base} value={value} onChange={(e) => onChange(e.target.value)} />;
+  if (t === "number") return <input type="number" className={base} value={value} onChange={(e) => onChange(e.target.value)} />;
+  if (t === "email") return <input type="email" className={base} value={value} onChange={(e) => onChange(e.target.value)} />;
+  return <input type="text" className={base} value={value} onChange={(e) => onChange(e.target.value)} />;
 }
 
 function PreviewTable({ fields, rows }: { fields: TargetField[]; rows: Record<string, unknown>[] }) {
