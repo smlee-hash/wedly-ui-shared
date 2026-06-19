@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchesFilter, matchesTab, filterRowsByTab, buildTabFromDraft, type ViewTab } from "./collab-filters";
+import { matchesFilter, matchesTab, filterRowsByTab, buildTabFromDraft, EMPTY_OPTION_VALUE, type ViewTab } from "./collab-filters";
 import type { RowData } from "./collab-table-core";
 
 describe("matchesFilter", () => {
@@ -104,5 +104,32 @@ describe("buildTabFromDraft — 탭 편집 시 숨은 정보 보존", () => {
     expect(result.isPreset).toBe(true);
     expect(result.viewMode).toBe("calendar");
     expect(result.id).toBe("all");
+  });
+});
+
+describe("EMPTY_OPTION_VALUE — '(미입력)' 빈 값 거르기", () => {
+  const emptyRow = { status: "" } as RowData;
+  const filledRow = { status: "계약완료" } as RowData;
+
+  it("equals '(미입력)': 빈 값 항목만 매칭", () => {
+    expect(matchesFilter(emptyRow, { field: "status", operator: "equals", value: EMPTY_OPTION_VALUE })).toBe(true);
+    expect(matchesFilter(filledRow, { field: "status", operator: "equals", value: EMPTY_OPTION_VALUE })).toBe(false);
+    // 아예 칸이 없는(undefined) 경우도 빈 값으로 매칭
+    expect(matchesFilter({} as RowData, { field: "status", operator: "equals", value: EMPTY_OPTION_VALUE })).toBe(true);
+  });
+
+  it("in ['(미입력)']: 빈 값 항목 매칭", () => {
+    expect(matchesFilter(emptyRow, { field: "status", operator: "in", value: [EMPTY_OPTION_VALUE] })).toBe(true);
+    expect(matchesFilter(filledRow, { field: "status", operator: "in", value: [EMPTY_OPTION_VALUE] })).toBe(false);
+  });
+
+  it("in ['계약완료','(미입력)']: 실제 값 항목과 빈 값 항목 둘 다 매칭", () => {
+    expect(matchesFilter(filledRow, { field: "status", operator: "in", value: ["계약완료", EMPTY_OPTION_VALUE] })).toBe(true);
+    expect(matchesFilter(emptyRow, { field: "status", operator: "in", value: ["계약완료", EMPTY_OPTION_VALUE] })).toBe(true);
+    expect(matchesFilter({ status: "가망" } as RowData, { field: "status", operator: "in", value: ["계약완료", EMPTY_OPTION_VALUE] })).toBe(false);
+  });
+
+  it("in [실제값들]만: 빈 값 항목은 매칭 안 함(기존 동작 보존)", () => {
+    expect(matchesFilter(emptyRow, { field: "status", operator: "in", value: ["계약완료", "가망"] })).toBe(false);
   });
 });
