@@ -1,5 +1,5 @@
 "use client";
-// 상세창 기본정보 "공통 컬럼 관리" 본문 (관리자 전용, ERP).
+// 상세창 기본정보 "공통 컬럼 관리" 본문 (관리자 전용).
 // - 추가된 칸 목록: 각 칸의 범위(공통=3앱 / 커스텀=이 앱) 토글 + 삭제
 // - 칸 추가: 이름·형식·(드롭다운이면)선택지·범위
 // - 표에서 불러오기: 그 페이지 표의 칸을 골라 기본정보에 추가
@@ -122,7 +122,7 @@ export function CommonColumnManager({
       <section className="space-y-2">
         <h3 className="text-[14px] font-semibold text-wedly-t1">추가된 칸</h3>
         <p className="text-[12px] text-wedly-muted">
-          <b>공통(3앱)</b>으로 두면 3개 앱에 같은 칸이 생기고 값이 함께 맞춰집니다. <b>이 앱만</b>으로 두면 이 앱(ERP)에서만 보입니다.
+          <b>공통(3앱)</b>으로 두면 3개 앱에 같은 칸이 생기고 값이 함께 맞춰집니다. <b>이 앱만</b>으로 두면 이 앱에서만 보입니다.
         </p>
         {defs.length === 0 ? (
           <div className="rounded-xl border border-wedly-bd/60 px-3 py-3 text-[12px] text-wedly-muted">추가된 칸이 없습니다.</div>
@@ -145,7 +145,7 @@ export function CommonColumnManager({
                         onClick={() => toggleScope(d.key, !isCommon)}
                         className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${isCommon ? "bg-wedly-accent" : "bg-wedly-bg-gray"}`}
                         aria-pressed={isCommon}
-                        title={isCommon ? "공통 (3앱 값 공유)" : "이 앱만 (ERP 전용)"}
+                        title={isCommon ? "공통 (3앱 값 공유)" : "이 앱에서만 보임"}
                       >
                         <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${isCommon ? "translate-x-5" : "translate-x-0.5"}`} />
                       </button>
@@ -193,7 +193,7 @@ export function CommonColumnManager({
               <label className="block text-[11px] text-wedly-muted mb-1">범위</label>
               <select value={scope} onChange={(e) => setScope(e.target.value as "common" | "custom")} className={`${inputCls} bg-white`}>
                 <option value="common">공통 (3앱)</option>
-                <option value="custom">이 앱만 (ERP)</option>
+                <option value="custom">이 앱만</option>
               </select>
             </div>
           </div>
