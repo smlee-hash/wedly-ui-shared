@@ -565,14 +565,17 @@ function ConfirmEditDialog({
 export function BasicScopeBadge({ label, override }: { label: string; override?: CommonFieldOverride | null }) {
   const isCommon = isCommonBasicLabel(label, override);
   return (
-    <span
-      className={`flex-shrink-0 rounded px-1 text-[9px] leading-[15px] font-medium ${
-        isCommon ? "bg-wedly-accent/10 text-wedly-accent" : "bg-wedly-bg-gray text-wedly-muted"
-      }`}
-      title={isCommon ? "공통 칸 — 3개 앱이 값을 함께 씁니다" : "커스텀 칸 — 이 앱에서만 보입니다"}
-    >
-      {isCommon ? "공통" : "커스텀"}
-    </span>
+    <>
+      <span className="flex-shrink-0 text-[11px] leading-none text-wedly-bd" aria-hidden>|</span>
+      <span
+        className={`flex-shrink-0 rounded px-1 text-[9px] leading-[15px] font-medium ${
+          isCommon ? "bg-wedly-accent/10 text-wedly-accent" : "bg-wedly-bg-gray text-wedly-muted"
+        }`}
+        title={isCommon ? "공통 칸 — 3개 앱이 값을 함께 씁니다" : "커스텀 칸 — 이 앱에서만 보입니다"}
+      >
+        {isCommon ? "공통" : "커스텀"}
+      </span>
+    </>
   );
 }
 
