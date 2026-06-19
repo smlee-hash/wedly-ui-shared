@@ -70,3 +70,12 @@ export function filterRowsByTab(rows: RowData[], tab: ViewTab | null): RowData[]
   if (!tab) return rows;
   return rows.filter((r) => matchesTab(r, tab));
 }
+
+/**
+ * 탭 편집 저장용 — 원래 탭을 통째 보존하면서 이름·조건만 교체한다.
+ * columns / isPreset / viewMode 등 ViewTab 타입에 안 적힌 필드까지 전개로 그대로 유지
+ * → 탭 편집 시 숨은 정보(탭별 컬럼·기본탭표시·표/캘린더 형식)가 사라지는 사고 방지.
+ */
+export function buildTabFromDraft<T extends ViewTab>(tab: T, label: string, filters: FilterCondition[]): T {
+  return { ...tab, label, filters };
+}
