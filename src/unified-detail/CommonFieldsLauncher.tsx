@@ -1,10 +1,9 @@
 "use client";
 // 관리자만 보는 "공통 컬럼 관리" 진입 — 회사 상세창 기본정보 머리말 옆 버튼.
-// 누르면 설정 팝업이 열린다: ① 추가 칸 관리(CommonColumnManager — 표 불러오기·새 칸·범위)
-// ② 기본 공통 칸 토글(CommonFieldsAdmin — 표준 11칸 공통/숨김). ②만 받는 앱(미배선)도 동작.
+// 누르면 팝업이 열리고, 본문은 CommonFieldsAdmin 한 곳에서 [공통 컬럼]/[커스텀 컬럼] 2섹션으로
+// 칸 이동·숨김·추가를 모두 처리한다. loadDefs/saveDefs 미배선 앱은 추가 없이 이동만 동작.
 import { useState } from "react";
 import { CommonFieldsAdmin } from "../unified/CommonFieldsAdmin";
-import { CommonColumnManager } from "./CommonColumnManager";
 import type { BasicColDef } from "../lib/basic-col-manager";
 
 export function CommonFieldsLauncher({
@@ -24,7 +23,6 @@ export function CommonFieldsLauncher({
   onChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const showManager = !!(loadDefs && saveDefs);
   return (
     <>
       <button
@@ -57,23 +55,15 @@ export function CommonFieldsLauncher({
               </button>
             </div>
 
-            {showManager && (
-              <div className="mb-5">
-                <CommonColumnManager
-                  ownColumns={ownColumns}
-                  reservedLabels={reservedLabels}
-                  loadDefs={loadDefs!}
-                  saveDefs={saveDefs!}
-                  onChanged={onChanged}
-                />
-              </div>
-            )}
-
-            <div className={showManager ? "border-t border-wedly-bd pt-4" : ""}>
-              <h3 className="mb-1 text-[14px] font-semibold text-wedly-t1">기본 공통 칸</h3>
-              <p className="mb-3 text-[12px] text-wedly-muted">표준 칸을 공통/앱별로 바꾸거나 이 앱에서 숨깁니다. 변경은 화면 새로고침 후 반영됩니다.</p>
-              <CommonFieldsAdmin appSpecificLabels={appSpecificLabels} />
-            </div>
+            <p className="mb-4 text-[12px] text-wedly-muted">컬럼을 <b>공통(3앱 공유)</b>과 <b>커스텀(이 앱 전용)</b> 사이에서 옮기고, 이 앱에서 숨기거나 새 컬럼을 추가합니다. 변경은 화면 새로고침 후 반영됩니다.</p>
+            <CommonFieldsAdmin
+              appSpecificLabels={appSpecificLabels}
+              ownColumns={ownColumns}
+              reservedLabels={reservedLabels}
+              loadDefs={loadDefs}
+              saveDefs={saveDefs}
+              onChanged={onChanged}
+            />
           </div>
         </div>
       )}
