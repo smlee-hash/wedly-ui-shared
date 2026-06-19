@@ -27,6 +27,7 @@ import {
   ensureBasicTeamFields,
   type ColumnLite,
 } from "./lib/unified-sections";
+import { isCommonBasicLabel } from "../unified/sections";
 import { applyTabConfig } from "./lib/unified-tab-config";
 import type { BasicRecord } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
@@ -1069,6 +1070,20 @@ function BasicInfoPanel({
     ),
     [allBasicFields, basicHiddenColumns, deletedColumns, hiddenBasicCols],
   );
+  // 표에서 기본정보로 끌어온 칸(조회 담당자·진행상태 등 basicAddedColumns)의 라벨 —
+  // '공통 컬럼 관리' 창에도 보여 공통/숨김 토글로 관리할 수 있게 한다(NO.73). 앱 전용칸·중복은 제외.
+  const addedBasicLabels = useMemo(() => {
+    const appLabels = new Set(ERP_APP_BASIC_FIELDS.map((f) => f.label));
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const f of allBasicFields) {
+      if (!basicAddedColumns.includes(f.key)) continue;
+      if (appLabels.has(f.label) || seen.has(f.label)) continue;
+      seen.add(f.label);
+      out.push(f.label);
+    }
+    return out;
+  }, [allBasicFields, basicAddedColumns]);
   const hiddenBasicFields = useMemo(
     () => allBasicFields.filter((f) => basicHiddenColumns.includes(f.key)),
     [allBasicFields, basicHiddenColumns],
@@ -1225,7 +1240,7 @@ function BasicInfoPanel({
           {isAdmin && (
             <div className="flex items-center gap-1.5">
               <CommonFieldsLauncher
-                appSpecificLabels={ERP_APP_BASIC_FIELDS.map((f) => f.label)}
+                appSpecificLabels={[...ERP_APP_BASIC_FIELDS.map((f) => f.label), ...addedBasicLabels]}
                 ownColumns={ownColumns.map((c) => ({ key: c.key, label: c.label, type: c.type, options: c.options }))}
                 reservedLabels={allBasicFields.map((f) => f.label)}
                 loadDefs={adapter.api.loadBasicFieldDefs ? () => adapter.api.loadBasicFieldDefs!(ownDomain) : undefined}
@@ -1340,7 +1355,7 @@ function BasicInfoPanel({
                   const r = row as Record<string, unknown>;
                   return (
                     <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
-                      <div className="w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal text-wedly-muted">{col.label}</div>
+                      <div className={`w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</div>
                       <div className="flex-1 min-w-0">
                         <BasicFilesField
                           row={r}
@@ -1370,7 +1385,7 @@ function BasicInfoPanel({
               {/* 신규 등록 전용 "리포트" 첨부 칸 — 등록 단계에서 바로 파일 첨부(저장 시 함께 등록). NO.56 #2. */}
               {isNew && (
                 <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
-                  <div className="w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal text-wedly-muted">리포트</div>
+                  <div className={`w-full sm:w-[160px] sm:flex-shrink-0 text-[13px] font-medium sm:font-normal ${isCommonBasicLabel("리포트", commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>리포트</div>
                   <div className="flex-1 min-w-0">
                     <NewEntryReportUpload
                       files={Array.isArray(draft?.["_files"]) ? (draft!["_files"] as DraftFile[]) : []}
