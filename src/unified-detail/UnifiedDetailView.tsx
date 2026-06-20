@@ -1709,6 +1709,22 @@ function GroupDomainPanel({
   sectionSettlementBase: string;
   adapter: UnifiedDetailAdapter;
 }) {
+  // 어댑터가 이 분야 그룹용 커스텀 패널을 제공하면 자기영역 여부와 무관하게 그것을 최우선 렌더.
+  // (일루아는 정부지원금이 자기영역이라, 이 검사가 ownDomain 분기보다 먼저 와야 공용 패널이 뜬다.)
+  const CustomSectionPanel = adapter.components.sectionPanels?.[group.key];
+  if (CustomSectionPanel) {
+    return (
+      <CustomSectionPanel
+        key={group.key}
+        rows={rows}
+        primaryRow={primaryRow as Record<string, unknown>}
+        isAdmin={isAdmin}
+        onSaved={onSaved}
+        adapter={adapter}
+      />
+    );
+  }
+
   // 자기 분야 그룹은 기존 편집 패널(자체 저장소) — 그대로 유지
   if (group.key === ownDomain) {
     if (rows.length === 0) {
