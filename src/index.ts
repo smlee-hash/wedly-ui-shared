@@ -171,6 +171,7 @@ export type {
   BasicRecord,
   FileFieldDef,
   FileMetaLite,
+  SectionPanelProps,
 } from "./unified-detail/adapter-types";
 export { FieldOptionsProvider, useFieldOptions } from "./unified-detail/field-options-context";
 export type { CustomerDetailLite, DomainRowLite } from "./unified-detail/lib/customer-detail";
