@@ -177,6 +177,19 @@ export type CollabTableProps = {
   sort?: SortConfig;
   /** sort prop 변경 콜백(제어형 사용 시). 관리자 정렬 패널에서도 이 콜백으로 통지. */
   onSortChange?: (s: SortRule[]) => void;
+  /**
+   * 사용자별 "숨긴 컬럼" 목록(서버 저장 연동). 소비 앱이 서버에서 불러와 넣어준다.
+   * - undefined(기본): 기존 동작(브라우저 localStorage 의 '보일 컬럼' 집합). 하위호환 — 기존 소비처 무손상.
+   * - null: 서버에서 불러오는 중(아직 미도착) — 그동안 localStorage 로 즉시 표시(깜빡임 방지).
+   * - string[]: 이 사용자가 직접 숨긴 컬럼 키. **보일 컬럼 = 넘어온 columns(=관리자 ON 컬럼) − 이 목록.**
+   * 제공되면(=undefined 아님) 표·모달이 "서버 사용자 설정" 모드로 동작한다:
+   *   · 관리자가 새로/다시 켠 컬럼은 이 목록에 없으니 기본 표시,
+   *   · 사용자가 한번 숨기면 이 목록에 남아 계속 숨김(sticky),
+   *   · '컬럼 설정' 버튼이 정렬 버튼 왼쪽에 모든 사용자에게 표시된다.
+   */
+  hiddenColumns?: string[] | null;
+  /** 컬럼 설정 모달/헤더에서 칸을 켜고 끌 때 호출(서버 모드). nextVisible=이제 보일지 여부. 소비 앱이 서버 저장+상태 갱신. */
+  onToggleColumnVisibility?: (key: string, nextVisible: boolean) => void;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -434,7 +447,14 @@ export function CollabTable({
   headerSlot,
   sort: sortProp,
   onSortChange,
+  hiddenColumns,
+  onToggleColumnVisibility,
 }: CollabTableProps) {
+  // 서버 사용자 설정 모드 — hiddenColumns 가 주어지면(=undefined 아님) 켜진다.
+  // 보일 컬럼 = columns(관리자 ON) − hiddenColumns. 새 컬럼 기본표시·한번 숨기면 계속 숨김(sticky).
+  const serverColMode = hiddenColumns !== undefined;
+  const serverHiddenLoaded = serverColMode && hiddenColumns !== null; // 서버값 도착 여부
+  const serverHiddenSet = useMemo(() => new Set(hiddenColumns ?? []), [hiddenColumns]);
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
   const COL_ORDER_KEY = `${storagePrefix}:col-order`;
@@ -483,13 +503,23 @@ export function CollabTable({
 
   // 새로 추가한 칸을 표에 바로 보이게 — 부모가 ensureVisibleKeys 로 알려준 키만 보임 처리(기존 숨김 설정은 건드리지 않음).
   useEffect(() => {
+    if (serverColMode) return; // 서버 모드: 새 컬럼은 숨김목록에 없어 이미 기본 표시 — 강제 불필요
     if (!ensureVisibleKeys || ensureVisibleKeys.length === 0) return;
     setVisibleColumns((prev) => {
       const next = new Set(prev);
       ensureVisibleKeys.forEach((k) => next.add(k));
       return next;
     });
-  }, [ensureVisibleKeys]);
+  }, [ensureVisibleKeys, serverColMode]);
+
+  // 서버 숨김목록이 도착/변경되면 localStorage '보일 컬럼'도 맞춰 둔다(다음 로딩 즉시표시·일관성용).
+  useEffect(() => {
+    if (!serverHiddenLoaded) return;
+    const next = new Set(orderedColumns.filter((c) => !serverHiddenSet.has(c.key)).map((c) => c.key));
+    setVisibleColumns(next);
+    try { localStorage.setItem(VISIBLE_COLS_KEY, JSON.stringify([...next])); } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverHiddenLoaded, serverHiddenSet, orderedColumns]);
 
   // 헤더 메뉴 / 드래그 / 리사이즈
   const [colMenuKey, setColMenuKey] = useState<string | null>(null);
@@ -521,7 +551,13 @@ export function CollabTable({
   }, [searchInput]);
 
   const orderedColumns = useMemo(() => orderColumns(columns, colOrder), [columns, colOrder]);
-  const activeColumns = useMemo(() => orderedColumns.filter((c) => visibleColumns.has(c.key)), [orderedColumns, visibleColumns]);
+  // 서버 모드(값 도착)면: 보일 컬럼 = 전체 − 숨김목록. 그 외(로딩중·기존 모드)면: 저장된 '보일 컬럼' 집합.
+  const activeColumns = useMemo(
+    () => serverHiddenLoaded
+      ? orderedColumns.filter((c) => !serverHiddenSet.has(c.key))
+      : orderedColumns.filter((c) => visibleColumns.has(c.key)),
+    [serverHiddenLoaded, serverHiddenSet, orderedColumns, visibleColumns],
+  );
   const stickyOffsets = useMemo(() => computeStickyOffsets(activeColumns, colWidths), [activeColumns, colWidths]);
 
   const activeTab = useMemo(
@@ -637,8 +673,18 @@ export function CollabTable({
     });
   }, []);
 
-  const isColumnVisible = useCallback((key: string) => visibleColumns.has(key), [visibleColumns]);
+  const isColumnVisible = useCallback(
+    (key: string) => serverHiddenLoaded ? !serverHiddenSet.has(key) : visibleColumns.has(key),
+    [serverHiddenLoaded, serverHiddenSet, visibleColumns],
+  );
   const toggleColumn = useCallback((key: string) => {
+    if (serverColMode) {
+      // 서버 모드: 숨김목록에 있으면 이제 보임, 없으면 숨김. 저장은 소비 앱이 서버에.
+      const nextVisible = serverHiddenSet.has(key);
+      onToggleColumnVisibility?.(key, nextVisible);
+      columnGrouping?.onToggleColumn?.(key, nextVisible);
+      return;
+    }
     const nextVisible = !visibleColumns.has(key);
     setVisibleColumns((prev) => {
       const n = new Set(prev);
@@ -647,15 +693,20 @@ export function CollabTable({
       return n;
     });
     columnGrouping?.onToggleColumn?.(key, nextVisible);
-  }, [visibleColumns, persistVisible, columnGrouping]);
+  }, [serverColMode, serverHiddenSet, onToggleColumnVisibility, visibleColumns, persistVisible, columnGrouping]);
+  // 표 머리 메뉴의 '이 칸 숨기기' — 서버 모드면 숨김목록에 추가(서버 저장), 아니면 기존 localStorage.
   const removeColFromTab = useCallback((key: string) => {
+    if (serverColMode) {
+      onToggleColumnVisibility?.(key, false);
+      return;
+    }
     setVisibleColumns((prev) => {
       const n = new Set(prev);
       n.delete(key);
       persistVisible(n);
       return n;
     });
-  }, [persistVisible]);
+  }, [serverColMode, onToggleColumnVisibility, persistVisible]);
 
   const saveColLabel = useCallback((key: string, label: string) => {
     setColLabelOverrides((prev) => {
@@ -904,6 +955,20 @@ export function CollabTable({
         showPageBox={true}
         trailingControls={
           <>
+            {/* 사용자 컬럼 설정 — 서버 모드일 때 정렬 버튼 왼쪽에 모든 사용자에게 표시(내 화면에만 적용·서버 저장). */}
+            {serverColMode && (
+              <button
+                type="button"
+                onClick={() => setColumnModalOpen(true)}
+                title="표에 보일 컬럼 선택(내 화면에만 적용·저장됨)"
+                className="inline-flex items-center gap-1 rounded-lg border border-wedly-bd px-2.5 py-1.5 text-[12px] font-medium text-wedly-t2 hover:bg-wedly-bg-gray transition-colors"
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                  <path d="M2.5 2.5h11v11h-11zM6.5 2.5v11M10 2.5v11" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                </svg>
+                컬럼 설정
+              </button>
+            )}
             {isAdmin && (
               <SortPanel
                 sort={sortConfig}
@@ -916,7 +981,8 @@ export function CollabTable({
         }
       />
 
-      {!adminEnabled && (
+      {/* 서버 모드면 '컬럼 설정' 버튼이 위 컨트롤 줄(정렬 왼쪽)에 모든 사용자에게 떠서, 이 비관리자 전용 버튼은 숨긴다(중복 방지). */}
+      {!adminEnabled && !serverColMode && (
         <div className="mb-2 mt-2 flex justify-end">
           <button
             onClick={() => setColumnModalOpen(true)}
