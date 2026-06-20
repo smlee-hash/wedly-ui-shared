@@ -174,9 +174,16 @@ export function CommonFieldsAdmin({
     for (const d of defs) push(d.label, d);
     for (const l of DEFAULT_COMMON_BASIC_LABELS) push(l);
     for (const l of appSpecificLabels) push(l);
+    // 하이브·일루아(파트너 앱) 빌드: ERP가 공통에서 내린(excluded) 기본 칸은 ERP 전용이므로
+    // 이 앱의 커스텀 섹션에도 띄우지 않는다(내부 DB 분류·이메일 등). 직접 추가한 칸(def)은 유지.
+    // (ERP 본부 빌드에는 이 필터가 없어 그대로 커스텀으로 관리한다.)
+    const isErpOnlyExcludedDefault = (it: ManagedItem) =>
+      !it.def &&
+      DEFAULT_COMMON_BASIC_LABELS.some((d) => norm(d) === norm(it.label)) &&
+      (override.excluded || []).some((e) => norm(e) === norm(it.label));
     return {
       commonItems: items.filter((i) => i.isCommon),
-      customItems: items.filter((i) => !i.isCommon),
+      customItems: items.filter((i) => !i.isCommon && !isErpOnlyExcludedDefault(i)),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defs, override, hidden, appSpecificLabels]);
