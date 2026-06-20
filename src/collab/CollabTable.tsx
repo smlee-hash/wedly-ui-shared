@@ -512,15 +512,6 @@ export function CollabTable({
     });
   }, [ensureVisibleKeys, serverColMode]);
 
-  // 서버 숨김목록이 도착/변경되면 localStorage '보일 컬럼'도 맞춰 둔다(다음 로딩 즉시표시·일관성용).
-  useEffect(() => {
-    if (!serverHiddenLoaded) return;
-    const next = new Set(orderedColumns.filter((c) => !serverHiddenSet.has(c.key)).map((c) => c.key));
-    setVisibleColumns(next);
-    try { localStorage.setItem(VISIBLE_COLS_KEY, JSON.stringify([...next])); } catch {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverHiddenLoaded, serverHiddenSet, orderedColumns]);
-
   // 헤더 메뉴 / 드래그 / 리사이즈
   const [colMenuKey, setColMenuKey] = useState<string | null>(null);
   const [renamingColKey, setRenamingColKey] = useState<string | null>(null);
@@ -559,6 +550,15 @@ export function CollabTable({
     [serverHiddenLoaded, serverHiddenSet, orderedColumns, visibleColumns],
   );
   const stickyOffsets = useMemo(() => computeStickyOffsets(activeColumns, colWidths), [activeColumns, colWidths]);
+
+  // 서버 숨김목록이 도착/변경되면 localStorage '보일 컬럼'도 맞춰 둔다(다음 로딩 즉시표시·일관성용).
+  useEffect(() => {
+    if (!serverHiddenLoaded) return;
+    const next = new Set(orderedColumns.filter((c) => !serverHiddenSet.has(c.key)).map((c) => c.key));
+    setVisibleColumns(next);
+    try { localStorage.setItem(VISIBLE_COLS_KEY, JSON.stringify([...next])); } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverHiddenLoaded, serverHiddenSet, orderedColumns]);
 
   const activeTab = useMemo(
     () => (tabs && tabs.length ? tabs.find((t) => t.id === activeTabId) ?? null : null),
