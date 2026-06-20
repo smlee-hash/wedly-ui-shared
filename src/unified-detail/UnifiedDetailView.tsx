@@ -1100,15 +1100,31 @@ function BasicInfoPanel({
   // 순서·드래그 — 같은 데이터원(경정청구)과 동일 scope/tab. 권한=관리자(서버도 ADMIN 재검증).
   // 드래그는 "수정 모드에서만 드래그 목록을 렌더"해 제한 → 순서 초기화는 모드와 무관하게 동작.
   const basicOrder = useFieldOrder<ColumnLite>("tax-amendment", "basic", visibleBasicFields, isAdmin);
-  // 공통 칸은 항상 위, 커스텀 칸은 아래로 묶는다(NO.73). 안정 정렬이라 그룹 안에서의 순서(저장된 순서/드래그)는 그대로 유지되고,
-  // 그룹을 넘는 드래그는 자동으로 제자리(공통은 공통 묶음 안, 커스텀은 커스텀 묶음 안)로 정돈된다. 배지와 같은 기준(isCommonBasicLabel).
+  // 공통 칸은 항상 위, 커스텀 칸은 아래로 묶는다(NO.73). 공통 칸의 순서는 3앱이 항상 같도록
+  // 고정 표준 순서(BASIC_COMMON_ORDER, ERP 기준)로 정렬한다(NO.56). 앱별로 내부 칸 키·저장 순서가 달라
+  // 상세창 공통 칸 순서가 흐트러지던 문제를 막는다(표준 목록에 없는 공통 칸은 기존 순서대로 뒤에 붙임).
+  // 커스텀 칸은 기존대로 저장 순서/드래그를 따른다.
   const groupedFields = useMemo<ColumnLite[]>(() => {
+    const BASIC_COMMON_ORDER = [
+      "대표자명", "연락처", "사업자번호", "사업장주소지", "사업자유형", "환급금여부",
+      "리포트", "DB 분류", "영업 담당", "조회 담당자", "등록일시", "진행상태",
+      "팀장", "팀원", "이메일", "내부 DB 분류",
+    ];
+    const norm = (s?: string) => (s || "").replace(/\s+/g, "").toLowerCase();
+    const ord = (label: string) => {
+      const i = BASIC_COMMON_ORDER.findIndex((c) => norm(c) === norm(label));
+      return i < 0 ? BASIC_COMMON_ORDER.length : i;
+    };
     const common: ColumnLite[] = [];
     const custom: ColumnLite[] = [];
     for (const f of basicOrder.orderedFields) {
       (isCommonBasicLabel(f.label, commonOverride) ? common : custom).push(f);
     }
-    return [...common, ...custom];
+    const commonSorted = common
+      .map((f, i) => ({ f, i }))
+      .sort((a, b) => ord(a.f.label) - ord(b.f.label) || a.i - b.i)
+      .map((x) => x.f);
+    return [...commonSorted, ...custom];
   }, [basicOrder.orderedFields, commonOverride]);
 
   // ── 칸 편집 핸들러 ──
