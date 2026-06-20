@@ -1233,7 +1233,9 @@ function BasicInfoPanel({
           const entry = rec.fields[f.label];
           if (entry && entry.value != null && entry.value !== "") {
             const cur = next[f.key];
-            if (cur == null || cur === "") next[f.key] = entry.value; // 빈 칸만 채움
+            // 진행상태는 3앱 완전 동기화(NO.56 사장님 결정 2026-06-21): 값이 있어도 공용 보관함 최신값으로 덮어쓴다.
+            // 그 외 공통칸은 기존대로 '빈 칸만' 채워 기존 값을 보호.
+            if (f.label === "진행상태" || cur == null || cur === "") next[f.key] = entry.value;
           }
         }
         return next;
