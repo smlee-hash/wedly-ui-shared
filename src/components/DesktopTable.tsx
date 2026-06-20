@@ -52,8 +52,8 @@ type Props = {
   resizingRef: MutableRefObject<unknown>;
   reorderColumn: (from: string, to: string) => void;
 
-  // 컬럼 리사이즈
-  onResizeStart: (e: React.MouseEvent, colKey: string) => void;
+  // 컬럼 리사이즈 (포인터 이벤트 — 마우스·터치·펜 통합, NO.76)
+  onResizeStart: (e: React.PointerEvent, colKey: string) => void;
   onResizeDoubleClick: (colKey: string) => void;
 
   // 라벨·강조
@@ -124,7 +124,7 @@ export function DesktopTable({
       <div
         ref={tableScrollRef}
         className={cn(
-          "overflow-x-scroll overflow-y-auto [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-wedly-bg-gray [&::-webkit-scrollbar-thumb]:bg-wedly-bd-blue [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-wedly-accent",
+          "touch-manipulation overflow-x-scroll overflow-y-auto [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-wedly-bg-gray [&::-webkit-scrollbar-thumb]:bg-wedly-bd-blue [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-wedly-accent",
           "[&_.sticky]:max-md:!static [&_.sticky]:max-md:!left-auto",
           mobileViewMode === "table" ? "block" : "hidden md:block",
         )}
@@ -303,9 +303,10 @@ export function DesktopTable({
                     )}
                     <div
                       draggable={false}
-                      onMouseDown={(e) => onResizeStart(e, col.key)}
+                      onPointerDown={(e) => onResizeStart(e, col.key)}
                       onDoubleClick={() => onResizeDoubleClick(col.key)}
-                      className="absolute right-[-2px] top-0 bottom-0 w-[5px] cursor-col-resize z-20 group/resize"
+                      style={{ touchAction: "none" }}
+                      className="absolute right-[-3px] top-0 bottom-0 w-[11px] cursor-col-resize z-20 group/resize touch-none"
                     >
                       <div className="absolute inset-y-1 left-1/2 -translate-x-1/2 w-[2px] bg-wedly-bd group-hover/resize:bg-wedly-accent group-active/resize:bg-wedly-accent rounded-full" />
                     </div>
