@@ -10,6 +10,12 @@
 import type { ColumnDef } from "../../types/columns";
 import { COMMON_BASIC_FIELD_SPECS } from "../../unified/sections";
 
+// 공통 기본칸 라벨(공백·대소문자 무시) 집합 — buildBasicSection 에서 "이 앱에 후보키가 없어도 빈칸으로
+// 보일 칸"을 판정한다. ERP가 공통으로 켠 칸(사업자유형·환급금여부 등)을 3앱이 동일하게 표시(값 없으면 빈칸).
+const COMMON_SPEC_LABELS = new Set(
+  COMMON_BASIC_FIELD_SPECS.map((s) => (s.label || "").replace(/\s+/g, "").toLowerCase()),
+);
+
 export type SectionDef = {
   id: string;
   label: string;
@@ -227,6 +233,12 @@ export function buildBasicSection(
     }
     let key = candidates.find(hasVal);
     if (!key) key = candidates.find((k) => colByKey.has(k) || rowKeys.has(k));
+    // 공통 기본칸은 이 앱에 후보키가 없어도 빈칸으로 보이게 한다 — ERP가 공통으로 켠 칸(사업자유형·환급금여부 등)을
+    // 3앱이 동일하게 표시(값 없으면 빈칸). 단 파일칸(리포트)은 앱별 합성 로직(basicReportField)이 따로 처리하므로 제외.
+    // ERP 전용으로 내린 칸(내부 DB 분류·이메일)은 화면 단계의 '이 앱 숨김'에서 걸러진다.
+    if (!key && spec.type !== "file" && spec.keys.length && COMMON_SPEC_LABELS.has(norm(spec.label))) {
+      key = spec.keys[0];
+    }
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const def = colByKey.get(key);
