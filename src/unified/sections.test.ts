@@ -41,8 +41,8 @@ describe("isCommonBasicLabel — 공통/앱별 판정", () => {
   it("override.excluded 는 기본 공통이라도 앱별로 내림", () => {
     expect(isCommonBasicLabel("연락처", { excluded: ["연락처"] })).toBe(false);
   });
-  it("기본 공통 라벨은 11개", () => {
-    expect(DEFAULT_COMMON_BASIC_LABELS.length).toBe(11);
+  it("기본 공통 라벨은 12개", () => {
+    expect(DEFAULT_COMMON_BASIC_LABELS.length).toBe(12);
   });
 });
 
@@ -107,8 +107,8 @@ describe("buildDomainSubTabs", () => {
 
 // ── COMMON_BASIC_FIELD_SPECS / HIVE_APP_BASIC_FIELDS / BASIC_FIELD_SPECS ──
 describe("기본정보 사양 분리", () => {
-  it("COMMON_BASIC_FIELD_SPECS 는 11개다", () => {
-    expect(COMMON_BASIC_FIELD_SPECS).toHaveLength(11);
+  it("COMMON_BASIC_FIELD_SPECS 는 12개다", () => {
+    expect(COMMON_BASIC_FIELD_SPECS).toHaveLength(12);
   });
 
   it("COMMON_BASIC_FIELD_SPECS 에 환급금여부가 포함된다", () => {
@@ -121,8 +121,8 @@ describe("기본정보 사양 분리", () => {
     expect(spec?.keys).not.toContain("18파트너사");
   });
 
-  it("COMMON_BASIC_FIELD_SPECS 에 진행상태가 포함되지 않는다", () => {
-    expect(COMMON_BASIC_FIELD_SPECS.map((s) => s.label)).not.toContain("진행상태");
+  it("COMMON_BASIC_FIELD_SPECS 에 진행상태가 포함된다 (NO.56 — 3앱 공통·값 공유)", () => {
+    expect(COMMON_BASIC_FIELD_SPECS.map((s) => s.label)).toContain("진행상태");
   });
 
   it("HIVE_APP_BASIC_FIELDS 는 2개(팀장·팀원)다", () => {
@@ -132,16 +132,16 @@ describe("기본정보 사양 분리", () => {
     expect(labels).toContain("팀원");
   });
 
-  it("BASIC_FIELD_SPECS 는 COMMON 11개 + HIVE 2개 = 13개다", () => {
-    expect(BASIC_FIELD_SPECS).toHaveLength(13);
+  it("BASIC_FIELD_SPECS 는 COMMON 12개 + HIVE 2개 = 14개다", () => {
+    expect(BASIC_FIELD_SPECS).toHaveLength(14);
   });
 
   it("BASIC_FIELD_SPECS 는 COMMON 뒤에 HIVE 가 붙은 순서다", () => {
     const labels = BASIC_FIELD_SPECS.map((s) => s.label);
     const commonLabels = COMMON_BASIC_FIELD_SPECS.map((s) => s.label);
     const hiveLabels = HIVE_APP_BASIC_FIELDS.map((s) => s.label);
-    expect(labels.slice(0, 11)).toEqual(commonLabels);
-    expect(labels.slice(11)).toEqual(hiveLabels);
+    expect(labels.slice(0, 12)).toEqual(commonLabels);
+    expect(labels.slice(12)).toEqual(hiveLabels);
   });
 
   it("환급금여부 키가 하이브키 우선 + 공용키이고 type 이 select 다", () => {
