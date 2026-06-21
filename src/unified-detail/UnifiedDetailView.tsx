@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, type DragEvent } from "react";
 import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, refreshCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
 import { type ColumnDef } from "../types/columns";
 import {
@@ -1101,20 +1101,50 @@ function BasicInfoPanel({
   // 순서·드래그 — 같은 데이터원(경정청구)과 동일 scope/tab. 권한=관리자(서버도 ADMIN 재검증).
   // 드래그는 "수정 모드에서만 드래그 목록을 렌더"해 제한 → 순서 초기화는 모드와 무관하게 동작.
   const basicOrder = useFieldOrder<ColumnLite>("tax-amendment", "basic", visibleBasicFields, isAdmin);
+
+  // ── 공통 칸 표시 순서(3앱 공유) — 본부(ERP)에서 바꾸면 하이브·일루아도 같은 순서로 보인다(NO.56). ──
+  //   공유 보관함(common-basic-order)이 비어 있으면 아래 내장 표준 순서로 표시 = 기존 동작(무회귀).
+  const canManageCommon = adapter.appName === "ERP";
+  const [commonOrder, setCommonOrder] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/common-field-order", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        if (j?.success && Array.isArray(j.data?.order)) {
+          setCommonOrder((j.data.order as unknown[]).filter((s): s is string => typeof s === "string"));
+        }
+      })
+      .catch(() => { /* 실패 → 표준 순서 사용 */ });
+    return () => { cancelled = true; };
+  }, []);
+  // 공통 칸 순서 저장 — ERP만. 낙관적 반영 후 공유 보관함에 기록(3앱 적용). 파트너 앱은 서버가 403.
+  const persistCommonOrder = useCallback((labels: string[]) => {
+    setCommonOrder(labels);
+    fetch("/api/common-field-order", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order: labels }),
+    }).catch((err) => console.warn("[common-field-order PUT]", err));
+  }, []);
+
   // 공통 칸은 항상 위, 커스텀 칸은 아래로 묶는다(NO.73). 공통 칸의 순서는 3앱이 항상 같도록
-  // 고정 표준 순서(BASIC_COMMON_ORDER, ERP 기준)로 정렬한다(NO.56). 앱별로 내부 칸 키·저장 순서가 달라
-  // 상세창 공통 칸 순서가 흐트러지던 문제를 막는다(표준 목록에 없는 공통 칸은 기존 순서대로 뒤에 붙임).
+  // 공유 순서(ERP가 정함) → 없으면 내장 표준 순서로 정렬한다(NO.56). 앱별로 내부 칸 키·저장 순서가 달라도
+  // 상세창 공통 칸 순서가 흐트러지지 않게 한다(표준 목록에 없는 공통 칸은 기존 순서대로 뒤에 붙임).
   // 커스텀 칸은 기존대로 저장 순서/드래그를 따른다.
   const groupedFields = useMemo<ColumnLite[]>(() => {
-    const BASIC_COMMON_ORDER = [
+    const DEFAULT_COMMON_ORDER = [
       "대표자명", "연락처", "사업자번호", "사업장주소지", "사업자유형", "환급금여부",
       "리포트", "DB 분류", "영업 담당", "조회 담당자", "등록일시", "진행상태",
       "팀장", "팀원", "이메일", "내부 DB 분류",
     ];
+    // 본부(ERP)가 정한 공유 순서가 있으면 그걸로, 없으면 내장 표준 순서로(무회귀).
+    const order = commonOrder.length > 0 ? commonOrder : DEFAULT_COMMON_ORDER;
     const norm = (s?: string) => (s || "").replace(/\s+/g, "").toLowerCase();
     const ord = (label: string) => {
-      const i = BASIC_COMMON_ORDER.findIndex((c) => norm(c) === norm(label));
-      return i < 0 ? BASIC_COMMON_ORDER.length : i;
+      const i = order.findIndex((c) => norm(c) === norm(label));
+      return i < 0 ? order.length : i;
     };
     const common: ColumnLite[] = [];
     const custom: ColumnLite[] = [];
@@ -1126,7 +1156,39 @@ function BasicInfoPanel({
       .sort((a, b) => ord(a.f.label) - ord(b.f.label) || a.i - b.i)
       .map((x) => x.f);
     return [...commonSorted, ...custom];
-  }, [basicOrder.orderedFields, commonOverride]);
+  }, [basicOrder.orderedFields, commonOverride, commonOrder]);
+
+  // 드래그 드롭 — ERP에서 "공통 칸끼리" 옮기면 공유 순서를 갱신(3앱 적용). 그 외(커스텀/파트너/교차)는 기존 동작 그대로.
+  const handleBasicFieldDrop = useCallback(
+    (targetKey: string) => (e: DragEvent) => {
+      if (canManageCommon) {
+        const fromKey = basicOrder.draggingKey;
+        const fromField = groupedFields.find((f) => f.key === fromKey);
+        const toField = groupedFields.find((f) => f.key === targetKey);
+        const fromCommon = !!fromField && isCommonBasicLabel(fromField.label, commonOverride);
+        const toCommon = !!toField && isCommonBasicLabel(toField.label, commonOverride);
+        if (fromField && toField && fromCommon && toCommon && fromField.key !== toField.key) {
+          e.preventDefault();
+          const labels = groupedFields
+            .filter((f) => isCommonBasicLabel(f.label, commonOverride))
+            .map((f) => f.label);
+          const fi = labels.indexOf(fromField.label);
+          const ti = labels.indexOf(toField.label);
+          if (fi >= 0 && ti >= 0 && fi !== ti) {
+            const next = [...labels];
+            next.splice(fi, 1);
+            next.splice(ti, 0, fromField.label);
+            persistCommonOrder(next);
+          }
+          basicOrder.handleDragEnd();
+          return;
+        }
+      }
+      // 그 외 모든 경우 — 기존 per-app 드래그 그대로.
+      basicOrder.handleDrop(targetKey)(e);
+    },
+    [basicOrder, groupedFields, commonOverride, canManageCommon, persistCommonOrder],
+  );
 
   // ── 칸 편집 핸들러 ──
   const handleAddColumn = useCallback((label: string, type: string) => {
@@ -1332,7 +1394,7 @@ function BasicInfoPanel({
               handleDragStart={basicOrder.handleDragStart}
               handleDragOver={basicOrder.handleDragOver}
               handleDragLeave={basicOrder.handleDragLeave}
-              handleDrop={basicOrder.handleDrop}
+              handleDrop={handleBasicFieldDrop}
               handleDragEnd={basicOrder.handleDragEnd}
               renderRow={(f) => (
                 <BasicEditRow
