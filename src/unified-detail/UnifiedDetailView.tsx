@@ -706,6 +706,7 @@ function SectionDetailPanel({
                   sectionSettlementBase={sectionSettlementBase}
                   enableConditionalFormula={adapter.enableConditionalFormula}
                   conditionFieldOptions={condFieldOpts}
+                  row={localRow}
                 />
               </>
             )}
@@ -728,6 +729,7 @@ function SectionDetailPanel({
                   sectionSettlementBase={sectionSettlementBase}
                   enableConditionalFormula={adapter.enableConditionalFormula}
                   conditionFieldOptions={condFieldOpts}
+                  row={localRow}
                 />
               </>
             )}
@@ -751,6 +753,7 @@ function SectionDetailPanel({
                   sectionSettlementBase={sectionSettlementBase}
                   enableConditionalFormula={adapter.enableConditionalFormula}
                   conditionFieldOptions={condFieldOpts}
+                  row={localRow}
                 />
               </>
             )}
