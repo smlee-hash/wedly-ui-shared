@@ -437,7 +437,13 @@ function SectionDetailPanel({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKey]);
-  const condFieldOpts = useMemo(() => condFromDefs ?? basicFieldOptionsFromRow(localRow), [condFromDefs, localRow]);
+  const condFieldOpts = useMemo(() => {
+    const std = basicFieldOptionsFromRow(localRow); // 표준 기본정보 칸 {key,label}[]
+    if (!condFromDefs) return std; // 폴백(어댑터 미공급=하이브·일루아) → 기존과 동일
+    const customKeys = new Set(condFromDefs.map((o) => o.key));
+    const stdExtra = std.filter((o) => !customKeys.has(o.key));
+    return [...stdExtra, ...condFromDefs]; // 표준(겹치지 않는) + 커스텀(enrich)
+  }, [condFromDefs, localRow]);
 
   // 사업자번호 — 있으면 3앱 공용 보관함, 없으면 기존 행 저장(레거시) 사용.
   const bizno = useMemo(() => normalizeBizno(primaryRow["15사업자번호"]), [primaryRow]);
