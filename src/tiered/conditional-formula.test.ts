@@ -2,121 +2,134 @@
 import { describe, it, expect } from "vitest";
 import { resolveConditionalFormula, evalFormulaForTier, parseFormulaTerms, type FieldDef, type FormulaTerm } from "./index";
 
-const baseFormula: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "A" }];
-const hiveFormula: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "B" }];
-const widlyFormula: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "C" }];
+const base: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "A" }];
+const hive: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "B" }];
+const widly: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "C" }];
 
-const plainField: FieldDef = { key: "f", label: "f", type: "formula", formula: baseFormula };
-const condField: FieldDef = {
-  key: "f", label: "f", type: "formula", formula: baseFormula,
-  conditional: {
-    conditionFieldKey: "54DB분류",
-    rules: [
-      { whenValue: "하이브", formula: hiveFormula },
-      { whenValue: "위들리", formula: widlyFormula },
-    ],
-  },
-};
+// getValue 헬퍼: 키→값 맵
+const gv = (m: Record<string, unknown>) => (k: string) => m[k];
 
-describe("resolveConditionalFormula", () => {
-  it("conditional 없으면 기본 formula 반환", () => {
-    expect(resolveConditionalFormula(plainField, "하이브")).toBe(baseFormula);
+describe("resolveConditionalFormula — 새 모델(칸↔글자)", () => {
+  const f: FieldDef = {
+    key: "f", label: "f", type: "formula", formula: base,
+    conditional: { rules: [
+      { leftKey: "분류", right: { kind: "text", value: "하이브" }, formula: hive },
+      { leftKey: "분류", right: { kind: "text", value: "위들리" }, formula: widly },
+    ] },
+  };
+  it("conditional 없으면 기본 formula", () => {
+    const p: FieldDef = { key: "f", label: "f", type: "formula", formula: base };
+    expect(resolveConditionalFormula(p, gv({}))).toBe(base);
   });
-  it("값이 규칙과 일치하면 그 규칙의 식", () => {
-    expect(resolveConditionalFormula(condField, "하이브")).toBe(hiveFormula);
-    expect(resolveConditionalFormula(condField, "위들리")).toBe(widlyFormula);
+  it("기준 칸 값이 규칙 글자와 같으면 그 식", () => {
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "위들리" }))).toBe(widly);
   });
   it("매칭 없으면 기본 formula", () => {
-    expect(resolveConditionalFormula(condField, "서월")).toBe(baseFormula);
-    expect(resolveConditionalFormula(condField, undefined)).toBe(baseFormula);
-    expect(resolveConditionalFormula(condField, null)).toBe(baseFormula);
+    expect(resolveConditionalFormula(f, gv({ 분류: "서월" }))).toBe(base);
+    expect(resolveConditionalFormula(f, gv({}))).toBe(base);
   });
-  it("다중 선택(배열)이면 포함 매칭", () => {
-    expect(resolveConditionalFormula(condField, ["서월", "하이브"])).toBe(hiveFormula);
-  });
-  it("다중 선택(콤마 문자열)이면 포함 매칭", () => {
-    expect(resolveConditionalFormula(condField, "서월, 위들리")).toBe(widlyFormula);
-  });
-  it("rules 비정상(빈배열/누락)이면 기본 formula", () => {
-    const bad: FieldDef = { key: "f", label: "f", type: "formula", formula: baseFormula, conditional: { conditionFieldKey: "x", rules: [] } };
-    expect(resolveConditionalFormula(bad, "하이브")).toBe(baseFormula);
+  it("다중값(콤마/배열) 포함 매칭", () => {
+    expect(resolveConditionalFormula(f, gv({ 분류: "서월, 하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: ["서월", "위들리"] }))).toBe(widly);
   });
 });
 
-describe("evalFormulaForTier + conditionValues", () => {
-  // A=100. 기본식: A*0.1=10. 하이브식: A*0.2=20.
+describe("resolveConditionalFormula — 칸↔칸", () => {
+  const f: FieldDef = {
+    key: "f", label: "f", type: "formula", formula: base,
+    conditional: { rules: [
+      { leftKey: "확정수수료", right: { kind: "field", key: "예상수수료" }, formula: hive },
+    ] },
+  };
+  it("두 칸 값이 같으면 그 식", () => {
+    expect(resolveConditionalFormula(f, gv({ 확정수수료: 100, 예상수수료: 100 }))).toBe(hive);
+  });
+  it("두 칸 값이 다르면 기본식", () => {
+    expect(resolveConditionalFormula(f, gv({ 확정수수료: 100, 예상수수료: 200 }))).toBe(base);
+  });
+  it("오른쪽 칸 값이 비면 매칭 안 함 → 기본식", () => {
+    expect(resolveConditionalFormula(f, gv({ 확정수수료: 100 }))).toBe(base);
+  });
+});
+
+describe("resolveConditionalFormula — 옛 형식 앞호환", () => {
+  it("conditionFieldKey + whenValue 형식도 흡수", () => {
+    const old: FieldDef = {
+      key: "f", label: "f", type: "formula", formula: base,
+      conditional: { conditionFieldKey: "분류", rules: [{ whenValue: "하이브", formula: hive }] },
+    };
+    expect(resolveConditionalFormula(old, gv({ 분류: "하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(old, gv({ 분류: "서월" }))).toBe(base);
+  });
+  it("빈 비교값은 매칭 안 함", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base, conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "" }, formula: hive }] } };
+    expect(resolveConditionalFormula(f, gv({ 분류: "" }))).toBe(base);
+  });
+  it("규칙 formula 누락(비정상)이면 건너뜀", () => {
+    const f = { key: "f", label: "f", type: "formula", formula: base, conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "하이브" } }] } } as unknown as FieldDef;
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브" }))).toBe(base);
+  });
+});
+
+describe("evalFormulaForTier + 조건(칸↔글자, 칸↔칸)", () => {
+  // A=100. 기본식 A*0.1=10, 하이브식 A*0.2=20.
   const fields: FieldDef[] = [
     { key: "A", label: "A", type: "number" },
+    { key: "예상", label: "예상", type: "number" },
+    { key: "확정", label: "확정", type: "number" },
     {
       key: "fee", label: "fee", type: "formula",
       formula: [{ op: "+", unit: "column", columnKey: "A" }, { op: "*", unit: "percent", value: 10 }],
-      conditional: {
-        conditionFieldKey: "54DB분류",
-        rules: [{ whenValue: "하이브", formula: [{ op: "+", unit: "column", columnKey: "A" }, { op: "*", unit: "percent", value: 20 }] }],
-      },
+      conditional: { rules: [
+        { leftKey: "분류", right: { kind: "text", value: "하이브" }, formula: [{ op: "+", unit: "column", columnKey: "A" }, { op: "*", unit: "percent", value: 20 }] },
+        { leftKey: "확정", right: { kind: "field", key: "예상" }, formula: [{ op: "+", unit: "column", columnKey: "A" }, { op: "*", unit: "percent", value: 50 }] },
+      ] },
     },
   ];
-  const tier = { A: 100 };
-  const feeField = fields[1];
-
-  it("conditionValues 없으면 기본식(앞호환): 100*0.1=10", () => {
-    expect(evalFormulaForTier(feeField, tier, fields)).toBe(10);
+  const feeField = fields[3];
+  it("조건 없으면 기본식 100*0.1=10", () => {
+    expect(evalFormulaForTier(feeField, { A: 100 }, fields)).toBe(10);
   });
-  it("기준값=하이브면 조건식: 100*0.2=20", () => {
-    expect(evalFormulaForTier(feeField, tier, fields, new Set(), { "54DB분류": "하이브" })).toBe(20);
+  it("기본정보 기준값=하이브면 100*0.2=20", () => {
+    expect(evalFormulaForTier(feeField, { A: 100 }, fields, new Set(), { 분류: "하이브" })).toBe(20);
   });
-  it("기준값 매칭 안 되면 기본식: 100*0.1=10", () => {
-    expect(evalFormulaForTier(feeField, tier, fields, new Set(), { "54DB분류": "서월" })).toBe(10);
+  it("정산 칸끼리 확정==예상이면 100*0.5=50", () => {
+    expect(evalFormulaForTier(feeField, { A: 100, 확정: 300, 예상: 300 }, fields, new Set(), {})).toBe(50);
   });
-});
-
-describe("resolveConditionalFormula — 보강", () => {
-  const base: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "A" }];
-  const hive: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "B" }];
-  it("whenValue 앞뒤 공백 무시하고 매칭", () => {
-    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base, conditional: { conditionFieldKey: "x", rules: [{ whenValue: " 하이브 ", formula: hive }] } };
-    expect(resolveConditionalFormula(f, "하이브")).toBe(hive);
-  });
-  it("빈 whenValue 는 매칭 안 함 → 기본식", () => {
-    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base, conditional: { conditionFieldKey: "x", rules: [{ whenValue: "", formula: hive }] } };
-    expect(resolveConditionalFormula(f, "")).toBe(base);
-  });
-  it("규칙에 formula 누락(비정상)이면 건너뛰고 기본식", () => {
-    const f = { key: "f", label: "f", type: "formula", formula: base, conditional: { conditionFieldKey: "x", rules: [{ whenValue: "하이브" } as unknown as { whenValue: string; formula: FormulaTerm[] }] } } as FieldDef;
-    expect(resolveConditionalFormula(f, "하이브")).toBe(base);
-  });
-  it("매칭된 규칙의 식이 빈 배열이면 resolve 는 [] 반환", () => {
-    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base, conditional: { conditionFieldKey: "x", rules: [{ whenValue: "하이브", formula: [] }] } };
-    expect(resolveConditionalFormula(f, "하이브")).toEqual([]);
+  it("정산 칸 확정!=예상이면 기본식 10", () => {
+    expect(evalFormulaForTier(feeField, { A: 100, 확정: 300, 예상: 999 }, fields, new Set(), {})).toBe(10);
   });
 });
 
-describe("evalFormulaForTier — 조건별 재귀/순환", () => {
-  it("조건식이 다른 조건식 칸을 참조해도 conditionValues 전파", () => {
-    const fields: FieldDef[] = [
-      { key: "A", label: "A", type: "number" },
-      { key: "B", label: "B", type: "number" },
-      { key: "inner", label: "inner", type: "formula",
-        formula: [{ op: "+", unit: "column", columnKey: "A" }],
-        conditional: { conditionFieldKey: "54DB분류", rules: [{ whenValue: "하이브", formula: [{ op: "+", unit: "column", columnKey: "B" }] }] } },
-      { key: "outer", label: "outer", type: "formula", formula: [{ op: "+", unit: "column", columnKey: "inner" }] },
-    ];
-    const tier = { A: 100, B: 200 };
-    const outer = fields[3];
-    expect(evalFormulaForTier(outer, tier, fields)).toBe(100);
-    expect(evalFormulaForTier(outer, tier, fields, new Set(), { "54DB분류": "하이브" })).toBe(200);
-  });
+describe("evalFormulaForTier — 조건 자기참조 순환 차단", () => {
   it("조건 분기가 자기 자신을 참조해도 순환 차단(null)", () => {
     const fields: FieldDef[] = [
       { key: "self", label: "self", type: "formula",
         formula: [{ op: "+", unit: "number", value: 1 }],
-        conditional: { conditionFieldKey: "x", rules: [{ whenValue: "loop", formula: [{ op: "+", unit: "column", columnKey: "self" }] }] } },
+        conditional: { rules: [{ leftKey: "x", right: { kind: "text", value: "loop" }, formula: [{ op: "+", unit: "column", columnKey: "self" }] }] } },
     ];
     expect(evalFormulaForTier(fields[0], {}, fields, new Set(), { x: "loop" })).toBe(null);
   });
-  it("매칭된 규칙의 식이 빈 배열이면 계산값 null", () => {
-    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: [{ op: "+", unit: "number", value: 5 }], conditional: { conditionFieldKey: "x", rules: [{ whenValue: "하이브", formula: [] }] } };
-    expect(evalFormulaForTier(f, {}, [f], new Set(), { x: "하이브" })).toBe(null);
+  it("두 수식칸이 서로 조건분기로 맞물려도 무한재귀 없이 차단(null)", () => {
+    const fields: FieldDef[] = [
+      { key: "a", label: "a", type: "formula",
+        formula: [{ op: "+", unit: "column", columnKey: "b" }],
+        conditional: { rules: [{ leftKey: "x", right: { kind: "text", value: "loop" }, formula: [{ op: "+", unit: "column", columnKey: "b" }] }] } },
+      { key: "b", label: "b", type: "formula",
+        formula: [{ op: "+", unit: "column", columnKey: "a" }],
+        conditional: { rules: [{ leftKey: "x", right: { kind: "text", value: "loop" }, formula: [{ op: "+", unit: "column", columnKey: "a" }] }] } },
+    ];
+    expect(evalFormulaForTier(fields[0], {}, fields, new Set(), { x: "loop" })).toBe(null);
+  });
+  it("조건의 기준칸(leftKey)이 자기 자신(수식칸)이어도 무한재귀 없이 안전", () => {
+    const fields: FieldDef[] = [
+      { key: "self", label: "self", type: "formula",
+        formula: [{ op: "+", unit: "number", value: 7 }],
+        conditional: { rules: [{ leftKey: "self", right: { kind: "text", value: "7" }, formula: [{ op: "+", unit: "number", value: 99 }] }] } },
+    ];
+    // leftKey=self → getCondValue(self)는 순환차단으로 null → 매칭 안 함 → 기본식 7
+    expect(evalFormulaForTier(fields[0], {}, fields, new Set(), {})).toBe(7);
   });
 });
 
@@ -199,5 +212,62 @@ describe("evalFormulaForTier — 묶음(group) 우선 계산", () => {
       ] },
     ];
     expect(evalFormulaForTier(f[1], { A: 100 }, f)).toBe(300); // (100+50)*2
+  });
+});
+
+describe("resolveConditionalFormula — 비교 연산자(op)", () => {
+  const mk = (op: "eq" | "neq" | "contains" | "notContains"): FieldDef => ({
+    key: "f", label: "f", type: "formula", formula: base,
+    conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "하이브" }, op, formula: hive }] },
+  });
+  it("op 미지정이면 eq(같음)로 동작 — 앞호환", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base,
+      conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "하이브" }, formula: hive }] } };
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브정밀" }))).toBe(base);
+  });
+  it("eq: 정확히 같을 때만", () => {
+    expect(resolveConditionalFormula(mk("eq"), gv({ 분류: "하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("eq"), gv({ 분류: "하이브정밀" }))).toBe(base);
+  });
+  it("neq: 다르면 일치, 같으면 기본식", () => {
+    expect(resolveConditionalFormula(mk("neq"), gv({ 분류: "위들리" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("neq"), gv({ 분류: "하이브" }))).toBe(base);
+  });
+  it("contains: 부분 글자 포함(다중값 포함)", () => {
+    expect(resolveConditionalFormula(mk("contains"), gv({ 분류: "하이브정밀" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("contains"), gv({ 분류: "서월, 하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("contains"), gv({ 분류: "위들리" }))).toBe(base);
+  });
+  it("notContains: 포함 안 하면 일치", () => {
+    expect(resolveConditionalFormula(mk("notContains"), gv({ 분류: "위들리" }))).toBe(hive);
+    expect(resolveConditionalFormula(mk("notContains"), gv({ 분류: "하이브정밀" }))).toBe(base);
+  });
+  it("빈 기준 칸은 어떤 op 도 매칭 안 함 → 기본식", () => {
+    expect(resolveConditionalFormula(mk("neq"), gv({}))).toBe(base);
+    expect(resolveConditionalFormula(mk("notContains"), gv({}))).toBe(base);
+    expect(resolveConditionalFormula(mk("eq"), gv({}))).toBe(base);
+  });
+});
+
+describe("resolveConditionalFormula — 연산자 엣지(가드·다중값 일관성)", () => {
+  it("공백만 있는 값은 어떤 op 도 매칭 안 함(가드) — 전체 행 오매칭 방지", () => {
+    const wsRight = (op: "eq" | "contains" | "notContains") => ({
+      key: "f", label: "f", type: "formula" as const, formula: base,
+      conditional: { rules: [{ leftKey: "분류", right: { kind: "text" as const, value: "   " }, op, formula: hive }] },
+    });
+    expect(resolveConditionalFormula(wsRight("contains"), gv({ 분류: "하이브" }))).toBe(base);
+    expect(resolveConditionalFormula(wsRight("eq"), gv({ 분류: "하이브" }))).toBe(base);
+    // 기준 칸이 공백뿐 → 미매칭 → 기본식
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base,
+      conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "하이브" }, op: "notContains", formula: hive }] } };
+    expect(resolveConditionalFormula(f, gv({ 분류: "   " }))).toBe(base);
+  });
+  it("contains: 비교값이 콤마 다중값이면 토큰 중 하나라도 부분 포함하면 일치(같음과 의미축 통일)", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base,
+      conditional: { rules: [{ leftKey: "분류", right: { kind: "text", value: "서월, 하이브" }, op: "contains", formula: hive }] } };
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브정밀" }))).toBe(hive); // "하이브" 토큰 부분 포함
+    expect(resolveConditionalFormula(f, gv({ 분류: "서월기업" }))).toBe(hive);   // "서월" 토큰 부분 포함
+    expect(resolveConditionalFormula(f, gv({ 분류: "위들리" }))).toBe(base);      // 둘 다 미포함
   });
 });
