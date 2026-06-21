@@ -415,8 +415,29 @@ function SectionDetailPanel({
     localRowRef.current = localRow;
   }, [localRow]);
   const nk = useCallback((k: string) => `uc:${sectionKey}:${k}`, [sectionKey]);
-  // 조건별 수식 비교용 기본정보 칸 후보 (ERP만 게이트 ON일 때 의미 있음). 래퍼 경로와 동일한 헬퍼 사용.
-  const condFieldOpts = useMemo(() => basicFieldOptionsFromRow(localRow), [localRow]);
+  // 조건별 수식 비교용 기본정보 칸 후보 (ERP만 게이트 ON일 때 의미 있음).
+  // 어댑터가 칸 "정의"(표준+커스텀, 색 enrich) 기반 공급기를 주면 우선 사용,
+  // 미공급(하이브·일루아)이면 행 기반 헬퍼로 폴백 — 기존 동작 100% 보존.
+  const [condFromDefs, setCondFromDefs] = useState<Array<{ key: string; label: string; options?: Array<{ value: string; badgeClass?: string }> }> | null>(null);
+  useEffect(() => {
+    const fn = adapter.conditionFieldOptionsFor;
+    const load = adapter.api.loadBasicFieldDefs;
+    if (!adapter.enableConditionalFormula || !fn || !load) {
+      setCondFromDefs(null);
+      return;
+    }
+    let alive = true;
+    Promise.resolve(load(sectionKey))
+      .then((defs) => {
+        if (alive) setCondFromDefs(fn(defs));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionKey]);
+  const condFieldOpts = useMemo(() => condFromDefs ?? basicFieldOptionsFromRow(localRow), [condFromDefs, localRow]);
 
   // 사업자번호 — 있으면 3앱 공용 보관함, 없으면 기존 행 저장(레거시) 사용.
   const bizno = useMemo(() => normalizeBizno(primaryRow["15사업자번호"]), [primaryRow]);
