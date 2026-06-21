@@ -37,7 +37,8 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
 
 const NO_VALUE_OPS: FilterOperator[] = ["is_empty", "is_not_empty"];
 
-/** 항목 종류에 맞는 연산 후보(공용 6가지 안에서만). */
+/** 항목 종류에 맞는 연산 후보. '다중 선택(포함/제외)'은 select·status·multi_select 에서만 제공
+ *  (날짜·숫자·자유 텍스트엔 의미가 약해 의도적으로 뺌). 단 matchesFilter 는 어느 항목이든 not_in 을 처리한다. */
 function operatorsForType(type: string | undefined): OperatorChoice[] {
   const mk = (vals: FilterOperator[]): OperatorChoice[] =>
     vals.map((v) => ({ value: v, label: OPERATOR_LABELS[v] }));

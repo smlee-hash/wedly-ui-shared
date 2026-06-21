@@ -161,4 +161,13 @@ describe("not_in — 다중 선택(제외): 고른 값만 빼고 전부 표시",
     const tab: ViewTab = { id: "x", label: "취하 제외", filters: [{ field: "status", operator: "not_in", value: ["계약취하"] }] };
     expect(filterRowsByTab(rows, tab).map((r) => r._id)).toEqual(["1", "2"]);
   });
+  it("다중값 행: 모든 값이 제외 대상이면 숨김", () => {
+    expect(matchesFilter({ s: "가망, 계약대기" } as RowData, { field: "s", operator: "not_in", value: ["가망", "계약대기"] })).toBe(false);
+  });
+  it("값이 undefined 면 전부 통과(제외 대상 없음)", () => {
+    expect(matchesFilter({ status: "계약완료" } as RowData, { field: "status", operator: "not_in", value: undefined })).toBe(true);
+  });
+  it("빈 행 + 빈 제외목록 → 표시", () => {
+    expect(matchesFilter({ status: "" } as RowData, { field: "status", operator: "not_in", value: [] })).toBe(true);
+  });
 });
