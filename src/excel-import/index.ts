@@ -9,6 +9,7 @@ export type TargetField = {
   type?: TargetFieldType;     // 없으면 text 취급
   options?: string[];         // select/person일 때 선택지
   fixedDisabled?: boolean;    // 고정값 대상에서 제외(읽기전용·자동 칸)
+  group?: string;             // 드롭다운 묶음 머리글(없으면 단일 목록)
 };
 export type ColumnMapping = Record<string, string>; // 원본 헤더 -> 대상 항목 key('' = 사용 안 함)
 export type FixedValues = Record<string, string>; // 앱 칸 key -> 고정 문자열 값

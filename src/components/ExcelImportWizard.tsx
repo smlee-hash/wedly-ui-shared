@@ -59,6 +59,24 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
     return [...mapped, ...fixed].filter((f) => (seen.has(f.key) ? false : (seen.add(f.key), true)));
   }, [mapping, fixedValues, targetFields, fixedFields]);
 
+  // group이 지정된 칸은 묶음 머리글(optgroup)로, 없으면 단일 목록(앞호환).
+  function renderFieldOptions(fields: TargetField[]) {
+    const hasGroup = fields.some((f) => f.group);
+    const opt = (f: TargetField) => (
+      <option key={f.key} value={f.key}>
+        {f.label}{f.required ? " (필수)" : ""}{f.role === "dedupKey" ? " · 중복 기준" : ""}
+      </option>
+    );
+    if (!hasGroup) return fields.map(opt);
+    const groups: string[] = [];
+    for (const f of fields) { const g = f.group || "기타"; if (!groups.includes(g)) groups.push(g); }
+    return groups.map((g) => (
+      <optgroup key={g} label={g}>
+        {fields.filter((f) => (f.group || "기타") === g).map(opt)}
+      </optgroup>
+    ));
+  }
+
   async function handleFile(f: File) {
     setFile(f);
     try {
@@ -169,11 +187,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
                         onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })}
                       >
                         <option value="">선택…</option>
-                        {mappingOptions.map((f) => (
-                          <option key={f.key} value={f.key}>
-                            {f.label}{f.required ? " (필수)" : ""}{f.role === "dedupKey" ? " · 중복 기준" : ""}
-                          </option>
-                        ))}
+                        {renderFieldOptions(mappingOptions)}
                       </select>
                     </div>
                   );
@@ -219,7 +233,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
                       onChange={(e) => { if (e.target.value) setFixedValues({ ...fixedValues, [e.target.value]: "" }); }}
                     >
                       <option value="">+ 고정값 추가할 칸 선택…</option>
-                      {addable.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      {renderFieldOptions(addable)}
                     </select>
                   );
                 })()}
@@ -274,14 +288,16 @@ function FixedValueInput({ field, value, onChange }: { field: TargetField; value
 }
 
 function PreviewTable({ fields, rows }: { fields: TargetField[]; rows: Record<string, unknown>[] }) {
-  const cols = fields.slice(0, 4);
+  const cols = fields; // 고른 칸 전부 — 많으면 가로 스크롤
   return (
     <div className="overflow-hidden rounded-xl border border-wedly-bd/60">
       <div className="bg-wedly-bg-gray px-3 py-2 text-xs font-medium text-wedly-t2">바뀐 항목으로 미리보기</div>
-      <table className="w-full table-fixed text-xs">
-        <thead><tr>{cols.map((c) => <th key={c.key} className="truncate border-b border-wedly-bd/60 px-2 py-1.5 text-left font-medium text-wedly-accent">{c.label}</th>)}</tr></thead>
-        <tbody>{rows.map((r, i) => <tr key={i}>{cols.map((c) => <td key={c.key} className="truncate border-b border-wedly-bd/60 px-2 py-1.5 text-wedly-t2">{String(r[c.key] ?? "")}</td>)}</tr>)}</tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="text-xs" style={{ minWidth: "max-content" }}>
+          <thead><tr>{cols.map((c) => <th key={c.key} className="whitespace-nowrap border-b border-wedly-bd/60 px-2 py-1.5 text-left font-medium text-wedly-accent">{c.label}</th>)}</tr></thead>
+          <tbody>{rows.map((r, i) => <tr key={i}>{cols.map((c) => <td key={c.key} className="whitespace-nowrap border-b border-wedly-bd/60 px-2 py-1.5 text-wedly-t2">{String(r[c.key] ?? "")}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
     </div>
   );
 }
