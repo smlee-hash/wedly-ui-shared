@@ -12,6 +12,7 @@ export function CommonFieldsLauncher({
   reservedLabels,
   loadDefs,
   saveDefs,
+  canManageCommon = false,
   onChanged,
 }: {
   appSpecificLabels?: string[];
@@ -20,6 +21,8 @@ export function CommonFieldsLauncher({
   reservedLabels?: string[];
   loadDefs?: () => Promise<BasicColDef[]>;
   saveDefs?: (fields: BasicColDef[]) => Promise<{ ok: boolean; error?: string }>;
+  // 공통 칸 제어 권한 — ERP 상세창만 true(adapter.appName==="ERP"). 파트너 앱은 false → 공통 칸 읽기 전용.
+  canManageCommon?: boolean;
   onChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -62,6 +65,7 @@ export function CommonFieldsLauncher({
               reservedLabels={reservedLabels}
               loadDefs={loadDefs}
               saveDefs={saveDefs}
+              canManageCommon={canManageCommon}
               onChanged={onChanged}
             />
           </div>

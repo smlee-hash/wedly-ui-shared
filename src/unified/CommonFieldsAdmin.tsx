@@ -51,14 +51,21 @@ function EyeIcon({ off }: { off?: boolean }) {
   );
 }
 
-function ManagedRow({ item, busy, onMove, onToggleHidden, onDelete }: {
+function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onDelete }: {
   item: ManagedItem;
   busy: boolean;
+  canManageCommon: boolean;
   onMove: (makeCommon: boolean) => void;
   onToggleHidden: (makeHidden: boolean) => void;
   onDelete?: () => void;
 }) {
   const common = item.isCommon;
+  // 공통 칸 제어(공통↔커스텀 이동·노출 숨김·삭제)는 본부(ERP)에서만. 파트너 앱(하이브·일루아)에서는
+  // 공통 칸을 읽기 전용으로 둔다(canManageCommon=false). 앱 전용(커스텀) 칸은 그 앱이 계속 조절한다.
+  const showMove = canManageCommon;                                   // 이동 = 공통 설정 변경 → ERP만
+  const showEye = canManageCommon || !common;                        // 공통 칸 노출은 ERP만 / 앱 전용 칸은 그 앱이
+  const showDelete = !!item.def && !!onDelete && (canManageCommon || !common);
+  const readOnlyCommon = common && !canManageCommon;                 // 파트너 앱의 공통 칸 = 버튼 없이 표시만
   return (
     <div className="flex items-center gap-2 rounded-xl border border-wedly-bd/60 px-3 py-2.5">
       <div className="min-w-0 flex-1">
@@ -68,28 +75,32 @@ function ManagedRow({ item, busy, onMove, onToggleHidden, onDelete }: {
         </div>
         {item.typeText && <div className="text-[11px] text-wedly-muted">{item.typeText}</div>}
       </div>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => onMove(!common)}
-        className={`flex-shrink-0 inline-flex items-center gap-1 rounded-md border border-wedly-bd px-2 py-1 text-[11px] hover:bg-wedly-bg-gray transition-colors disabled:opacity-50 ${common ? "text-wedly-muted" : "text-wedly-accent"}`}
-        title={common ? "커스텀으로 옮기기 — 이 앱에서만 보이게" : "공통으로 옮기기 — 3개 앱이 값을 함께 쓰게"}
-      >
-        <span aria-hidden>{common ? "↓" : "↑"}</span>
-        {common ? "커스텀으로" : "공통으로"}
-      </button>
-      <button
-        type="button"
-        disabled={item.hideLocked || busy}
-        onClick={() => onToggleHidden(!item.hidden)}
-        className={`flex-shrink-0 rounded-md p-1 hover:bg-wedly-bg-gray transition-colors disabled:opacity-30 ${item.hidden ? "text-wedly-red" : "text-wedly-muted"}`}
-        title={item.hideLocked ? "이 칸은 숨길 수 없습니다" : item.hidden ? "이 앱에서 숨김 (눌러서 다시 보임)" : "이 앱에서 숨기기"}
-        aria-label="이 앱에서 숨김"
-        aria-pressed={item.hidden}
-      >
-        <EyeIcon off={item.hidden} />
-      </button>
-      {item.def && onDelete && (
+      {showMove && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onMove(!common)}
+          className={`flex-shrink-0 inline-flex items-center gap-1 rounded-md border border-wedly-bd px-2 py-1 text-[11px] hover:bg-wedly-bg-gray transition-colors disabled:opacity-50 ${common ? "text-wedly-muted" : "text-wedly-accent"}`}
+          title={common ? "커스텀으로 옮기기 — 이 앱에서만 보이게" : "공통으로 옮기기 — 3개 앱이 값을 함께 쓰게"}
+        >
+          <span aria-hidden>{common ? "↓" : "↑"}</span>
+          {common ? "커스텀으로" : "공통으로"}
+        </button>
+      )}
+      {showEye && (
+        <button
+          type="button"
+          disabled={item.hideLocked || busy}
+          onClick={() => onToggleHidden(!item.hidden)}
+          className={`flex-shrink-0 rounded-md p-1 hover:bg-wedly-bg-gray transition-colors disabled:opacity-30 ${item.hidden ? "text-wedly-red" : "text-wedly-muted"}`}
+          title={item.hideLocked ? "이 칸은 숨길 수 없습니다" : item.hidden ? "이 앱에서 숨김 (눌러서 다시 보임)" : "이 앱에서 숨기기"}
+          aria-label="이 앱에서 숨김"
+          aria-pressed={item.hidden}
+        >
+          <EyeIcon off={item.hidden} />
+        </button>
+      )}
+      {showDelete && (
         <button
           type="button"
           disabled={busy}
@@ -98,6 +109,9 @@ function ManagedRow({ item, busy, onMove, onToggleHidden, onDelete }: {
         >
           삭제
         </button>
+      )}
+      {readOnlyCommon && (
+        <span className="flex-shrink-0 text-[11px] text-wedly-muted" title="공통 칸은 ERP에서만 관리됩니다">ERP에서 관리</span>
       )}
     </div>
   );
@@ -109,6 +123,7 @@ export function CommonFieldsAdmin({
   reservedLabels = [],
   loadDefs,
   saveDefs,
+  canManageCommon = false,
   onChanged,
 }: {
   appSpecificLabels?: string[];
@@ -117,6 +132,9 @@ export function CommonFieldsAdmin({
   reservedLabels?: string[];
   loadDefs?: () => Promise<BasicColDef[]>;
   saveDefs?: (fields: BasicColDef[]) => Promise<{ ok: boolean; error?: string }>;
+  // 공통 칸 제어 권한 — 본부(ERP)만 true. 파트너 앱(하이브·일루아)은 false(기본) → 공통 칸 읽기 전용.
+  // 신호: 호출부가 명시(ERP 상세창=adapter.appName==="ERP", ERP 관리자 페이지=명시 true). 미지정 시 안전하게 false.
+  canManageCommon?: boolean;
   onChanged?: () => void;
 }) {
   const canManageDefs = !!(loadDefs && saveDefs);
@@ -280,6 +298,7 @@ export function CommonFieldsAdmin({
             key={norm(it.label)}
             item={it}
             busy={busy}
+            canManageCommon={canManageCommon}
             onMove={(mk) => move(it, mk)}
             onToggleHidden={(mk) => toggleHidden(it, mk)}
             onDelete={it.def ? () => handleDelete(it) : undefined}
