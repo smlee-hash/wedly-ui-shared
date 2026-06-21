@@ -10,6 +10,12 @@
 import type { ColumnDef } from "../../types/columns";
 import { COMMON_BASIC_FIELD_SPECS } from "../../unified/sections";
 
+// 공통 기본칸 라벨(공백·대소문자 무시) 집합 — buildBasicSection 에서 "이 앱에 후보키가 없어도 빈칸으로
+// 보일 공통칸"을 판정한다(값·정의칸 없어도 등록·상세 모두 동일 등장 → 등록=상세). 일루아 갈래와 동일.
+const COMMON_SPEC_LABELS = new Set(
+  COMMON_BASIC_FIELD_SPECS.map((s) => (s.label || "").replace(/\s+/g, "").toLowerCase()),
+);
+
 export type SectionDef = {
   id: string;
   label: string;
@@ -229,8 +235,13 @@ export function buildBasicSection(
     }
     let key = candidates.find(hasVal);
     if (!key) key = candidates.find((k) => colByKey.has(k) || rowKeys.has(k));
-    // 신규 등록 폼: 컬럼/데이터에 후보키가 아직 없어도 사양 기본키로 칸을 띄운다(빈 칸 입력 가능하게).
-    if (!key && includeAllSpecs) key = spec.keys[0];
+    // 공통 기본칸은 이 앱에 후보키가 없어도(값·정의칸 없어도) 사양 기본키로 빈칸을 띄운다.
+    // → 공통칸이 등록(빈 행)·상세(값 있는 행) 모두 동일 등장(등록=상세). 노출은 표시설정이 결정.
+    // includeAllSpecs(이 앱 등록 폼 등 호출부 지정)면 앱 전용칸도 함께. 파일칸(리포트)은 따로 합성하므로 제외.
+    if (!key && spec.type !== "file" && spec.keys.length
+        && (COMMON_SPEC_LABELS.has(norm(spec.label)) || includeAllSpecs)) {
+      key = spec.keys[0];
+    }
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const def = colByKey.get(key);

@@ -1068,14 +1068,17 @@ function BasicInfoPanel({
     [keyToFieldId, commonOverride],
   );
   const visibleBasicFields = useMemo(
-    () => allBasicFields.filter(
-      (f) => !basicHiddenColumns.includes(f.key)
-        && !deletedColumns.includes(f.key)
-        && !isBasicColumnHidden(f.label, hiddenBasicCols),
-        // ★기본정보 노출은 "공통·앱별 칸 설정"(공통 + 이 앱만 숨김)만 기준 — 표 "컬럼 표시 설정"은 기본정보에
-        //   영향 주지 않는다. (공통으로 켠 칸은 표 토글과 무관하게 무조건 노출. 사장님 결정 2026-06-19, NO.56 정정.)
-    ),
-    [allBasicFields, basicHiddenColumns, deletedColumns, hiddenBasicCols],
+    () => allBasicFields.filter((f) => {
+      // 표시 설정(공통·앱별 칸 설정, 라벨 기준)에서 숨긴 칸은 공통·앱별 모두 제외.
+      if (isBasicColumnHidden(f.label, hiddenBasicCols)) return false;
+      // 공통 칸: 표시 설정만으로 노출 결정 — 키 기반 '이 앱만 숨김'(basicHidden/deleted)은 무시.
+      //  같은 공통칸이 빈행(등록)·값있는행(상세)에서 서로 다른 키로 잡혀 한쪽만 사라지던 불일치 차단 → 등록=상세.
+      //  (공통 칸 표시설정은 ERP 전용·3앱 공유 — NO.56. 표 '컬럼 표시 설정'은 기본정보 미영향 — 사장님 2026-06-19.)
+      if (isCommonBasicLabel(f.label, commonOverride)) return true;
+      // 앱 전용 칸: 기존대로 키 기반 '이 앱만 숨김'도 적용.
+      return !basicHiddenColumns.includes(f.key) && !deletedColumns.includes(f.key);
+    }),
+    [allBasicFields, basicHiddenColumns, deletedColumns, hiddenBasicCols, commonOverride],
   );
   // 표에서 기본정보로 끌어온 칸(조회 담당자·진행상태 등 basicAddedColumns)의 라벨 —
   // '공통 컬럼 관리' 창에도 보여 공통/숨김 토글로 관리할 수 있게 한다(NO.73). 앱 전용칸·중복은 제외.
