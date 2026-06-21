@@ -6,6 +6,7 @@ import type { RowData } from "./collab-table-core";
 export type FilterOperator =
   | "equals"
   | "in"
+  | "not_in"
   | "is_empty"
   | "is_not_empty"
   | "contains"
@@ -55,6 +56,16 @@ export function matchesFilter(row: RowData, filter: FilterCondition): boolean {
       // 빈 값(미입력) 항목은 목록에 '(미입력)' 이 포함됐을 때만 매칭.
       if (isEmpty) return fv.includes(EMPTY_OPTION_VALUE);
       return fv.includes(strVal) || (parts ? parts.some((p) => fv.includes(p)) : false);
+    }
+    case "not_in": {
+      // 다중 선택(제외): 고른 값들만 빼고 나머지 전부 표시 — "in" 의 정확한 반대.
+      const fv = filter.value;
+      if (!Array.isArray(fv) || fv.length === 0) return true; // 아무것도 안 빼면 전부 통과
+      // 빈 값(미입력)은 '(미입력)' 을 제외 목록에 넣었을 때만 숨긴다.
+      if (isEmpty) return !fv.includes(EMPTY_OPTION_VALUE);
+      // 다중값(여러 개 고른 행)은 그중 하나라도 제외 대상이면 숨긴다.
+      if (parts) return !parts.some((p) => fv.includes(p));
+      return !fv.includes(strVal);
     }
     case "is_empty":
       return isEmpty;
