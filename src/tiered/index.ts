@@ -25,6 +25,8 @@ export interface FieldDef {
   //   formulaResult: 계산 결과 표시 형식 (number=원, percent=%). 기본 number.
   formula?: FormulaTerm[];
   formulaResult?: FormulaResultFormat;
+  // ── type === "formula" && formulaResult === "date" 일 때만: 날짜 계산 정의 ──
+  dateFormula?: import("./date-formula").DateFormulaSpec;
   // ── type === "formula" 조건별 식 (선택적) ──
   //   rules: 위→아래 우선. 먼저 맞는 규칙의 식 사용, 아무 것도 안 맞으면 formula(그 외/기본).
   //   각 규칙: leftKey 칸 값이, right(직접 입력 글자 / 다른 칸 값)와 "같으면" 적용.
@@ -83,7 +85,7 @@ export interface CustomFormulaItem {
 // 스코어카드의 직접 수식(CustomFormulaItem)과 같은 op/unit 체계를 재사용해 일관성 유지.
 //   예) [{unit:"column",columnKey:"예상국세환급액"}, {op:"*",unit:"column",columnKey:"국세환급액수수료율"}]
 //       → 예상국세환급액 × 국세환급액수수료율(%)  (퍼센트 컬럼은 자동으로 0~1 비율로 환산)
-export type FormulaResultFormat = "number" | "percent";
+export type FormulaResultFormat = "number" | "percent" | "date";
 // 묶음(괄호) 단위 추가 — group 이면 terms 안의 식을 먼저(괄호처럼) 계산. (한 겹만)
 export type FormulaTermUnit = CustomFormulaUnit | "group";
 export interface FormulaTerm {
@@ -414,3 +416,21 @@ export function formatFormulaResult(value: number | null, resultFormat?: Formula
   }
   return `${Math.round(value).toLocaleString("ko-KR")}원`;
 }
+
+// ── 날짜 수식 (결과 형식 "date") ──
+export {
+  parseDateFormula,
+  evalDateFormulaForTier,
+  parseISODate,
+  toISO,
+  addDays,
+  addMonths,
+  mondayOf,
+} from "./date-formula";
+export type {
+  DateFormulaSpec,
+  DateOffset,
+  DateOffsetUnit,
+  Weekday,
+  YMD,
+} from "./date-formula";
