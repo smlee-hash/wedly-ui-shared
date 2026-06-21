@@ -28,6 +28,7 @@ type OperatorChoice = { value: FilterOperator; label: string };
 const OPERATOR_LABELS: Record<FilterOperator, string> = {
   equals: "같음",
   in: "다중 선택(포함)",
+  not_in: "다중 선택(제외)",
   contains: "텍스트 포함",
   is_empty: "비어 있음",
   is_not_empty: "값 있음",
@@ -36,16 +37,17 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
 
 const NO_VALUE_OPS: FilterOperator[] = ["is_empty", "is_not_empty"];
 
-/** 항목 종류에 맞는 연산 후보(공용 6가지 안에서만). */
+/** 항목 종류에 맞는 연산 후보. '다중 선택(포함/제외)'은 select·status·multi_select 에서만 제공
+ *  (날짜·숫자·자유 텍스트엔 의미가 약해 의도적으로 뺌). 단 matchesFilter 는 어느 항목이든 not_in 을 처리한다. */
 function operatorsForType(type: string | undefined): OperatorChoice[] {
   const mk = (vals: FilterOperator[]): OperatorChoice[] =>
     vals.map((v) => ({ value: v, label: OPERATOR_LABELS[v] }));
   switch (type) {
     case "select":
     case "status":
-      return mk(["equals", "in", "is_empty", "is_not_empty"]);
+      return mk(["equals", "in", "not_in", "is_empty", "is_not_empty"]);
     case "multi_select":
-      return mk(["in", "equals", "contains", "is_empty", "is_not_empty"]);
+      return mk(["in", "not_in", "equals", "contains", "is_empty", "is_not_empty"]);
     case "date":
     case "last_edited_time":
       return mk(["is_empty", "is_not_empty", "on_or_before", "equals"]);
@@ -185,7 +187,8 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
             const ops = operatorsForType(fieldDef?.type);
             const options = fieldDef ? getFieldOptions(fieldDef.key) : [];
             const needsValue = !NO_VALUE_OPS.includes(filter.operator);
-            const isMulti = filter.operator === "in" || filter.operator === "contains";
+            const isMulti =
+              filter.operator === "in" || filter.operator === "not_in" || filter.operator === "contains";
             return (
               <div key={idx} className="rounded-lg border border-wedly-bd bg-wedly-bg-gray/40 p-2">
                 <div className="flex items-center gap-1.5">
@@ -217,7 +220,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
                   <div className="mt-2">
                     {isMulti && options.length > 0 ? (
                       <div className="grid max-h-36 grid-cols-2 gap-1 overflow-y-auto">
-                        {(filter.operator === "in" ? [EMPTY_OPTION_VALUE, ...options] : options).map((opt) => {
+                        {((filter.operator === "in" || filter.operator === "not_in") ? [EMPTY_OPTION_VALUE, ...options] : options).map((opt) => {
                           const sel = Array.isArray(filter.value) && filter.value.includes(opt);
                           return (
                             <label key={opt} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[12px] hover:bg-white">

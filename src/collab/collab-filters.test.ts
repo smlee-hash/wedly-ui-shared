@@ -133,3 +133,41 @@ describe("EMPTY_OPTION_VALUE — '(미입력)' 빈 값 거르기", () => {
     expect(matchesFilter(emptyRow, { field: "status", operator: "in", value: ["계약완료", "가망"] })).toBe(false);
   });
 });
+
+describe("not_in — 다중 선택(제외): 고른 값만 빼고 전부 표시", () => {
+  it("제외 목록에 든 값은 숨김, 나머지는 표시", () => {
+    expect(matchesFilter({ status: "계약완료" } as RowData, { field: "status", operator: "not_in", value: ["계약취하"] })).toBe(true);
+    expect(matchesFilter({ status: "계약취하" } as RowData, { field: "status", operator: "not_in", value: ["계약취하"] })).toBe(false);
+  });
+  it("제외 목록이 비었거나 배열이 아니면 전부 통과", () => {
+    expect(matchesFilter({ status: "계약완료" } as RowData, { field: "status", operator: "not_in", value: [] })).toBe(true);
+    expect(matchesFilter({ status: "계약완료" } as RowData, { field: "status", operator: "not_in", value: "계약취하" })).toBe(true);
+  });
+  it("빈 값(미입력)은 '(미입력)'을 제외했을 때만 숨김", () => {
+    expect(matchesFilter({ status: "" } as RowData, { field: "status", operator: "not_in", value: ["계약취하"] })).toBe(true);
+    expect(matchesFilter({ status: "" } as RowData, { field: "status", operator: "not_in", value: [EMPTY_OPTION_VALUE] })).toBe(false);
+    expect(matchesFilter({} as RowData, { field: "status", operator: "not_in", value: [EMPTY_OPTION_VALUE] })).toBe(false);
+  });
+  it("다중값 행은 그중 하나라도 제외 대상이면 숨김", () => {
+    expect(matchesFilter({ s: "가망, 계약대기" } as RowData, { field: "s", operator: "not_in", value: ["계약대기"] })).toBe(false);
+    expect(matchesFilter({ s: "가망, 계약대기" } as RowData, { field: "s", operator: "not_in", value: ["계약완료"] })).toBe(true);
+  });
+  it("filterRowsByTab: '계약취하' 제외 → 계약완료·미입력 둘 다 남는다(사용자 상황)", () => {
+    const rows: RowData[] = [
+      { _id: "1", status: "계약완료" },
+      { _id: "2", status: "" },
+      { _id: "3", status: "계약취하" },
+    ];
+    const tab: ViewTab = { id: "x", label: "취하 제외", filters: [{ field: "status", operator: "not_in", value: ["계약취하"] }] };
+    expect(filterRowsByTab(rows, tab).map((r) => r._id)).toEqual(["1", "2"]);
+  });
+  it("다중값 행: 모든 값이 제외 대상이면 숨김", () => {
+    expect(matchesFilter({ s: "가망, 계약대기" } as RowData, { field: "s", operator: "not_in", value: ["가망", "계약대기"] })).toBe(false);
+  });
+  it("값이 undefined 면 전부 통과(제외 대상 없음)", () => {
+    expect(matchesFilter({ status: "계약완료" } as RowData, { field: "status", operator: "not_in", value: undefined })).toBe(true);
+  });
+  it("빈 행 + 빈 제외목록 → 표시", () => {
+    expect(matchesFilter({ status: "" } as RowData, { field: "status", operator: "not_in", value: [] })).toBe(true);
+  });
+});
