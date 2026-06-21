@@ -1283,6 +1283,7 @@ function BasicInfoPanel({
                 reservedLabels={allBasicFields.map((f) => f.label)}
                 loadDefs={adapter.api.loadBasicFieldDefs ? () => adapter.api.loadBasicFieldDefs!(ownDomain) : undefined}
                 saveDefs={adapter.api.saveBasicFieldDefs ? (fields) => adapter.api.saveBasicFieldDefs!(ownDomain, fields as Array<Record<string, unknown>>) : undefined}
+                canManageCommon={adapter.appName === "ERP"}
                 onChanged={() => { setDefsReloadKey((k) => k + 1); refreshCommonFieldsOverride().then(setCommonOverride); }}
               />
               <SectionAdminMenu
