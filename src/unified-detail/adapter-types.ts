@@ -154,6 +154,10 @@ export interface UnifiedDetailAdapter {
   ownColumns: ColumnDef[];
   /** 조건별 수식(차수카드) UI 켜기 — ERP만 true. 미설정(하이브·일루아)이면 조건 UI 안 보임. */
   enableConditionalFormula?: boolean;
+  /** 조건부 수식 기준 칸(기본정보, 색 enrich)을 칸 "정의"에서 만든다. ERP만 제공. 미제공이면 행 기반 폴백. */
+  conditionFieldOptionsFor?: (
+    defs: Array<{ key: string; label: string; type?: string; scope?: "common" | "custom"; options?: string[] }>,
+  ) => Array<{ key: string; label: string; options?: Array<{ value: string; badgeClass?: string }> }>;
   configScope: string;  // ERP: "unified-collab" (탭/칸 설정 scope)
   domains: ColumnDef[] | unknown[]; // 보여줄 분야 탭 목록 — Phase 1A는 기존 DOMAIN_GROUPS 그대로
   api: UnifiedDetailApi;
@@ -213,4 +217,6 @@ export type SectionPanelProps = {
   isAdmin: boolean;
   onSaved?: () => void;
   adapter: UnifiedDetailAdapter;
+  /** 조건부 수식 기준 칸(기본정보). 미설정이면 패널이 자체 계산. */
+  conditionFieldOptions?: Array<{ key: string; label: string; options?: Array<{ value: string; badgeClass?: string }> }>;
 };
