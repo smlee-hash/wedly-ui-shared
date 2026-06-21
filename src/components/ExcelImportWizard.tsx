@@ -5,6 +5,7 @@ import {
   applyFixedValues, availableFixedFields, mappingTargetsExcludingFixed,
   type TargetField, type ColumnMapping, type FixedValues,
 } from "../excel-import";
+import { isCsvFile, decodeCsvText } from "../lib/csv-encoding";
 
 export type MappingPreset = { id?: string; name: string; signature: string; mapping: ColumnMapping; headerAsFirstRow: boolean };
 export type ImportResult = { created: number; updated: number; skipped: number };
@@ -63,7 +64,10 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
     try {
       const XLSX = await import("xlsx");
       const buf = await f.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
+      // CSV는 한글 인코딩(UTF-8/CP949)을 자동 판별해 문자열로 읽는다. 엑셀은 기존대로 바이너리.
+      const wb = isCsvFile(f.name, f.type)
+        ? XLSX.read(decodeCsvText(new Uint8Array(buf)), { type: "string" })
+        : XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
       const headers = json.length ? Object.keys(json[0]) : [];
@@ -119,9 +123,9 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
             <div>
               <button onClick={() => inputRef.current?.click()} className="w-full rounded-xl border border-dashed border-wedly-bd px-4 py-8 text-center hover:bg-wedly-bg-gray">
                 <div className="text-wedly-accent">⬆️</div>
-                <div className="mt-2 text-sm text-wedly-t2">엑셀 파일 선택 (xlsx · xls)</div>
+                <div className="mt-2 text-sm text-wedly-t2">엑셀·CSV 파일 선택 (xlsx · xls · csv)</div>
               </button>
-              <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden"
+              <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
               <label className="mt-4 flex items-center gap-2 text-sm text-wedly-t1">
                 <input type="checkbox" checked={headerAsFirstRow} onChange={(e) => setHeaderAsFirstRow(e.target.checked)} />
