@@ -48,6 +48,8 @@ export type CollabTableProps = {
   isAdmin: boolean;
   /** 제목 칸 클릭 시 호출(상세 열기 훅) */
   onOpenRow: (row: RowData) => void;
+  /** 줄에 마우스가 닿을 때 호출(상세 미리받기 등 — 선택). 안 주면 아무 동작 없음(기존 화면 무영향). */
+  onRowHover?: (row: RowData) => void;
   /** 비관리자도 새 업체 생성 가능한 화면이면 true(기본 false — 하이브·일루아 무영향). 서버가 로그인 사용자 생성을 허용할 때만 켠다. */
   canCreate?: boolean;
   /** 새 업체 생성 핸들러(비관리자 경로). 관리자는 adminToolbar.onCreateNew 를 쓴다. */
@@ -427,6 +429,7 @@ export function CollabTable({
   error = null,
   isAdmin,
   onOpenRow,
+  onRowHover,
   onRefresh,
   canCreate = false,
   onCreateNew: onCreateNewProp,
@@ -769,6 +772,7 @@ export function CollabTable({
     return (
       <tr
         key={id || virtualIndex}
+        onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
         className={cn("border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30", checkedIds.has(id) && "bg-wedly-bg-blue/30")}
       >
         <td className="py-2 px-3 w-10 text-center sticky left-0 z-10 bg-white">
@@ -908,7 +912,7 @@ export function CollabTable({
         })}
       </tr>
     );
-  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, renderFieldValue, editingCell, isCellEditable, onCellEdit, editConfig]);
+  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, onRowHover, renderFieldValue, editingCell, isCellEditable, onCellEdit, editConfig]);
 
   return (
     <div className={maximized ? "fixed inset-0 z-[70] bg-white overflow-y-auto p-3 sm:p-4" : undefined}>
