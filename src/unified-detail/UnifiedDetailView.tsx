@@ -1186,18 +1186,20 @@ function BasicInfoPanel({
       setBasicRecord(rec);
       setBasicRow((r) => {
         const next = { ...r };
-        for (const f of baseSection.fields) {
+        // 표준칸뿐 아니라 공통추가·커스텀 칸까지(allBasicFields) 회사 보관소 값으로 빈칸을 채운다.
+        // → 모든 기본정보가 회사 단위로 보관·표시(분야 기록 1순위, 보관소는 빈칸만).
+        for (const f of allBasicFields) {
           const entry = rec.fields[f.label];
           if (entry && entry.value != null && entry.value !== "") {
             const cur = next[f.key];
-            if (cur == null || cur === "") next[f.key] = entry.value; // 빈 칸만 채움
+            if (cur == null || cur === "") next[f.key] = entry.value; // 빈 칸만 채움(하이브 기존 동작 유지)
           }
         }
         return next;
       });
     });
     return () => { cancelled = true; };
-  }, [bizno, baseSection, adapter]);
+  }, [bizno, allBasicFields, adapter]);
 
   const handleBasicUpdate = useCallback(
     async (key: string, newVal: string | number | boolean | null) => {
@@ -1207,8 +1209,9 @@ function BasicInfoPanel({
       setBasicRow((r) => ({ ...r, [key]: newVal }));
       try {
         await saveOwnField(entryId, key, newVal);
-        // 공통칸이면 공용 보관함에도 기록(누가·앱·이전→새값) — 실패해도 행 저장은 유지.
-        const fieldId = commonFieldIdForKey(key);
+        // 공통·커스텀 칸 모두 회사 보관소(basic-store)에도 기록(누가·앱·이전→새값) — 실패해도 행 저장은 유지.
+        // 커스텀칸은 그 칸의 라벨(keyToFieldId)을 보관소 키로 사용 → 읽기 빈칸채움(allBasicFields 루프)이 같은 라벨로 되읽음.
+        const fieldId = commonFieldIdForKey(key) || keyToFieldId.get(key) || "";
         if (fieldId && bizno) {
           void adapter.api.saveBasicField(bizno, "erp", fieldId, newVal).then((rec) => { if (rec) setBasicRecord(rec); });
         }
@@ -1218,7 +1221,7 @@ function BasicInfoPanel({
         alert(`'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
       }
     },
-    [basicRow, entryId, onSaved, commonFieldIdForKey, bizno, isNew, onDraftChange, saveOwnField, adapter],
+    [basicRow, entryId, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter],
   );
 
   return (
