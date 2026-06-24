@@ -1060,7 +1060,7 @@ export function CollabTable({
         mobileCardFields={mobile?.cardFields ?? []}
         allColumns={columns}
         openRow={(row) => onOpenRow(row)}
-        getConditionalFormatClass={() => null}
+        getConditionalFormatClass={(row) => getRowColorClass?.(row) ?? null}
         getColLabel={getColLabel}
         statusKey={mobile?.statusKey ?? ""}
         getStatusClass={mobileStatusClass}
