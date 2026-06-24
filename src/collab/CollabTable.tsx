@@ -1076,6 +1076,7 @@ export function CollabTable({
         setDragOverColKey={setDragOverColKey}
         resizingRef={resizingRef}
         reorderColumn={reorderColumn}
+        canReorderColumns={!(onColumnOrderChange && !isAdmin)}
         onResizeStart={onResizeStart}
         onResizeDoubleClick={onResizeDoubleClick}
         getColLabel={getColLabel}
