@@ -23,6 +23,7 @@ import {
   reorderList,
   resolveInitialColumnOrder,
   defaultFormatCellValue,
+  composeRowClassName,
   type RowData,
   type CellValue,
   type SortConfig,
@@ -67,6 +68,12 @@ export type CollabTableProps = {
   };
   /** 셀 값 렌더러(생략 시 종류별 기본 표시) */
   renderFieldValue?: (col: ColumnDef, value: CellValue, row: RowData) => ReactNode;
+  /**
+   * 줄 전체 색칠(조건부 서식). 그 줄의 데이터로 색 클래스(예: "bg-wedly-bg-red text-wedly-red")를 돌려주면
+   * 그 줄에 칠한다. 생략하거나 null을 돌려주면 색 없음 — 기존과 100% 동일(ERP 무영향).
+   * 체크된 줄은 파란 강조가 이겨 이 색은 빠진다(하이브·일루아와 동일 규칙).
+   */
+  getRowColorClass?: (row: RowData) => string | null | undefined;
   /** 컬럼 강조(점·머리색). 생략 시 없음 */
   getColAccent?: (col: ColumnDef) => { dotClass: string; headerTint: string } | null;
   /** 상태별 필터 탭(생략 시 탭 없음 — 기존과 100% 동일). 각 앱이 자기 목록을 넣어준다. */
@@ -455,6 +462,7 @@ export function CollabTable({
   onCreateNew: onCreateNewProp,
   mobile,
   renderFieldValue,
+  getRowColorClass,
   getColAccent: getColAccentProp,
   tabs,
   tabAdmin,
@@ -814,7 +822,12 @@ export function CollabTable({
       <tr
         key={id || virtualIndex}
         onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
-        className={cn("border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30", checkedIds.has(id) && "bg-wedly-bg-blue/30")}
+        className={composeRowClassName(
+          "border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30",
+          checkedIds.has(id),
+          "bg-wedly-bg-blue/30",
+          getRowColorClass?.(row),
+        )}
       >
         <td className="py-2 px-3 w-10 text-center sticky left-0 z-10 bg-white">
           <input
@@ -953,7 +966,7 @@ export function CollabTable({
         })}
       </tr>
     );
-  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, onRowHover, renderFieldValue, editingCell, isCellEditable, onCellEdit, editConfig]);
+  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, onRowHover, renderFieldValue, getRowColorClass, editingCell, isCellEditable, onCellEdit, editConfig]);
 
   return (
     <div className={maximized ? "fixed inset-0 z-[70] bg-white overflow-y-auto p-3 sm:p-4" : undefined}>
