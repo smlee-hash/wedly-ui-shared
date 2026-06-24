@@ -1,6 +1,6 @@
 // src/tiered/conditional-formula.test.ts
 import { describe, it, expect } from "vitest";
-import { resolveConditionalFormula, evalFormulaForTier, parseFormulaTerms, type FieldDef, type FormulaTerm } from "./index";
+import { resolveConditionalFormula, evalFormulaForTier, parseFormulaTerms, type FieldDef, type FormulaTerm, type ConditionClause } from "./index";
 
 const base: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "A" }];
 const hive: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "B" }];
@@ -269,5 +269,57 @@ describe("resolveConditionalFormula — 연산자 엣지(가드·다중값 일�
     expect(resolveConditionalFormula(f, gv({ 분류: "하이브정밀" }))).toBe(hive); // "하이브" 토큰 부분 포함
     expect(resolveConditionalFormula(f, gv({ 분류: "서월기업" }))).toBe(hive);   // "서월" 토큰 부분 포함
     expect(resolveConditionalFormula(f, gv({ 분류: "위들리" }))).toBe(base);      // 둘 다 미포함
+  });
+});
+
+describe("resolveConditionalFormula — 여러 조건 AND/OR(clauses)", () => {
+  const cl = (leftKey: string, value: string, op: "eq" | "neq" | "contains" | "notContains" = "eq"): ConditionClause =>
+    ({ leftKey, right: { kind: "text", value }, op });
+  const mk = (clauses: ConditionClause[], combine?: "and" | "or"): FieldDef => ({
+    key: "f", label: "f", type: "formula", formula: base,
+    conditional: { rules: [{ clauses, combine, formula: hive }] },
+  });
+
+  it("AND: 모든 절이 맞아야 그 식", () => {
+    const f = mk([cl("분류", "하이브"), cl("지역", "서울")], "and");
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브", 지역: "서울" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브", 지역: "부산" }))).toBe(base);
+    expect(resolveConditionalFormula(f, gv({ 분류: "위들리", 지역: "서울" }))).toBe(base);
+  });
+  it("OR: 한 절만 맞아도 그 식", () => {
+    const f = mk([cl("분류", "하이브"), cl("지역", "서울")], "or");
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브", 지역: "부산" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "위들리", 지역: "서울" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "위들리", 지역: "부산" }))).toBe(base);
+  });
+  it("combine 미지정이면 AND(모두 만족)로 취급", () => {
+    const f = mk([cl("분류", "하이브"), cl("지역", "서울")]);
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브", 지역: "서울" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브", 지역: "부산" }))).toBe(base);
+  });
+  it("AND + 연산자 혼용(같음 + 포함)", () => {
+    const f = mk([cl("분류", "하이브"), cl("메모", "우수", "contains")], "and");
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브", 메모: "우수고객" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브", 메모: "일반" }))).toBe(base);
+  });
+  it("빈 값 절: AND면 전체 불일치, OR면 무시", () => {
+    const fAnd = mk([cl("분류", "하이브"), cl("지역", "서울")], "and");
+    expect(resolveConditionalFormula(fAnd, gv({ 분류: "하이브" }))).toBe(base);
+    const fOr = mk([cl("분류", "하이브"), cl("지역", "서울")], "or");
+    expect(resolveConditionalFormula(fOr, gv({ 분류: "하이브" }))).toBe(hive);
+  });
+  it("절 right 가 '다른 칸'(field)도 동작", () => {
+    const f: FieldDef = { key: "f", label: "f", type: "formula", formula: base,
+      conditional: { rules: [{ clauses: [
+        { leftKey: "분류", right: { kind: "text", value: "하이브" }, op: "eq" },
+        { leftKey: "확정", right: { kind: "field", key: "예상" }, op: "eq" },
+      ], combine: "and", formula: hive }] } };
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브", 확정: 100, 예상: 100 }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브", 확정: 100, 예상: 200 }))).toBe(base);
+  });
+  it("절 1개만 있는 clauses 는 옛 단일과 동일", () => {
+    const f = mk([cl("분류", "하이브")]);
+    expect(resolveConditionalFormula(f, gv({ 분류: "하이브" }))).toBe(hive);
+    expect(resolveConditionalFormula(f, gv({ 분류: "위들리" }))).toBe(base);
   });
 });
