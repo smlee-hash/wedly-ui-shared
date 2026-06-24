@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { ColumnDef } from "../types/columns";
 import { formatCurrency, formatDate, formatPercent } from "../lib/utils";
 
@@ -177,4 +178,28 @@ export function composeRowClassName(
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+/** 앱이 주입한 셀 편집기에 넘기는 인자 묶음(예: 일루아 담당컨설턴트 사람칸). */
+export type InjectedEditorArgs = {
+  col: ColumnDef;
+  row: RowData;
+  value: CellValue;
+  /** 편집 확정: 편집 상태를 닫고 값을 저장하도록 공용 표가 연결해 준다. */
+  commit: (v: string | number | boolean | null) => void;
+  /** 편집 취소: 편집 상태만 닫는다. */
+  cancel: () => void;
+};
+
+/**
+ * 앱이 주입한 셀 편집기를 쓸지 결정한다. (3앱 표 통일 — 공용 표가 모르는 칸 편집기를 앱이 끼워넣는 통로)
+ * - renderEditor 미지정 → null (공용 표가 기존 편집기 switch로 폴백 = ERP/하이브 무영향)
+ * - renderEditor가 이 칸에 대해 null 반환 → null (그 칸만 기본 편집기로 폴백)
+ * - 노드 반환 → 그 노드를 편집기로 사용
+ */
+export function resolveInjectedCellEditor(
+  renderEditor: ((a: InjectedEditorArgs) => ReactNode | null) | undefined,
+  args: InjectedEditorArgs,
+): ReactNode | null {
+  return renderEditor ? renderEditor(args) ?? null : null;
 }

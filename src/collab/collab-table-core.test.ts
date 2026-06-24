@@ -13,7 +13,9 @@ import {
   resolveInitialColumnOrder,
   defaultFormatCellValue,
   composeRowClassName,
+  resolveInjectedCellEditor,
   type RowData,
+  type CellValue,
   type SortRule,
 } from "./collab-table-core";
 
@@ -257,5 +259,29 @@ describe("composeRowClassName (줄 색칠 우선순위)", () => {
     // ERP는 getRowColorClass를 안 넘기므로 conditionalClass는 항상 빈값 → 기존 cn() 결과와 같아야 한다.
     expect(composeRowClassName(base, false, checked, undefined)).toBe("border-t hover");
     expect(composeRowClassName(base, true, checked, undefined)).toBe("border-t hover bg-blue");
+  });
+});
+
+describe("resolveInjectedCellEditor (끼울 수 있는 셀 편집기 — 미지정 시 무영향)", () => {
+  const args = {
+    col: col("26담당컨설턴트", "select"),
+    row: { _id: "1" } as RowData,
+    value: "홍길동" as CellValue,
+    commit: () => {},
+    cancel: () => {},
+  };
+  it("renderEditor 미지정이면 null — 공용 표가 기존 편집기 switch로 폴백(ERP/하이브 무영향)", () => {
+    expect(resolveInjectedCellEditor(undefined, args)).toBeNull();
+  });
+  it("renderEditor가 그 칸에 null을 돌려주면 null — 그 칸만 기본 편집기로 폴백", () => {
+    expect(resolveInjectedCellEditor(() => null, args)).toBeNull();
+  });
+  it("renderEditor가 노드를 돌려주면 그 노드를 그대로 편집기로 사용", () => {
+    expect(resolveInjectedCellEditor(() => "EDITOR", args)).toBe("EDITOR");
+  });
+  it("col/row/value/commit/cancel 인자를 주입 함수에 그대로 전달", () => {
+    let seen: unknown = null;
+    resolveInjectedCellEditor((a) => { seen = a; return "X"; }, args);
+    expect(seen).toBe(args);
   });
 });

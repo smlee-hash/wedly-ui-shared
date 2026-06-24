@@ -24,10 +24,12 @@ import {
   resolveInitialColumnOrder,
   defaultFormatCellValue,
   composeRowClassName,
+  resolveInjectedCellEditor,
   type RowData,
   type CellValue,
   type SortConfig,
   type SortRule,
+  type InjectedEditorArgs,
 } from "./collab-table-core";
 import { startColumnResize } from "./column-resize";
 import { filterRowsByTab, type ViewTab } from "./collab-filters";
@@ -151,6 +153,8 @@ export type CollabTableProps = {
     onSetColor?: (columnKey: string, option: string, color: string) => void;
     colorFamilies?: { name: string; classes: string }[];
     allowDelete?: boolean;
+    /** 앱별 셀 편집기 주입(예: 일루아 담당컨설턴트 사람칸). 이 칸에 노드를 돌려주면 그 편집기 사용, null/미지정 시 기본 편집기로 폴백(미지정 시 기존과 동일=ERP 무영향). */
+    renderEditor?: (a: InjectedEditorArgs) => ReactNode | null;
   };
   /**
    * 컬럼 표시 설정 모달에 공통/그외 구분, 승격, 삭제, 복원 기능을 전달하는 묶음.
@@ -912,6 +916,13 @@ export function CollabTable({
                   {renderFieldValue ? renderFieldValue(col, v, row) : <span>{defaultFormatCellValue(col, v)}</span>}
                 </button>
               ) : isEditingThis ? (
+                resolveInjectedCellEditor(editConfig?.renderEditor, {
+                  col,
+                  row,
+                  value: v,
+                  commit: (nv: string | number | boolean | null) => { setEditingCell(null); onCellEdit?.(row, col.key, nv); },
+                  cancel: () => setEditingCell(null),
+                }) ?? (
                 col.type === "text" || col.type === "email" || col.type === "phone_number" ? (
                   <TextEditor
                     value={String(v ?? "")}
@@ -955,6 +966,7 @@ export function CollabTable({
                   />
                 ) : (
                   renderFieldValue ? renderFieldValue(col, v, row) : <span>{defaultFormatCellValue(col, v)}</span>
+                )
                 )
               ) : renderFieldValue ? (
                 renderFieldValue(col, v, row)
