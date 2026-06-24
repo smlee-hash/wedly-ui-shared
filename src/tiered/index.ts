@@ -48,8 +48,22 @@ export type ConditionCompare =
 /** 조건 비교 방식. 미지정(옛 데이터)은 "eq"(같음)로 취급 — 앞호환. */
 export type ConditionOp = "eq" | "neq" | "contains" | "notContains";
 
+/** 조건 절 하나(원자). leftKey 칸 값을 right 와 op 로 비교. */
+export interface ConditionClause {
+  leftKey: string;
+  right: ConditionCompare;
+  op: ConditionOp;
+}
+
+/** 여러 조건 절을 묶는 방식. and=모두 만족, or=하나라도 만족. 미지정=and. */
+export type ConditionCombine = "and" | "or";
+
 /** 조건 규칙 한 줄. (옛 형식 whenValue 도 읽기 호환 위해 optional 로 같이 둠) */
 export interface ConditionalRule {
+  /** 여러 조건 절(AND/OR). 비어있지 않으면 단일(leftKey/right/op) 대신 이걸 사용. */
+  clauses?: ConditionClause[];
+  /** clauses 묶는 방식(미지정=and). 절 2개 이상일 때만 의미. */
+  combine?: ConditionCombine;
   /** 기준 칸(정산정보 칸 또는 기본정보 평면 필드) 키. 옛 형식이면 비고 conditionFieldKey 사용. */
   leftKey?: string;
   /** 비교 대상. 옛 형식이면 비고 whenValue(텍스트)로 흡수. */
@@ -307,15 +321,28 @@ export function resolveConditionalFormula(
     if (op === "notContains") return !B.some((t) => asText(a).includes(t));
     return tokenEq; // "eq" 및 미지정 기본
   };
+  // 한 규칙의 조건 절 목록: 새 형식(clauses) 우선, 없으면 옛 단일 조건 1개로 구성.
+  const clausesOf = (rule: ConditionalRule): ConditionClause[] => {
+    if (Array.isArray(rule.clauses) && rule.clauses.length > 0) {
+      return rule.clauses.filter((c) => c && !!c.leftKey);
+    }
+    const leftKey = rule.leftKey ?? cond.conditionFieldKey;
+    if (!leftKey) return [];
+    const right = rule.right ?? { kind: "text" as const, value: rule.whenValue ?? "" };
+    return [{ leftKey, right, op: rule.op ?? "eq" }];
+  };
+  const test = (c: ConditionClause): boolean => {
+    const left = getValue(c.leftKey);
+    const rv = c.right.kind === "field" ? getValue(c.right.key) : c.right.value;
+    return matches(c.op ?? "eq", left, rv);
+  };
   for (const rule of cond.rules) {
     if (!rule || !Array.isArray(rule.formula)) continue;
-    // 새 형식 우선, 없으면 옛 형식 흡수
-    const leftKey = rule.leftKey ?? cond.conditionFieldKey;
-    if (!leftKey) continue;
-    const right = rule.right ?? { kind: "text" as const, value: rule.whenValue ?? "" };
-    const left = getValue(leftKey);
-    const rv = right.kind === "field" ? getValue(right.key) : right.value;
-    if (matches(rule.op ?? "eq", left, rv)) return rule.formula;
+    const clauses = clausesOf(rule);
+    if (clauses.length === 0) continue;
+    // combine=or → 하나라도 만족, 그 외(and/미지정) → 모두 만족.
+    const ok = rule.combine === "or" ? clauses.some(test) : clauses.every(test);
+    if (ok) return rule.formula;
   }
   return field.formula;
 }
