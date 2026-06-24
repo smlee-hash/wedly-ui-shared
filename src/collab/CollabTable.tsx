@@ -85,6 +85,13 @@ export type CollabTableProps = {
    * 부모는 isAdmin 일 때만 실제 서버 저장(PUT)하면 된다 — 비관리자 reorder 는 표 내부에서 이미 막힌다.
    */
   onColumnOrderChange?: (order: string[]) => void;
+  /**
+   * true면 칸 배치(순서·보임/숨김)를 "공용·관리자 전용 + 탭별 독립"으로 취급한다.
+   * - 보임/숨김: 비관리자에겐 '컬럼 설정' 버튼·머리 '컬럼 숨기기'를 숨긴다(관리자만 변경).
+   * - 순서: 개인(브라우저) 순서를 무시한다 — 탭마다 serverColumnOrder(없으면 앱 기본)만 따른다(탭 간 누수 방지).
+   * 미지정(undefined) 시 기존과 100% 동일.
+   */
+  columnArrangeShared?: boolean;
   /** 관리자 탭 편집 훅(생략 시 표시 전용). isAdmin=true 이고 이게 주어지면 탭 편집(끌어옮기기·＋추가·더블클릭 편집)이 켜진다. */
   tabAdmin?: FilterTabsAdmin;
   /**
@@ -456,6 +463,7 @@ export function CollabTable({
   defaultColumnOrder,
   serverColumnOrder,
   onColumnOrderChange,
+  columnArrangeShared,
   onCellEdit,
   editConfig,
   columnAdmin,
@@ -512,9 +520,15 @@ export function CollabTable({
   });
   const [colOrder, setColOrder] = useState<string[]>(() => {
     const saved = loadJson<string[]>(COL_ORDER_KEY, []);
+    // 공용(탭별) 모드: 개인 localStorage 순서 무시 — 탭마다 serverColumnOrder(없으면 앱 기본)만 따른다(탭 간 누수 방지).
+    if (columnArrangeShared) {
+      return serverColumnOrder && serverColumnOrder.length ? serverColumnOrder : (defaultColumnOrder ?? []);
+    }
     // 관리자(서버) 순서 > 개인(브라우저) 순서 > 앱 기본 순서.
     return resolveInitialColumnOrder(serverColumnOrder, saved, defaultColumnOrder);
   });
+  // 보임/숨김 변경 권한 — 공용 모드면 관리자만, 아니면 현행(전원).
+  const canEditColumnVisibility = !columnArrangeShared || isAdmin;
   const [colLabelOverrides, setColLabelOverrides] = useState<Record<string, string>>(() =>
     loadJson<Record<string, string>>(COL_LABELS_KEY, {}),
   );
@@ -991,12 +1005,12 @@ export function CollabTable({
         showPageBox={true}
         trailingControls={
           <>
-            {/* 사용자 컬럼 설정 — 서버 모드일 때 정렬 버튼 왼쪽에 모든 사용자에게 표시(내 화면에만 적용·서버 저장). */}
-            {serverColMode && (
+            {/* 컬럼 설정 — 서버 모드 + 변경 권한 있을 때 정렬 버튼 왼쪽에 표시(공용 모드면 관리자만). */}
+            {serverColMode && canEditColumnVisibility && (
               <button
                 type="button"
                 onClick={() => setColumnModalOpen(true)}
-                title="표에 보일 컬럼 선택(내 화면에만 적용·저장됨)"
+                title="표에 보일 컬럼 선택"
                 className="inline-flex items-center gap-1 rounded-lg border border-wedly-bd px-2.5 py-1.5 text-[12px] font-medium text-wedly-t2 hover:bg-wedly-bg-gray transition-colors"
               >
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -1077,6 +1091,7 @@ export function CollabTable({
         resizingRef={resizingRef}
         reorderColumn={reorderColumn}
         canReorderColumns={!(onColumnOrderChange && !isAdmin)}
+        canHideColumn={canEditColumnVisibility}
         onResizeStart={onResizeStart}
         onResizeDoubleClick={onResizeDoubleClick}
         getColLabel={getColLabel}

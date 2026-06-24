@@ -53,6 +53,8 @@ type Props = {
   reorderColumn: (from: string, to: string) => void;
   /** 칸 순서 끌어옮기기 허용 여부(생략 시 true=기존과 동일). false면 드래그 손잡이를 끈다(예: 비관리자, 관리자 전용 순서 모드). */
   canReorderColumns?: boolean;
+  /** 머리 메뉴 '컬럼 숨기기' 허용 여부(생략 시 true=기존과 동일). false면 숨기기 항목을 끈다(공용 모드 비관리자). */
+  canHideColumn?: boolean;
 
   // 컬럼 리사이즈 (포인터 이벤트 — 마우스·터치·펜 통합, NO.76)
   onResizeStart: (e: React.PointerEvent, colKey: string) => void;
@@ -98,6 +100,7 @@ export function DesktopTable({
   resizingRef,
   reorderColumn,
   canReorderColumns = true,
+  canHideColumn = true,
   onResizeStart,
   onResizeDoubleClick,
   getColLabel,
@@ -289,19 +292,21 @@ export function DesktopTable({
                           </svg>
                           정렬
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeColFromTab(col.key);
-                            setColMenuKey(null);
-                          }}
-                          className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red hover:bg-wedly-bg-red flex items-center gap-2"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                          컬럼 숨기기
-                        </button>
+                        {canHideColumn && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeColFromTab(col.key);
+                              setColMenuKey(null);
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red hover:bg-wedly-bg-red flex items-center gap-2"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                            컬럼 숨기기
+                          </button>
+                        )}
                       </div>
                     )}
                     <div
