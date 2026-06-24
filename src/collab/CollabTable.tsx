@@ -28,6 +28,7 @@ import {
   type SortConfig,
   type SortRule,
 } from "./collab-table-core";
+import { startColumnResize } from "./column-resize";
 import { filterRowsByTab, type ViewTab } from "./collab-filters";
 import { FilterTabs, type FilterTabsAdmin } from "./FilterTabs";
 import { TextEditor, NumberEditor, DateEditor } from "../components/Editors";
@@ -784,24 +785,18 @@ export function CollabTable({
       return next;
     });
   }, [COL_WIDTHS_KEY]);
-  const onResizeStart = useCallback((e: React.MouseEvent, colKey: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX;
-    const startW = colWidths[colKey] || 120;
-    resizingRef.current = { key: colKey, startX, startW };
-    const onMove = (ev: MouseEvent) => setColWidthsAndStore((p) => ({ ...p, [colKey]: Math.max(40, startW + (ev.clientX - startX)) }));
-    const onUp = () => {
-      resizingRef.current = null;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
+  // 가이드선 방식(공용 부품) — 드래그 중 화면 재렌더 0, 손 뗄 때 너비 1회 확정.
+  // resizingRef는 드래그 중 칸 순서 끌기를 막는 용도(참/거짓만 본다).
+  const onResizeStart = useCallback((e: React.PointerEvent, colKey: string) => {
+    resizingRef.current = { key: colKey };
+    startColumnResize({
+      event: e,
+      startWidth: colWidths[colKey] || 120,
+      onCommit: (finalW) => {
+        resizingRef.current = null;
+        setColWidthsAndStore((p) => ({ ...p, [colKey]: finalW }));
+      },
+    });
   }, [colWidths, setColWidthsAndStore]);
   const onResizeDoubleClick = useCallback((colKey: string) => setColWidthsAndStore((p) => ({ ...p, [colKey]: 160 })), [setColWidthsAndStore]);
 
