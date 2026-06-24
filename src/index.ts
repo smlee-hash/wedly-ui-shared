@@ -113,6 +113,9 @@ export {
   defaultFormatCellValue,
 } from "./collab/collab-table-core";
 export type { RowData, CellValue, SortConfig, SortRule } from "./collab/collab-table-core";
+// 칸 폭 조절(리사이즈) 공용 부품 — 가이드선 방식(드래그 중 재렌더 0, 손 뗄 때 1회 확정)
+export { startColumnResize, computeResizedWidth, computeGuideX } from "./collab/column-resize";
+export type { StartColumnResizeOptions } from "./collab/column-resize";
 
 // 상태별 필터 탭 — 순수 로직 + 표시 부품
 export { matchesFilter, matchesTab, filterRowsByTab } from "./collab/collab-filters";
