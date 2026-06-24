@@ -12,6 +12,7 @@ import {
   reorderList,
   defaultFormatCellValue,
   composeRowClassName,
+  resolveActiveColumns,
   type RowData,
   type SortRule,
 } from "./collab-table-core";
@@ -232,5 +233,49 @@ describe("composeRowClassName (줄 색칠 우선순위)", () => {
     // ERP는 getRowColorClass를 안 넘기므로 conditionalClass는 항상 빈값 → 기존 cn() 결과와 같아야 한다.
     expect(composeRowClassName(base, false, checked, undefined)).toBe("border-t hover");
     expect(composeRowClassName(base, true, checked, undefined)).toBe("border-t hover bg-blue");
+  });
+});
+
+describe("resolveActiveColumns (탭별 칸 — 부모 제어 통로)", () => {
+  // 표에 실제로 보일 칸 목록을 정한다. (3앱 표 통일 — 하이브가 부모에서 탭별로 칸을 계산하던 방식을 공용 표가 받아들이게)
+  //   resolver(부모 제공) 있으면 그 결과를 그대로 쓴다(탭별·관리자전역 정책은 부모 소유).
+  //   없으면 기존 동작 = 전역 표시 집합으로 거른다(=ERP 무영향).
+  const ordered = [col("a", "text"), col("b", "text"), col("c", "text")];
+
+  it("resolver 없으면 전역 표시 집합으로 거름 — 기존 동작과 동일(ERP 무영향)", () => {
+    const visible = new Set(["a", "c"]);
+    const out = resolveActiveColumns(ordered, visible, "tab1", undefined);
+    expect(out.map((c) => c.key)).toEqual(["a", "c"]);
+    // 기존 코드(orderedColumns.filter(c=>visible.has(c.key)))와 글자 그대로 같은 결과여야 한다.
+    expect(out).toEqual(ordered.filter((c) => visible.has(c.key)));
+  });
+
+  it("resolver 없고 null이어도 기존 동작(거름)", () => {
+    const visible = new Set(["b"]);
+    expect(resolveActiveColumns(ordered, visible, "tab1", null).map((c) => c.key)).toEqual(["b"]);
+  });
+
+  it("resolver 있으면 그 결과를 그대로 사용(전역 표시 무시)", () => {
+    const visible = new Set(["a"]); // resolver가 있으면 이건 무시돼야 한다
+    const resolver = () => [ordered[2], ordered[0]]; // c, a 순서로 (부모가 정한 탭별 순서)
+    const out = resolveActiveColumns(ordered, visible, "tab1", resolver);
+    expect(out.map((c) => c.key)).toEqual(["c", "a"]);
+  });
+
+  it("resolver에 (activeTabId, 전체 칸 목록)이 그대로 전달된다", () => {
+    let gotTab = "";
+    let gotCatalogKeys: string[] = [];
+    const resolver = (tabId: string, catalog: typeof ordered) => {
+      gotTab = tabId;
+      gotCatalogKeys = catalog.map((c) => c.key);
+      return catalog;
+    };
+    resolveActiveColumns(ordered, new Set(), "tab-xyz", resolver);
+    expect(gotTab).toBe("tab-xyz");
+    expect(gotCatalogKeys).toEqual(["a", "b", "c"]);
+  });
+
+  it("resolver가 빈 배열을 돌려주면 빈 배열(부모 결정 존중)", () => {
+    expect(resolveActiveColumns(ordered, new Set(["a", "b", "c"]), "t", () => [])).toEqual([]);
   });
 });

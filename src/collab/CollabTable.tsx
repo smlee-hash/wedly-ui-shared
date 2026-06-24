@@ -23,6 +23,7 @@ import {
   reorderList,
   defaultFormatCellValue,
   composeRowClassName,
+  resolveActiveColumns,
   type RowData,
   type CellValue,
   type SortConfig,
@@ -70,6 +71,12 @@ export type CollabTableProps = {
    * 체크된 줄은 파란 강조가 이겨 이 색은 빠진다(하이브·일루아와 동일 규칙).
    */
   getRowColorClass?: (row: RowData) => string | null | undefined;
+  /**
+   * 탭별 칸 통로(부모 제어). 제공하면 그 탭에 보일 칸 목록을 부모가 정해 돌려준다 —
+   * 탭마다 칸·순서가 다를 수 있고 그 정책(관리자만·전원 동일·서버저장)은 부모가 소유한다.
+   * 생략하면 기존 전역 방식(표시 켠 칸만 거름) — ERP 무영향.
+   */
+  resolveColumns?: (activeTabId: string, catalog: ColumnDef[]) => ColumnDef[];
   /** 컬럼 강조(점·머리색). 생략 시 없음 */
   getColAccent?: (col: ColumnDef) => { dotClass: string; headerTint: string } | null;
   /** 상태별 필터 탭(생략 시 탭 없음 — 기존과 100% 동일). 각 앱이 자기 목록을 넣어준다. */
@@ -427,6 +434,7 @@ export function CollabTable({
   mobile,
   renderFieldValue,
   getRowColorClass,
+  resolveColumns,
   getColAccent: getColAccentProp,
   tabs,
   tabAdmin,
@@ -529,7 +537,10 @@ export function CollabTable({
   }, [searchInput]);
 
   const orderedColumns = useMemo(() => orderColumns(columns, colOrder), [columns, colOrder]);
-  const activeColumns = useMemo(() => orderedColumns.filter((c) => visibleColumns.has(c.key)), [orderedColumns, visibleColumns]);
+  const activeColumns = useMemo(
+    () => resolveActiveColumns(orderedColumns, visibleColumns, activeTabId, resolveColumns),
+    [orderedColumns, visibleColumns, activeTabId, resolveColumns],
+  );
   const stickyOffsets = useMemo(() => computeStickyOffsets(activeColumns, colWidths), [activeColumns, colWidths]);
 
   const activeTab = useMemo(

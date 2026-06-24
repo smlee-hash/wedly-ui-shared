@@ -158,3 +158,22 @@ export function composeRowClassName(
     .filter(Boolean)
     .join(" ");
 }
+
+/**
+ * 표에 실제로 보일 칸 목록을 정한다. (3앱 표 통일 — 하이브가 부모에서 탭별로 칸을 풀던 방식을 공용 표가 받아들이게)
+ *
+ * - `resolver`(부모 제공)가 있으면 그 결과를 그대로 쓴다. 탭마다 보이는 칸·순서가 다를 수 있고(사장님 결정:
+ *   "탭별로 다르되 관리자만·전원 동일"), 그 정책(우선순위·서버저장·관리자전용)은 **부모가 소유**한다.
+ *   표는 이미 계산된 목록을 받아 그리기만 한다(하이브 현행 구조와 동일·최저위험).
+ * - `resolver`가 없으면(null/undefined) 기존 동작 = 전역 표시 집합(`visibleColumns`)으로 거른다.
+ *   → ERP는 resolver를 안 넘기므로 기존과 100% 동일(무영향).
+ */
+export function resolveActiveColumns(
+  orderedColumns: ColumnDef[],
+  visibleColumns: Set<string>,
+  activeTabId: string,
+  resolver: ((activeTabId: string, catalog: ColumnDef[]) => ColumnDef[]) | null | undefined,
+): ColumnDef[] {
+  if (resolver) return resolver(activeTabId, orderedColumns);
+  return orderedColumns.filter((c) => visibleColumns.has(c.key));
+}
