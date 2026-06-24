@@ -192,6 +192,12 @@ export type CollabTableProps = {
   hiddenColumns?: string[] | null;
   /** 컬럼 설정 모달/헤더에서 칸을 켜고 끌 때 호출(서버 모드). nextVisible=이제 보일지 여부. 소비 앱이 서버 저장+상태 갱신. */
   onToggleColumnVisibility?: (key: string, nextVisible: boolean) => void;
+  /** 제어형 컬럼 순서(현재 탭 기준). 주어지면 localStorage 대신 이 값을 순서 원천으로 쓴다. 미지정=현행(localStorage). */
+  columnOrder?: string[] | null;
+  /** 관리자가 컬럼 순서를 바꿀 때 새 전체 순서로 호출(서버 저장). 주어지면 localStorage 대신 콜백 호출. */
+  onColumnOrderChange?: (nextOrder: string[]) => void;
+  /** true면 컬럼 배치(순서·보임/숨김)를 공용·관리자 전용으로 취급: 비관리자는 '컬럼 설정' 버튼·드래그·숨기기 비노출. 미지정=현행. */
+  columnArrangeShared?: boolean;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -452,6 +458,9 @@ export function CollabTable({
   onSortChange,
   hiddenColumns,
   onToggleColumnVisibility,
+  columnOrder,
+  onColumnOrderChange,
+  columnArrangeShared,
 }: CollabTableProps) {
   // 서버 사용자 설정 모드 — hiddenColumns 가 주어지면(=undefined 아님) 켜진다.
   // 보일 컬럼 = columns(관리자 ON) − hiddenColumns. 새 컬럼 기본표시·한번 숨기면 계속 숨김(sticky).
@@ -500,6 +509,12 @@ export function CollabTable({
     const saved = loadJson<string[]>(COL_ORDER_KEY, []);
     return saved.length ? saved : (defaultColumnOrder ?? []);
   });
+
+  // 제어형(부모 주입) 순서가 있으면 그것을, 없으면 내부 localStorage 순서를 쓴다.
+  const effectiveColOrder = columnOrder !== undefined && columnOrder !== null ? columnOrder : colOrder;
+  // 컬럼 배치(순서·숨김) 변경 권한 — 공용 모드면 관리자만, 아니면 현행(전원).
+  const canArrangeColumns = !columnArrangeShared || isAdmin;
+
   const [colLabelOverrides, setColLabelOverrides] = useState<Record<string, string>>(() =>
     loadJson<Record<string, string>>(COL_LABELS_KEY, {}),
   );
@@ -544,7 +559,7 @@ export function CollabTable({
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const orderedColumns = useMemo(() => orderColumns(columns, colOrder), [columns, colOrder]);
+  const orderedColumns = useMemo(() => orderColumns(columns, effectiveColOrder), [columns, effectiveColOrder]);
   // 서버 모드(값 도착)면: 보일 컬럼 = 전체 − 숨김목록. 그 외(로딩중·기존 모드)면: 저장된 '보일 컬럼' 집합.
   const activeColumns = useMemo(
     () => serverHiddenLoaded
@@ -722,14 +737,15 @@ export function CollabTable({
 
   const reorderColumn = useCallback((fromKey: string, toKey: string) => {
     // 화면에 실제로 보이는 전체 순서를 기준으로 옮긴다.
-    // 저장된 순서(colOrder)에 아직 없던 칸(나중에 추가됐거나 기본 숨김이라 뒤에 붙은 칸,
-    // 예: "DB 담당")도 끌 수 있도록 orderColumns 로 합친 전체 순서를 기준으로 삼는다.
-    // (이전엔 base=colOrder 라, 저장된 순서에 없는 칸은 reorderList 가 무시해 드래그가 먹지 않았음.)
-    const base = orderColumns(columns, colOrder).map((c) => c.key);
+    const base = orderColumns(columns, effectiveColOrder).map((c) => c.key);
     const next = reorderList(base, fromKey, toKey);
+    if (onColumnOrderChange) {
+      onColumnOrderChange(next); // 제어형: 부모가 서버 저장 후 columnOrder 로 되돌려줌
+      return;
+    }
     setColOrder(next);
     try { localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next)); } catch {}
-  }, [colOrder, columns, COL_ORDER_KEY]);
+  }, [effectiveColOrder, columns, COL_ORDER_KEY, onColumnOrderChange]);
 
   const setColWidthsAndStore = useCallback((updater: (p: Record<string, number>) => Record<string, number>) => {
     setColWidths((p) => {
@@ -959,8 +975,8 @@ export function CollabTable({
         showPageBox={true}
         trailingControls={
           <>
-            {/* 사용자 컬럼 설정 — 서버 모드일 때 정렬 버튼 왼쪽에 모든 사용자에게 표시(내 화면에만 적용·서버 저장). */}
-            {serverColMode && (
+            {/* 사용자 컬럼 설정 — 서버 모드이고 배치 권한 있을 때 정렬 버튼 왼쪽에 표시. */}
+            {serverColMode && canArrangeColumns && (
               <button
                 type="button"
                 onClick={() => setColumnModalOpen(true)}
@@ -1044,6 +1060,7 @@ export function CollabTable({
         setDragOverColKey={setDragOverColKey}
         resizingRef={resizingRef}
         reorderColumn={reorderColumn}
+        canArrangeColumns={canArrangeColumns}
         onResizeStart={onResizeStart}
         onResizeDoubleClick={onResizeDoubleClick}
         getColLabel={getColLabel}

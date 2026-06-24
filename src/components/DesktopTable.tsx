@@ -51,6 +51,8 @@ type Props = {
   setDragOverColKey: (key: string | null) => void;
   resizingRef: MutableRefObject<unknown>;
   reorderColumn: (from: string, to: string) => void;
+  /** 컬럼 드래그 재배치·머리 메뉴 '숨기기' 허용 여부. 미지정=true(현행). false면 드래그/숨기기 비활성. */
+  canArrangeColumns?: boolean;
 
   // 컬럼 리사이즈 (포인터 이벤트 — 마우스·터치·펜 통합, NO.76)
   onResizeStart: (e: React.PointerEvent, colKey: string) => void;
@@ -95,6 +97,7 @@ export function DesktopTable({
   setDragOverColKey,
   resizingRef,
   reorderColumn,
+  canArrangeColumns = true,
   onResizeStart,
   onResizeDoubleClick,
   getColLabel,
@@ -161,7 +164,7 @@ export function DesktopTable({
                 return (
                   <th
                     key={col.key}
-                    draggable={!isRenaming}
+                    draggable={!isRenaming && canArrangeColumns}
                     onDragStart={(e) => {
                       if (resizingRef.current) {
                         e.preventDefault();
@@ -286,19 +289,21 @@ export function DesktopTable({
                           </svg>
                           정렬
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeColFromTab(col.key);
-                            setColMenuKey(null);
-                          }}
-                          className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red hover:bg-wedly-bg-red flex items-center gap-2"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                          컬럼 숨기기
-                        </button>
+                        {canArrangeColumns && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeColFromTab(col.key);
+                              setColMenuKey(null);
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red hover:bg-wedly-bg-red flex items-center gap-2"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                            컬럼 숨기기
+                          </button>
+                        )}
                       </div>
                     )}
                     <div
