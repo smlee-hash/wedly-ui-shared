@@ -21,6 +21,7 @@ import {
   paginate,
   totalPageCount,
   reorderList,
+  resolveInitialColumnOrder,
   defaultFormatCellValue,
   type RowData,
   type CellValue,
@@ -73,6 +74,17 @@ export type CollabTableProps = {
   defaultVisibleColumns?: string[];
   /** 저장값이 없을 때 컬럼 순서(앱이 하이브식 배치 지정). 생략 시 columns 원래 순서 */
   defaultColumnOrder?: string[];
+  /**
+   * 서버(관리자 전용) 칸 순서. 주어지면(=undefined 아님) "관리자가 정한 순서 = 모두가 보는 순서" 모드.
+   * 비어있지 않은 배열이면 개인(브라우저) 순서를 덮어쓴다(관리자 배치가 모든 사용자에게 적용).
+   * 미지정(undefined) 시 기존과 100% 동일(개인 브라우저 순서). 비관리자는 이 모드에서 칸 순서를 못 바꾼다.
+   */
+  serverColumnOrder?: string[];
+  /**
+   * 관리자가 칸 순서를 바꿨을 때 호출(부모가 서버에 저장). 제공 시 "서버 순서 모드"가 켜진다.
+   * 부모는 isAdmin 일 때만 실제 서버 저장(PUT)하면 된다 — 비관리자 reorder 는 표 내부에서 이미 막힌다.
+   */
+  onColumnOrderChange?: (order: string[]) => void;
   /** 관리자 탭 편집 훅(생략 시 표시 전용). isAdmin=true 이고 이게 주어지면 탭 편집(끌어옮기기·＋추가·더블클릭 편집)이 켜진다. */
   tabAdmin?: FilterTabsAdmin;
   /**
@@ -442,6 +454,8 @@ export function CollabTable({
   selectionResetKey,
   defaultVisibleColumns,
   defaultColumnOrder,
+  serverColumnOrder,
+  onColumnOrderChange,
   onCellEdit,
   editConfig,
   columnAdmin,
@@ -498,11 +512,24 @@ export function CollabTable({
   });
   const [colOrder, setColOrder] = useState<string[]>(() => {
     const saved = loadJson<string[]>(COL_ORDER_KEY, []);
-    return saved.length ? saved : (defaultColumnOrder ?? []);
+    // 관리자(서버) 순서 > 개인(브라우저) 순서 > 앱 기본 순서.
+    return resolveInitialColumnOrder(serverColumnOrder, saved, defaultColumnOrder);
   });
   const [colLabelOverrides, setColLabelOverrides] = useState<Record<string, string>>(() =>
     loadJson<Record<string, string>>(COL_LABELS_KEY, {}),
   );
+
+  // 서버(관리자) 칸 순서가 나중에 도착/변경되면 그 순서로 맞춘다 — 관리자 배치가 모든 사용자 화면에 적용.
+  // 빈 값이면(관리자 미설정) 건드리지 않아 개인/기본 순서가 유지된다. 같은 순서면 재설정하지 않는다(불필요 렌더 방지).
+  useEffect(() => {
+    if (!Array.isArray(serverColumnOrder) || serverColumnOrder.length === 0) return;
+    setColOrder((prev) =>
+      prev.length === serverColumnOrder.length && prev.every((k, i) => k === serverColumnOrder[i])
+        ? prev
+        : serverColumnOrder,
+    );
+    try { localStorage.setItem(COL_ORDER_KEY, JSON.stringify(serverColumnOrder)); } catch {}
+  }, [serverColumnOrder, COL_ORDER_KEY]);
 
   // 새로 추가한 칸을 표에 바로 보이게 — 부모가 ensureVisibleKeys 로 알려준 키만 보임 처리(기존 숨김 설정은 건드리지 않음).
   useEffect(() => {
@@ -721,6 +748,9 @@ export function CollabTable({
   }, [COL_LABELS_KEY]);
 
   const reorderColumn = useCallback((fromKey: string, toKey: string) => {
+    // 서버 순서 모드(onColumnOrderChange 제공): 칸 순서는 관리자만 바꾼다(모두에게 적용되는 공용 설정).
+    // 비관리자의 드래그는 무시 — 관리자가 정한 순서가 권위.
+    if (onColumnOrderChange && !isAdmin) return;
     // 화면에 실제로 보이는 전체 순서를 기준으로 옮긴다.
     // 저장된 순서(colOrder)에 아직 없던 칸(나중에 추가됐거나 기본 숨김이라 뒤에 붙은 칸,
     // 예: "DB 담당")도 끌 수 있도록 orderColumns 로 합친 전체 순서를 기준으로 삼는다.
@@ -729,7 +759,9 @@ export function CollabTable({
     const next = reorderList(base, fromKey, toKey);
     setColOrder(next);
     try { localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next)); } catch {}
-  }, [colOrder, columns, COL_ORDER_KEY]);
+    // 서버 순서 모드면 부모에게 통지 → 부모가 관리자 전용으로 서버 저장(모든 사용자에게 전파).
+    onColumnOrderChange?.(next);
+  }, [colOrder, columns, COL_ORDER_KEY, onColumnOrderChange, isAdmin]);
 
   const setColWidthsAndStore = useCallback((updater: (p: Record<string, number>) => Record<string, number>) => {
     setColWidths((p) => {

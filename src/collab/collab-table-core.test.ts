@@ -10,6 +10,7 @@ import {
   paginate,
   totalPageCount,
   reorderList,
+  resolveInitialColumnOrder,
   defaultFormatCellValue,
   type RowData,
   type SortRule,
@@ -196,5 +197,29 @@ describe("defaultFormatCellValue", () => {
   it("percent 빈값은 — (em dash)", () => {
     expect(defaultFormatCellValue(col("x", "percent"), "")).toBe("—");
     expect(defaultFormatCellValue(col("x", "percent"), null)).toBe("—");
+  });
+});
+
+describe("resolveInitialColumnOrder (관리자 서버 순서 우선)", () => {
+  it("서버(관리자) 순서가 있으면 그것을 쓴다 — 로컬·기본을 덮어씀", () => {
+    expect(resolveInitialColumnOrder(["b", "a"], ["a", "b"], ["c", "d"])).toEqual(["b", "a"]);
+  });
+  it("서버 순서가 없으면(undefined) 로컬을 쓴다 — 관리자 미설정 시 기존 사용자 순서 보존", () => {
+    expect(resolveInitialColumnOrder(undefined, ["a", "b"], ["c", "d"])).toEqual(["a", "b"]);
+  });
+  it("서버 순서가 빈 배열이면 로컬을 쓴다", () => {
+    expect(resolveInitialColumnOrder([], ["a", "b"], ["c", "d"])).toEqual(["a", "b"]);
+  });
+  it("서버·로컬 둘 다 없으면 기본(앱 지정) 순서를 쓴다", () => {
+    expect(resolveInitialColumnOrder(undefined, [], ["c", "d"])).toEqual(["c", "d"]);
+  });
+  it("셋 다 없으면 빈 배열(=columns 원래 순서)", () => {
+    expect(resolveInitialColumnOrder(undefined, undefined, undefined)).toEqual([]);
+  });
+  it("서버가 배열이 아니면(잘못된 값) 로컬로 폴백", () => {
+    expect(resolveInitialColumnOrder("x" as unknown, ["a"], ["c"])).toEqual(["a"]);
+  });
+  it("로컬이 배열이 아니면 기본으로 폴백", () => {
+    expect(resolveInitialColumnOrder(undefined, "bad" as unknown, ["c"])).toEqual(["c"]);
   });
 });

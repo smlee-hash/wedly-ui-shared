@@ -105,6 +105,26 @@ export function totalPageCount(totalRows: number, pageSize: number): number {
   return Math.max(1, Math.ceil(totalRows / pageSize));
 }
 
+/**
+ * 표 한 화면의 칸 순서를 처음 정할 때의 우선순위 — 관리자가 서버에 저장한 공용 순서를
+ * 개인(브라우저) 순서·앱 기본 순서보다 우선한다.
+ * (3앱 통일 — "관리자가 배치한대로 모두에게 적용". 관리자가 순서를 안 정한 화면은 서버값이
+ *  비어 있어 개인 순서가, 그것도 없으면 앱 기본 순서가 유지된다.)
+ * @param serverOrder 서버(관리자 전용) 저장 순서 — 비어있지 않은 배열일 때만 채택
+ * @param localOrder  개인(브라우저) 저장 순서 — 서버값이 없을 때의 1차 대체
+ * @param defaultOrder 앱이 지정한 기본 순서 — 둘 다 없을 때의 최종 대체
+ */
+export function resolveInitialColumnOrder(
+  serverOrder: unknown,
+  localOrder: unknown,
+  defaultOrder: unknown,
+): string[] {
+  if (Array.isArray(serverOrder) && serverOrder.length > 0) return serverOrder as string[];
+  if (Array.isArray(localOrder) && localOrder.length > 0) return localOrder as string[];
+  if (Array.isArray(defaultOrder) && defaultOrder.length > 0) return defaultOrder as string[];
+  return [];
+}
+
 /** from 키를 빼서 to 키 위치에 끼워넣은 새 배열을 반환(원본 불변). */
 export function reorderList(order: string[], fromKey: string, toKey: string): string[] {
   if (fromKey === toKey) return order;
