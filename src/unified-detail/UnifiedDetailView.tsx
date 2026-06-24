@@ -1520,7 +1520,7 @@ function BasicInfoPanel({
                   <EditableFieldRow
                     key={f.key}
                     col={col}
-                    value={isNew ? (draft?.[f.key] ?? null) : (resolveBasicFieldValue(basicRow, detail, f.key) ?? null)}
+                    value={isNew ? (draft?.[f.key] ?? null) : (resolveBasicFieldValue(basicRow, detail, f.key, BASIC_FIELD_SPECS.find((s) => s.label === f.label)?.keys) ?? null)}
                     onUpdate={handleBasicUpdate}
                     isAdmin={isAdmin}
                     colorCommon

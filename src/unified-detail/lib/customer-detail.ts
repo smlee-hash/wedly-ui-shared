@@ -46,29 +46,44 @@ export async function fetchCustomerDetail(key: string): Promise<CustomerDetailLi
 // → row 에 해당 키가 있으면(빈 문자열 포함) 그대로 쓰고, "키 자체가 없을 때만"
 //    detail.domainRows 의 경정청구 행을 우선으로 폴백한다(다른 앱과 같은 값으로 채움).
 //
-// 키가 빈 문자열("")인 경우는 폴백하지 않는다 → 사용자가 비운 값을 옛 값으로 되살리지 않기 위함.
+// ★후보 키(candidateKeys)가 핵심: 기본정보 칸 키는 앱마다 다르게 정해진다.
+// 같은 "대표자명"이라도 경정청구 칸은 `03대표자명`, 정부지원금 칸은 다른 키일 수 있어
+// (BASIC_FIELD_SPECS.keys = ["03대표자명","02대표자명","대표자명"] 처럼 후보가 여럿).
+// → row 의 고른 키만 보지 말고 후보 키 전부로, row → 경정청구 행 → 나머지 행 순으로 첫 비어있지 않은 값.
 // 표시(읽기) 전용 보강이며 저장/편집 경로는 건드리지 않는다.
-function isMissingKey(v: unknown): boolean {
-  return v === null || v === undefined;
+function isNonEmpty(v: unknown): boolean {
+  if (v === null || v === undefined) return false;
+  if (typeof v === "string") return v.trim() !== "";
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
 }
 
 export function resolveBasicFieldValue(
   row: Record<string, unknown> | null | undefined,
   detail: CustomerDetailLite | null | undefined,
   key: string,
+  candidateKeys?: string[],
 ): unknown {
-  const fromRow = row?.[key];
-  if (!isMissingKey(fromRow)) return fromRow; // 키 보유(빈 문자열 포함) → 그대로
-  const rows = detail?.domainRows;
-  if (!Array.isArray(rows) || rows.length === 0) return fromRow ?? null;
-  // 회사 신원 칸 소유 = 경정청구 행 → 우선 조회
-  const tax = rows.find((r) => r?.domain === "tax-amendment");
-  const taxVal = tax?.row?.[key];
-  if (!isMissingKey(taxVal)) return taxVal;
-  // 그 외 행에서 첫 비어있지 않은(키 보유) 값
-  for (const r of rows) {
-    const v = r?.row?.[key];
-    if (!isMissingKey(v)) return v;
+  // 후보 키 = 고른 키 + 사양 후보 키(중복 제거, 고른 키 우선)
+  const keys = candidateKeys && candidateKeys.length
+    ? Array.from(new Set([key, ...candidateKeys]))
+    : [key];
+  // 1) 현재 줄(row)에서 후보 키로 첫 비어있지 않은 값(편집·기존값 보존)
+  for (const k of keys) {
+    const v = row?.[k];
+    if (isNonEmpty(v)) return v;
   }
-  return fromRow ?? null;
+  // 2) detail.domainRows — 회사 신원 칸 소유 = 경정청구(tax-amendment) 행 우선, 그다음 나머지
+  const rows = Array.isArray(detail?.domainRows) ? detail!.domainRows : [];
+  const ordered = [...rows].sort(
+    (a, b) => (a?.domain === "tax-amendment" ? -1 : 0) - (b?.domain === "tax-amendment" ? -1 : 0),
+  );
+  for (const r of ordered) {
+    for (const k of keys) {
+      const v = r?.row?.[k];
+      if (isNonEmpty(v)) return v;
+    }
+  }
+  // 3) 어디에도 없으면 row 의 고른 키 값(빈 문자열/없으면 null) 그대로
+  return row?.[key] ?? null;
 }
