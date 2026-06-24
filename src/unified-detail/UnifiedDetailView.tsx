@@ -1972,6 +1972,7 @@ export default function UnifiedDetailView({
   isNew = false,
   hiddenColumnKeys,
   adapter,
+  initialTab,
 }: {
   row: RowData;
   onClose: () => void;
@@ -1980,11 +1981,14 @@ export default function UnifiedDetailView({
   // 표 "컬럼 표시 설정"에서 OFF(숨김)한 칸 키 목록 — 기본정보 섹션에서 표준 칸 포함 균일 제외(NO.56).
   hiddenColumnKeys?: string[];
   adapter: UnifiedDetailAdapter;
+  // 처음 열 탭(선택). "__basic__"(기본정보·기본값)·"__history__"(히스토리)·분야 그룹 키(예: government-subsidy).
+  // 미전달 시 기존과 동일하게 기본정보부터 — 다른 앱(하이브·일루아) 동작 불변(앞호환).
+  initialTab?: string;
 }) {
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TopTab>("__basic__");
+  const [activeTab, setActiveTab] = useState<TopTab>(initialTab ?? "__basic__");
   const [subTab, setSubTab] = useState<SubTab>("history");
   const [isAdmin, setIsAdmin] = useState(false);
   // 상단 분야 탭 편집(관리자) — 순서·이름 변경. 하위 탭과 같은 설정 row(detail-tab-config:unified-collab) 공유.
