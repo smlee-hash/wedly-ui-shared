@@ -5,6 +5,7 @@ import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYP
 import { type ColumnDef } from "../types/columns";
 import {
   customerKeyFromTaxRow,
+  resolveBasicFieldValue,
   type CustomerDetailLite,
   type DomainRowLite,
 } from "./lib/customer-detail";
@@ -1473,7 +1474,7 @@ function BasicInfoPanel({
                   <EditableFieldRow
                     key={f.key}
                     col={col}
-                    value={isNew ? (draft?.[f.key] ?? null) : (basicRow[f.key] ?? null)}
+                    value={isNew ? (draft?.[f.key] ?? null) : (resolveBasicFieldValue(basicRow, detail, f.key) ?? null)}
                     onUpdate={handleBasicUpdate}
                     isAdmin={isAdmin}
                     colorCommon
