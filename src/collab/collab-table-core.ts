@@ -134,3 +134,27 @@ export function defaultFormatCellValue(col: ColumnDef, value: CellValue): string
   }
   return String(value);
 }
+
+/**
+ * 표 한 줄(<tr>)의 색 클래스를 조합한다. (3앱 표 통일 — 하이브·일루아가 줄에 쓰던 조건부 색칠을 공용 표로 옮김)
+ *
+ * 우선순위(하이브·일루아와 동일): 체크된 줄의 파란 강조 > 조건부 색칠 > 기본(테두리+hover).
+ * - `conditionalClass`(예: "bg-wedly-bg-red text-wedly-red")는 그 줄이 **체크 안 됐을 때만** 적용한다.
+ *   체크하면 체크 강조(`checkedClass`)가 이기고 조건부 색은 빠진다.
+ * - `conditionalClass`가 null/undefined/빈문자열이면 무시(빈 토큰을 만들지 않는다).
+ *   → 공용 표 소비자가 색 함수를 안 넘기면(ERP) 항상 빈값이라 기존 동작과 100% 동일(무영향).
+ */
+export function composeRowClassName(
+  base: string,
+  isChecked: boolean,
+  checkedClass: string,
+  conditionalClass: string | null | undefined,
+): string {
+  return [
+    base,
+    !isChecked && conditionalClass ? conditionalClass : "",
+    isChecked ? checkedClass : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
