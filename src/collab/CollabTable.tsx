@@ -51,8 +51,8 @@ export type CollabTableProps = {
   onRefresh: () => void;
   /** 관리자 여부(다음 단계에서 관리도구·편집에 사용 — A단계는 읽기 전용) */
   isAdmin: boolean;
-  /** 제목 칸 클릭 시 호출(상세 열기 훅) */
-  onOpenRow: (row: RowData) => void;
+  /** 제목 칸 클릭 시 호출(상세 열기 훅). panel="history"면 말풍선(히스토리) 버튼 클릭 — 부모가 히스토리를 연다(NO.80). */
+  onOpenRow: (row: RowData, panel?: "history") => void;
   /** 줄에 마우스가 닿을 때 호출(상세 미리받기 등 — 선택). 안 주면 아무 동작 없음(기존 화면 무영향). */
   onRowHover?: (row: RowData) => void;
   /** 비관리자도 새 업체 생성 가능한 화면이면 true(기본 false — 하이브·일루아 무영향). 서버가 로그인 사용자 생성을 허용할 때만 켠다. */
@@ -896,7 +896,7 @@ export function CollabTable({
                     </button>
                   )}
                   <button
-                    onClick={(e) => { e.stopPropagation(); onOpenRow(row); }}
+                    onClick={(e) => { e.stopPropagation(); onOpenRow(row, "history"); }}
                     className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue transition-colors text-[11px]"
                     title="히스토리"
                   >
@@ -1071,7 +1071,7 @@ export function CollabTable({
         sortedDataLength={sortedRows.length}
         mobileCardFields={mobile?.cardFields ?? []}
         allColumns={columns}
-        openRow={(row) => onOpenRow(row)}
+        openRow={(row, panel) => onOpenRow(row, panel)}
         getConditionalFormatClass={(row) => getRowColorClass?.(row) ?? null}
         getColLabel={getColLabel}
         statusKey={mobile?.statusKey ?? ""}
