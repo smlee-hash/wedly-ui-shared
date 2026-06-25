@@ -2010,7 +2010,8 @@ export default function UnifiedDetailView({
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
   const [nameValue, setNameValue] = useState(() => String(row["02상호명"] ?? ""));
   // ── 신규 등록 모드 상태 (isNew 일 때만 사용) ──
-  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ 영업담당: "하이브", "02상호명": String(row["02상호명"] ?? "") }));
+  // NO.56: 신규 등록은 어떤 칸도 자동 선택값을 넣지 않는다(영업담당 "하이브" 하드코딩 제거 — 안 골라도 저장되던 버그).
+  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ "02상호명": String(row["02상호명"] ?? "") }));
   const [pendingComments, setPendingComments] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
