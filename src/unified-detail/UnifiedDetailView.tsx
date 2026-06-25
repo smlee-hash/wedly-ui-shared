@@ -1973,6 +1973,7 @@ export default function UnifiedDetailView({
   hiddenColumnKeys,
   adapter,
   initialTab,
+  openOnHistory = false,
 }: {
   row: RowData;
   onClose: () => void;
@@ -1984,6 +1985,8 @@ export default function UnifiedDetailView({
   // 처음 열 탭(선택). "__basic__"(기본정보·기본값)·"__history__"(히스토리)·분야 그룹 키(예: government-subsidy).
   // 미전달 시 기존과 동일하게 기본정보부터 — 다른 앱(하이브·일루아) 동작 불변(앞호환).
   initialTab?: string;
+  // true면 열 때 "데이터가 있는 첫 분야"의 히스토리로 시작(목록 말풍선 클릭용·NO.80). 기본 false=기존 동작.
+  openOnHistory?: boolean;
 }) {
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2160,6 +2163,19 @@ export default function UnifiedDetailView({
   const orderedGroups = useMemo(() => applyTabConfig(allGroups, topOrder, topLabels), [allGroups, topOrder, topLabels]);
   // 숨긴 분야를 뺀 실제 노출 목록(편집 모드에서는 숨긴 것도 보여줘 다시 켤 수 있게 함)
   const visibleGroups = useMemo(() => orderedGroups.filter((g) => !topHidden.includes(g.key)), [orderedGroups, topHidden]);
+
+  // 목록 말풍선(히스토리) 클릭으로 열렸으면(openOnHistory) — detail 로드 후 "데이터가 있는 첫 분야"로 1회 이동.
+  // 그 분야 하위 탭은 기본값이 "history"라 히스토리가 먼저 보인다. 데이터 분야가 없으면 기본정보 유지(회귀 없음). NO.80
+  const didInitHistoryRef = useRef(false);
+  useEffect(() => {
+    if (!openOnHistory || didInitHistoryRef.current || !detail) return;
+    const firstWithData = visibleGroups.find((g) => rowsOfGroup(detail, g).length > 0);
+    if (firstWithData) {
+      setActiveTab(firstWithData.key);
+      setSubTab("history");
+      didInitHistoryRef.current = true;
+    }
+  }, [openOnHistory, detail, visibleGroups]);
 
   const moveTopTab = useCallback((idx: number, dir: -1 | 1) => {
     const keys = orderedGroups.map((g) => g.key);
