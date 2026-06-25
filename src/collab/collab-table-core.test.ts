@@ -12,7 +12,10 @@ import {
   reorderList,
   resolveInitialColumnOrder,
   defaultFormatCellValue,
+  composeRowClassName,
+  resolveInjectedCellEditor,
   type RowData,
+  type CellValue,
   type SortRule,
 } from "./collab-table-core";
 
@@ -190,6 +193,14 @@ describe("defaultFormatCellValue", () => {
   it("일반 텍스트는 그대로", () => {
     expect(defaultFormatCellValue(col("x", "text"), "안녕")).toBe("안녕");
   });
+  it("percent 는 값 뒤에 % (계산 없이 표시)", () => {
+    expect(defaultFormatCellValue(col("x", "percent"), 5)).toBe("5%");
+    expect(defaultFormatCellValue(col("x", "percent"), 1.65)).toBe("1.65%");
+  });
+  it("percent 빈값은 — (em dash)", () => {
+    expect(defaultFormatCellValue(col("x", "percent"), "")).toBe("—");
+    expect(defaultFormatCellValue(col("x", "percent"), null)).toBe("—");
+  });
 });
 
 describe("resolveInitialColumnOrder (관리자 서버 순서 우선)", () => {
@@ -213,5 +224,64 @@ describe("resolveInitialColumnOrder (관리자 서버 순서 우선)", () => {
   });
   it("로컬이 배열이 아니면 기본으로 폴백", () => {
     expect(resolveInitialColumnOrder(undefined, "bad" as unknown, ["c"])).toEqual(["c"]);
+  });
+});
+
+describe("composeRowClassName (줄 색칠 우선순위)", () => {
+  // 하이브·일루아 표와 똑같은 규칙을 공용 표로 옮긴 것:
+  //   체크된 줄의 파란 강조 > 조건부 색칠 > 기본(테두리+hover).
+  //   조건부 색은 그 줄이 체크 안 됐을 때만 적용(체크하면 파란 강조가 이김).
+  const base = "border-t hover";
+  const checked = "bg-blue";
+
+  it("조건부 색 없고 체크 안 됨 → 기본만", () => {
+    expect(composeRowClassName(base, false, checked, null)).toBe("border-t hover");
+  });
+  it("조건부 색 있고 체크 안 됨 → 기본 + 조건부 색", () => {
+    expect(composeRowClassName(base, false, checked, "bg-red text-red")).toBe(
+      "border-t hover bg-red text-red",
+    );
+  });
+  it("체크됨 + 조건부 색 없음 → 기본 + 체크 강조", () => {
+    expect(composeRowClassName(base, true, checked, null)).toBe("border-t hover bg-blue");
+  });
+  it("체크됨 + 조건부 색 있음 → 조건부 색은 빠지고 체크 강조가 이김", () => {
+    expect(composeRowClassName(base, true, checked, "bg-red text-red")).toBe(
+      "border-t hover bg-blue",
+    );
+  });
+  it("조건부 색이 null/undefined/빈문자열이면 무시(빈 토큰 없음)", () => {
+    expect(composeRowClassName(base, false, checked, null)).toBe("border-t hover");
+    expect(composeRowClassName(base, false, checked, undefined)).toBe("border-t hover");
+    expect(composeRowClassName(base, false, checked, "")).toBe("border-t hover");
+  });
+  it("미지정(조건부 색 없음)일 때 기존 동작과 동일 — ERP 무영향 보장", () => {
+    // ERP는 getRowColorClass를 안 넘기므로 conditionalClass는 항상 빈값 → 기존 cn() 결과와 같아야 한다.
+    expect(composeRowClassName(base, false, checked, undefined)).toBe("border-t hover");
+    expect(composeRowClassName(base, true, checked, undefined)).toBe("border-t hover bg-blue");
+  });
+});
+
+describe("resolveInjectedCellEditor (끼울 수 있는 셀 편집기 — 미지정 시 무영향)", () => {
+  const args = {
+    col: col("26담당컨설턴트", "select"),
+    row: { _id: "1" } as RowData,
+    value: "홍길동" as CellValue,
+    commit: () => {},
+    cancel: () => {},
+  };
+  it("renderEditor 미지정이면 null — 공용 표가 기존 편집기 switch로 폴백(ERP/하이브 무영향)", () => {
+    expect(resolveInjectedCellEditor(undefined, args)).toBeNull();
+  });
+  it("renderEditor가 그 칸에 null을 돌려주면 null — 그 칸만 기본 편집기로 폴백", () => {
+    expect(resolveInjectedCellEditor(() => null, args)).toBeNull();
+  });
+  it("renderEditor가 노드를 돌려주면 그 노드를 그대로 편집기로 사용", () => {
+    expect(resolveInjectedCellEditor(() => "EDITOR", args)).toBe("EDITOR");
+  });
+  it("col/row/value/commit/cancel 인자를 주입 함수에 그대로 전달", () => {
+    let seen: unknown = null;
+    resolveInjectedCellEditor((a) => { seen = a; return "X"; }, args);
+    expect(seen).toBe(args);
   });
 });

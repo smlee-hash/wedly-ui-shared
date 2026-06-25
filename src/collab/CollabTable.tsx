@@ -23,11 +23,15 @@ import {
   reorderList,
   resolveInitialColumnOrder,
   defaultFormatCellValue,
+  composeRowClassName,
+  resolveInjectedCellEditor,
   type RowData,
   type CellValue,
   type SortConfig,
   type SortRule,
+  type InjectedEditorArgs,
 } from "./collab-table-core";
+import { startColumnResize } from "./column-resize";
 import { filterRowsByTab, type ViewTab } from "./collab-filters";
 import { FilterTabs, type FilterTabsAdmin } from "./FilterTabs";
 import { TextEditor, NumberEditor, DateEditor } from "../components/Editors";
@@ -66,6 +70,12 @@ export type CollabTableProps = {
   };
   /** 셀 값 렌더러(생략 시 종류별 기본 표시) */
   renderFieldValue?: (col: ColumnDef, value: CellValue, row: RowData) => ReactNode;
+  /**
+   * 줄 전체 색칠(조건부 서식). 그 줄의 데이터로 색 클래스(예: "bg-wedly-bg-red text-wedly-red")를 돌려주면
+   * 그 줄에 칠한다. 생략하거나 null을 돌려주면 색 없음 — 기존과 100% 동일(ERP 무영향).
+   * 체크된 줄은 파란 강조가 이겨 이 색은 빠진다(하이브·일루아와 동일 규칙).
+   */
+  getRowColorClass?: (row: RowData) => string | null | undefined;
   /** 컬럼 강조(점·머리색). 생략 시 없음 */
   getColAccent?: (col: ColumnDef) => { dotClass: string; headerTint: string } | null;
   /** 상태별 필터 탭(생략 시 탭 없음 — 기존과 100% 동일). 각 앱이 자기 목록을 넣어준다. */
@@ -85,6 +95,13 @@ export type CollabTableProps = {
    * 부모는 isAdmin 일 때만 실제 서버 저장(PUT)하면 된다 — 비관리자 reorder 는 표 내부에서 이미 막힌다.
    */
   onColumnOrderChange?: (order: string[]) => void;
+  /**
+   * true면 칸 배치(순서·보임/숨김)를 "공용·관리자 전용 + 탭별 독립"으로 취급한다.
+   * - 보임/숨김: 비관리자에겐 '컬럼 설정' 버튼·머리 '컬럼 숨기기'를 숨긴다(관리자만 변경).
+   * - 순서: 개인(브라우저) 순서를 무시한다 — 탭마다 serverColumnOrder(없으면 앱 기본)만 따른다(탭 간 누수 방지).
+   * 미지정(undefined) 시 기존과 100% 동일.
+   */
+  columnArrangeShared?: boolean;
   /** 관리자 탭 편집 훅(생략 시 표시 전용). isAdmin=true 이고 이게 주어지면 탭 편집(끌어옮기기·＋추가·더블클릭 편집)이 켜진다. */
   tabAdmin?: FilterTabsAdmin;
   /**
@@ -136,6 +153,8 @@ export type CollabTableProps = {
     onSetColor?: (columnKey: string, option: string, color: string) => void;
     colorFamilies?: { name: string; classes: string }[];
     allowDelete?: boolean;
+    /** 앱별 셀 편집기 주입(예: 일루아 담당컨설턴트 사람칸). 이 칸에 노드를 돌려주면 그 편집기 사용, null/미지정 시 기본 편집기로 폴백(미지정 시 기존과 동일=ERP 무영향). */
+    renderEditor?: (a: InjectedEditorArgs) => ReactNode | null;
   };
   /**
    * 컬럼 표시 설정 모달에 공통/그외 구분, 승격, 삭제, 복원 기능을 전달하는 묶음.
@@ -191,6 +210,19 @@ export type CollabTableProps = {
   sort?: SortConfig;
   /** sort prop 변경 콜백(제어형 사용 시). 관리자 정렬 패널에서도 이 콜백으로 통지. */
   onSortChange?: (s: SortRule[]) => void;
+  /**
+   * 사용자별 "숨긴 컬럼" 목록(서버 저장 연동). 소비 앱이 서버에서 불러와 넣어준다.
+   * - undefined(기본): 기존 동작(브라우저 localStorage 의 '보일 컬럼' 집합). 하위호환 — 기존 소비처 무손상.
+   * - null: 서버에서 불러오는 중(아직 미도착) — 그동안 localStorage 로 즉시 표시(깜빡임 방지).
+   * - string[]: 이 사용자가 직접 숨긴 컬럼 키. **보일 컬럼 = 넘어온 columns(=관리자 ON 컬럼) − 이 목록.**
+   * 제공되면(=undefined 아님) 표·모달이 "서버 사용자 설정" 모드로 동작한다:
+   *   · 관리자가 새로/다시 켠 컬럼은 이 목록에 없으니 기본 표시,
+   *   · 사용자가 한번 숨기면 이 목록에 남아 계속 숨김(sticky),
+   *   · '컬럼 설정' 버튼이 정렬 버튼 왼쪽에 모든 사용자에게 표시된다.
+   */
+  hiddenColumns?: string[] | null;
+  /** 컬럼 설정 모달/헤더에서 칸을 켜고 끌 때 호출(서버 모드). nextVisible=이제 보일지 여부. 소비 앱이 서버 저장+상태 갱신. */
+  onToggleColumnVisibility?: (key: string, nextVisible: boolean) => void;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -434,6 +466,7 @@ export function CollabTable({
   onCreateNew: onCreateNewProp,
   mobile,
   renderFieldValue,
+  getRowColorClass,
   getColAccent: getColAccentProp,
   tabs,
   tabAdmin,
@@ -443,6 +476,7 @@ export function CollabTable({
   defaultColumnOrder,
   serverColumnOrder,
   onColumnOrderChange,
+  columnArrangeShared,
   onCellEdit,
   editConfig,
   columnAdmin,
@@ -451,7 +485,14 @@ export function CollabTable({
   headerSlot,
   sort: sortProp,
   onSortChange,
+  hiddenColumns,
+  onToggleColumnVisibility,
 }: CollabTableProps) {
+  // 서버 사용자 설정 모드 — hiddenColumns 가 주어지면(=undefined 아님) 켜진다.
+  // 보일 컬럼 = columns(관리자 ON) − hiddenColumns. 새 컬럼 기본표시·한번 숨기면 계속 숨김(sticky).
+  const serverColMode = hiddenColumns !== undefined;
+  const serverHiddenLoaded = serverColMode && hiddenColumns !== null; // 서버값 도착 여부
+  const serverHiddenSet = useMemo(() => new Set(hiddenColumns ?? []), [hiddenColumns]);
   const VISIBLE_COLS_KEY = `${storagePrefix}:visible-cols`;
   const COL_WIDTHS_KEY = `${storagePrefix}:col-widths`;
   const COL_ORDER_KEY = `${storagePrefix}:col-order`;
@@ -492,9 +533,15 @@ export function CollabTable({
   });
   const [colOrder, setColOrder] = useState<string[]>(() => {
     const saved = loadJson<string[]>(COL_ORDER_KEY, []);
+    // 공용(탭별) 모드: 개인 localStorage 순서 무시 — 탭마다 serverColumnOrder(없으면 앱 기본)만 따른다(탭 간 누수 방지).
+    if (columnArrangeShared) {
+      return serverColumnOrder && serverColumnOrder.length ? serverColumnOrder : (defaultColumnOrder ?? []);
+    }
     // 관리자(서버) 순서 > 개인(브라우저) 순서 > 앱 기본 순서.
     return resolveInitialColumnOrder(serverColumnOrder, saved, defaultColumnOrder);
   });
+  // 보임/숨김 변경 권한 — 공용 모드면 관리자만, 아니면 현행(전원).
+  const canEditColumnVisibility = !columnArrangeShared || isAdmin;
   const [colLabelOverrides, setColLabelOverrides] = useState<Record<string, string>>(() =>
     loadJson<Record<string, string>>(COL_LABELS_KEY, {}),
   );
@@ -513,13 +560,14 @@ export function CollabTable({
 
   // 새로 추가한 칸을 표에 바로 보이게 — 부모가 ensureVisibleKeys 로 알려준 키만 보임 처리(기존 숨김 설정은 건드리지 않음).
   useEffect(() => {
+    if (serverColMode) return; // 서버 모드: 새 컬럼은 숨김목록에 없어 이미 기본 표시 — 강제 불필요
     if (!ensureVisibleKeys || ensureVisibleKeys.length === 0) return;
     setVisibleColumns((prev) => {
       const next = new Set(prev);
       ensureVisibleKeys.forEach((k) => next.add(k));
       return next;
     });
-  }, [ensureVisibleKeys]);
+  }, [ensureVisibleKeys, serverColMode]);
 
   // 헤더 메뉴 / 드래그 / 리사이즈
   const [colMenuKey, setColMenuKey] = useState<string | null>(null);
@@ -551,8 +599,23 @@ export function CollabTable({
   }, [searchInput]);
 
   const orderedColumns = useMemo(() => orderColumns(columns, colOrder), [columns, colOrder]);
-  const activeColumns = useMemo(() => orderedColumns.filter((c) => visibleColumns.has(c.key)), [orderedColumns, visibleColumns]);
+  // 서버 모드(값 도착)면: 보일 컬럼 = 전체 − 숨김목록. 그 외(로딩중·기존 모드)면: 저장된 '보일 컬럼' 집합.
+  const activeColumns = useMemo(
+    () => serverHiddenLoaded
+      ? orderedColumns.filter((c) => !serverHiddenSet.has(c.key))
+      : orderedColumns.filter((c) => visibleColumns.has(c.key)),
+    [serverHiddenLoaded, serverHiddenSet, orderedColumns, visibleColumns],
+  );
   const stickyOffsets = useMemo(() => computeStickyOffsets(activeColumns, colWidths), [activeColumns, colWidths]);
+
+  // 서버 숨김목록이 도착/변경되면 localStorage '보일 컬럼'도 맞춰 둔다(다음 로딩 즉시표시·일관성용).
+  useEffect(() => {
+    if (!serverHiddenLoaded) return;
+    const next = new Set(orderedColumns.filter((c) => !serverHiddenSet.has(c.key)).map((c) => c.key));
+    setVisibleColumns(next);
+    try { localStorage.setItem(VISIBLE_COLS_KEY, JSON.stringify([...next])); } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverHiddenLoaded, serverHiddenSet, orderedColumns]);
 
   const activeTab = useMemo(
     () => (tabs && tabs.length ? tabs.find((t) => t.id === activeTabId) ?? null : null),
@@ -569,7 +632,7 @@ export function CollabTable({
 
   // 편집 가능 종류(기본) — formula·last_edited_time·last_edited_by·auto_increment_id·file·person 은 편집 안 함.
   const DEFAULT_EDITABLE_TYPES = useMemo(() => new Set<ColumnDef["type"]>([
-    "text", "title", "email", "phone_number", "number", "date", "datetime", "select", "status", "checkbox", "multi_select",
+    "text", "title", "email", "phone_number", "number", "percent", "date", "datetime", "select", "status", "checkbox", "multi_select",
   ]), []);
 
   const isCellEditable = useCallback((col: ColumnDef) => {
@@ -667,8 +730,18 @@ export function CollabTable({
     });
   }, []);
 
-  const isColumnVisible = useCallback((key: string) => visibleColumns.has(key), [visibleColumns]);
+  const isColumnVisible = useCallback(
+    (key: string) => serverHiddenLoaded ? !serverHiddenSet.has(key) : visibleColumns.has(key),
+    [serverHiddenLoaded, serverHiddenSet, visibleColumns],
+  );
   const toggleColumn = useCallback((key: string) => {
+    if (serverColMode) {
+      // 서버 모드: 숨김목록에 있으면 이제 보임, 없으면 숨김. 저장은 소비 앱이 서버에.
+      const nextVisible = serverHiddenSet.has(key);
+      onToggleColumnVisibility?.(key, nextVisible);
+      columnGrouping?.onToggleColumn?.(key, nextVisible);
+      return;
+    }
     const nextVisible = !visibleColumns.has(key);
     setVisibleColumns((prev) => {
       const n = new Set(prev);
@@ -677,15 +750,20 @@ export function CollabTable({
       return n;
     });
     columnGrouping?.onToggleColumn?.(key, nextVisible);
-  }, [visibleColumns, persistVisible, columnGrouping]);
+  }, [serverColMode, serverHiddenSet, onToggleColumnVisibility, visibleColumns, persistVisible, columnGrouping]);
+  // 표 머리 메뉴의 '이 칸 숨기기' — 서버 모드면 숨김목록에 추가(서버 저장), 아니면 기존 localStorage.
   const removeColFromTab = useCallback((key: string) => {
+    if (serverColMode) {
+      onToggleColumnVisibility?.(key, false);
+      return;
+    }
     setVisibleColumns((prev) => {
       const n = new Set(prev);
       n.delete(key);
       persistVisible(n);
       return n;
     });
-  }, [persistVisible]);
+  }, [serverColMode, onToggleColumnVisibility, persistVisible]);
 
   const saveColLabel = useCallback((key: string, label: string) => {
     setColLabelOverrides((prev) => {
@@ -719,24 +797,18 @@ export function CollabTable({
       return next;
     });
   }, [COL_WIDTHS_KEY]);
-  const onResizeStart = useCallback((e: React.MouseEvent, colKey: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX;
-    const startW = colWidths[colKey] || 120;
-    resizingRef.current = { key: colKey, startX, startW };
-    const onMove = (ev: MouseEvent) => setColWidthsAndStore((p) => ({ ...p, [colKey]: Math.max(40, startW + (ev.clientX - startX)) }));
-    const onUp = () => {
-      resizingRef.current = null;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
+  // 가이드선 방식(공용 부품) — 드래그 중 화면 재렌더 0, 손 뗄 때 너비 1회 확정.
+  // resizingRef는 드래그 중 칸 순서 끌기를 막는 용도(참/거짓만 본다).
+  const onResizeStart = useCallback((e: React.PointerEvent, colKey: string) => {
+    resizingRef.current = { key: colKey };
+    startColumnResize({
+      event: e,
+      startWidth: colWidths[colKey] || 120,
+      onCommit: (finalW) => {
+        resizingRef.current = null;
+        setColWidthsAndStore((p) => ({ ...p, [colKey]: finalW }));
+      },
+    });
   }, [colWidths, setColWidthsAndStore]);
   const onResizeDoubleClick = useCallback((colKey: string) => setColWidthsAndStore((p) => ({ ...p, [colKey]: 160 })), [setColWidthsAndStore]);
 
@@ -754,7 +826,12 @@ export function CollabTable({
       <tr
         key={id || virtualIndex}
         onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
-        className={cn("border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30", checkedIds.has(id) && "bg-wedly-bg-blue/30")}
+        className={composeRowClassName(
+          "border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30",
+          checkedIds.has(id),
+          "bg-wedly-bg-blue/30",
+          getRowColorClass?.(row),
+        )}
       >
         <td className="py-2 px-3 w-10 text-center sticky left-0 z-10 bg-white">
           <input
@@ -839,12 +916,19 @@ export function CollabTable({
                   {renderFieldValue ? renderFieldValue(col, v, row) : <span>{defaultFormatCellValue(col, v)}</span>}
                 </button>
               ) : isEditingThis ? (
+                resolveInjectedCellEditor(editConfig?.renderEditor, {
+                  col,
+                  row,
+                  value: v,
+                  commit: (nv: string | number | boolean | null) => { setEditingCell(null); onCellEdit?.(row, col.key, nv); },
+                  cancel: () => setEditingCell(null),
+                }) ?? (
                 col.type === "text" || col.type === "email" || col.type === "phone_number" ? (
                   <TextEditor
                     value={String(v ?? "")}
                     onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv); }}
                   />
-                ) : col.type === "number" ? (
+                ) : col.type === "number" || col.type === "percent" ? (
                   <NumberEditor
                     value={v != null && v !== "" ? Number(v) : null}
                     onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv); }}
@@ -883,6 +967,7 @@ export function CollabTable({
                 ) : (
                   renderFieldValue ? renderFieldValue(col, v, row) : <span>{defaultFormatCellValue(col, v)}</span>
                 )
+                )
               ) : renderFieldValue ? (
                 renderFieldValue(col, v, row)
               ) : (
@@ -893,7 +978,7 @@ export function CollabTable({
         })}
       </tr>
     );
-  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, onRowHover, renderFieldValue, editingCell, isCellEditable, onCellEdit, editConfig]);
+  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, onRowHover, renderFieldValue, getRowColorClass, editingCell, isCellEditable, onCellEdit, editConfig]);
 
   return (
     <div className={maximized ? "fixed inset-0 z-[70] bg-white overflow-y-auto p-3 sm:p-4" : undefined}>
@@ -940,6 +1025,20 @@ export function CollabTable({
         showPageBox={true}
         trailingControls={
           <>
+            {/* 컬럼 설정 — 서버 모드 + 변경 권한 있을 때 정렬 버튼 왼쪽에 표시(공용 모드면 관리자만). */}
+            {serverColMode && canEditColumnVisibility && (
+              <button
+                type="button"
+                onClick={() => setColumnModalOpen(true)}
+                title="표에 보일 컬럼 선택"
+                className="inline-flex items-center gap-1 rounded-lg border border-wedly-bd px-2.5 py-1.5 text-[12px] font-medium text-wedly-t2 hover:bg-wedly-bg-gray transition-colors"
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                  <path d="M2.5 2.5h11v11h-11zM6.5 2.5v11M10 2.5v11" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                </svg>
+                컬럼 설정
+              </button>
+            )}
             {isAdmin && (
               <SortPanel
                 sort={sortConfig}
@@ -952,7 +1051,8 @@ export function CollabTable({
         }
       />
 
-      {!adminEnabled && (
+      {/* 서버 모드면 '컬럼 설정' 버튼이 위 컨트롤 줄(정렬 왼쪽)에 모든 사용자에게 떠서, 이 비관리자 전용 버튼은 숨긴다(중복 방지). */}
+      {!adminEnabled && !serverColMode && (
         <div className="mb-2 mt-2 flex justify-end">
           <button
             onClick={() => setColumnModalOpen(true)}
@@ -972,7 +1072,7 @@ export function CollabTable({
         mobileCardFields={mobile?.cardFields ?? []}
         allColumns={columns}
         openRow={(row) => onOpenRow(row)}
-        getConditionalFormatClass={() => null}
+        getConditionalFormatClass={(row) => getRowColorClass?.(row) ?? null}
         getColLabel={getColLabel}
         statusKey={mobile?.statusKey ?? ""}
         getStatusClass={mobileStatusClass}
@@ -1011,6 +1111,7 @@ export function CollabTable({
         resizingRef={resizingRef}
         reorderColumn={reorderColumn}
         canReorderColumns={!(onColumnOrderChange && !isAdmin)}
+        canHideColumn={canEditColumnVisibility}
         onResizeStart={onResizeStart}
         onResizeDoubleClick={onResizeDoubleClick}
         getColLabel={getColLabel}

@@ -1,5 +1,6 @@
+import type { ReactNode } from "react";
 import type { ColumnDef } from "../types/columns";
-import { formatCurrency, formatDate } from "../lib/utils";
+import { formatCurrency, formatDate, formatPercent } from "../lib/utils";
 
 export type CellValue = string | number | boolean | null;
 export type RowData = Record<string, CellValue>;
@@ -141,6 +142,7 @@ export function reorderList(order: string[], fromKey: string, toKey: string): st
 export function defaultFormatCellValue(col: ColumnDef, value: CellValue): string {
   if (value == null || value === "") return "—";
   if (col.type === "checkbox") return value === true || value === "true" ? "✓" : "—";
+  if (col.type === "percent") return formatPercent(value);
   if (col.type === "number" || col.type === "formula") {
     if (col.format === "currency") {
       const n = typeof value === "number" ? value : Number(String(value).replace(/[^0-9.-]/g, ""));
@@ -152,4 +154,52 @@ export function defaultFormatCellValue(col: ColumnDef, value: CellValue): string
     return formatDate(String(value));
   }
   return String(value);
+}
+
+/**
+ * 표 한 줄(<tr>)의 색 클래스를 조합한다. (3앱 표 통일 — 하이브·일루아가 줄에 쓰던 조건부 색칠을 공용 표로 옮김)
+ *
+ * 우선순위(하이브·일루아와 동일): 체크된 줄의 파란 강조 > 조건부 색칠 > 기본(테두리+hover).
+ * - `conditionalClass`(예: "bg-wedly-bg-red text-wedly-red")는 그 줄이 **체크 안 됐을 때만** 적용한다.
+ *   체크하면 체크 강조(`checkedClass`)가 이기고 조건부 색은 빠진다.
+ * - `conditionalClass`가 null/undefined/빈문자열이면 무시(빈 토큰을 만들지 않는다).
+ *   → 공용 표 소비자가 색 함수를 안 넘기면(ERP) 항상 빈값이라 기존 동작과 100% 동일(무영향).
+ */
+export function composeRowClassName(
+  base: string,
+  isChecked: boolean,
+  checkedClass: string,
+  conditionalClass: string | null | undefined,
+): string {
+  return [
+    base,
+    !isChecked && conditionalClass ? conditionalClass : "",
+    isChecked ? checkedClass : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** 앱이 주입한 셀 편집기에 넘기는 인자 묶음(예: 일루아 담당컨설턴트 사람칸). */
+export type InjectedEditorArgs = {
+  col: ColumnDef;
+  row: RowData;
+  value: CellValue;
+  /** 편집 확정: 편집 상태를 닫고 값을 저장하도록 공용 표가 연결해 준다. */
+  commit: (v: string | number | boolean | null) => void;
+  /** 편집 취소: 편집 상태만 닫는다. */
+  cancel: () => void;
+};
+
+/**
+ * 앱이 주입한 셀 편집기를 쓸지 결정한다. (3앱 표 통일 — 공용 표가 모르는 칸 편집기를 앱이 끼워넣는 통로)
+ * - renderEditor 미지정 → null (공용 표가 기존 편집기 switch로 폴백 = ERP/하이브 무영향)
+ * - renderEditor가 이 칸에 대해 null 반환 → null (그 칸만 기본 편집기로 폴백)
+ * - 노드 반환 → 그 노드를 편집기로 사용
+ */
+export function resolveInjectedCellEditor(
+  renderEditor: ((a: InjectedEditorArgs) => ReactNode | null) | undefined,
+  args: InjectedEditorArgs,
+): ReactNode | null {
+  return renderEditor ? renderEditor(args) ?? null : null;
 }

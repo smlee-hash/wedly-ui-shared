@@ -53,9 +53,11 @@ type Props = {
   reorderColumn: (from: string, to: string) => void;
   /** 칸 순서 끌어옮기기 허용 여부(생략 시 true=기존과 동일). false면 드래그 손잡이를 끈다(예: 비관리자, 관리자 전용 순서 모드). */
   canReorderColumns?: boolean;
+  /** 머리 메뉴 '컬럼 숨기기' 허용 여부(생략 시 true=기존과 동일). false면 숨기기 항목을 끈다(공용 모드 비관리자). */
+  canHideColumn?: boolean;
 
-  // 컬럼 리사이즈
-  onResizeStart: (e: React.MouseEvent, colKey: string) => void;
+  // 컬럼 리사이즈 (포인터 이벤트 — 마우스·터치·펜 통합, NO.76)
+  onResizeStart: (e: React.PointerEvent, colKey: string) => void;
   onResizeDoubleClick: (colKey: string) => void;
 
   // 라벨·강조
@@ -98,6 +100,7 @@ export function DesktopTable({
   resizingRef,
   reorderColumn,
   canReorderColumns = true,
+  canHideColumn = true,
   onResizeStart,
   onResizeDoubleClick,
   getColLabel,
@@ -127,13 +130,13 @@ export function DesktopTable({
       <div
         ref={tableScrollRef}
         className={cn(
-          "overflow-x-scroll overflow-y-auto [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-wedly-bg-gray [&::-webkit-scrollbar-thumb]:bg-wedly-bd-blue [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-wedly-accent",
+          "touch-manipulation overflow-x-scroll overflow-y-auto [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-wedly-bg-gray [&::-webkit-scrollbar-thumb]:bg-wedly-bd-blue [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-wedly-accent",
           "[&_.sticky]:max-md:!static [&_.sticky]:max-md:!left-auto",
           mobileViewMode === "table" ? "block" : "hidden md:block",
         )}
         style={{ maxHeight: "calc(100vh - 320px)", scrollbarWidth: "thin", scrollbarColor: "#74B0FF #F8F9FA" }}
       >
-        <table className="text-sm" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
+        <table className="text-sm" style={{ tableLayout: "fixed", width: 40 + activeColumns.reduce((sum, c) => sum + (colWidths[c.key] || 100), 0), minWidth: "100%" }}>
           <colgroup>
             <col style={{ width: 40 }} />
             {activeColumns.map((col) => (
@@ -235,7 +238,7 @@ export function DesktopTable({
                               aria-hidden="true"
                             />
                           )}
-                          {getColLabel(col)}
+                          <span className="truncate min-w-0">{getColLabel(col)}</span>
                           {isSorted && (
                             <span className="text-wedly-accent">{sortConfig?.direction === "asc" ? "↑" : "↓"}</span>
                           )}
@@ -289,26 +292,29 @@ export function DesktopTable({
                           </svg>
                           정렬
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeColFromTab(col.key);
-                            setColMenuKey(null);
-                          }}
-                          className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red hover:bg-wedly-bg-red flex items-center gap-2"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                          컬럼 숨기기
-                        </button>
+                        {canHideColumn && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeColFromTab(col.key);
+                              setColMenuKey(null);
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red hover:bg-wedly-bg-red flex items-center gap-2"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                            컬럼 숨기기
+                          </button>
+                        )}
                       </div>
                     )}
                     <div
                       draggable={false}
-                      onMouseDown={(e) => onResizeStart(e, col.key)}
+                      onPointerDown={(e) => onResizeStart(e, col.key)}
                       onDoubleClick={() => onResizeDoubleClick(col.key)}
-                      className="absolute right-[-2px] top-0 bottom-0 w-[5px] cursor-col-resize z-20 group/resize"
+                      style={{ touchAction: "none" }}
+                      className="absolute right-[-3px] top-0 bottom-0 w-[11px] cursor-col-resize z-20 group/resize touch-none"
                     >
                       <div className="absolute inset-y-1 left-1/2 -translate-x-1/2 w-[2px] bg-wedly-bd group-hover/resize:bg-wedly-accent group-active/resize:bg-wedly-accent rounded-full" />
                     </div>
