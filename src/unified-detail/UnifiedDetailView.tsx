@@ -12,6 +12,7 @@ import {
 import { DOMAIN_GROUPS, type DomainGroup } from "./lib/domain-config";
 import { getStatusDotClass } from "./lib/status-dot";
 import { normalizeBizno } from "./lib/secstore";
+import { pickHistoryTargetGroup } from "./lib/history-target";
 import HistoryPanel, { type HistoryPanelApi } from "./HistoryPanel";
 import { FieldOptionsProvider } from "./field-options-context";
 import SectionHistoryPanel from "./SectionHistoryPanel";
@@ -2051,6 +2052,8 @@ export default function UnifiedDetailView({
   isNew = false,
   hiddenColumnKeys,
   adapter,
+  openOnHistory = false,
+  historyPreferredGroup,
 }: {
   row: RowData;
   onClose: () => void;
@@ -2059,6 +2062,10 @@ export default function UnifiedDetailView({
   // 표 "컬럼 표시 설정"에서 OFF(숨김)한 칸 키 목록 — 기본정보 섹션에서 표준 칸 포함 균일 제외(NO.56).
   hiddenColumnKeys?: string[];
   adapter: UnifiedDetailAdapter;
+  // true면 열 때 히스토리로 시작(목록 말풍선 클릭용·NO.80). 기본 false=기존 동작.
+  openOnHistory?: boolean;
+  // 말풍선 히스토리로 열 때 우선 분야 그룹 키(ERP=tax-amendment, 일루아=government-subsidy). 없으면 히스토리 있는 첫 분야. NO.80b
+  historyPreferredGroup?: string;
 }) {
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2236,6 +2243,32 @@ export default function UnifiedDetailView({
   const orderedGroups = useMemo(() => applyTabConfig(allGroups, topOrder, topLabels), [allGroups, topOrder, topLabels]);
   // 숨긴 분야를 뺀 실제 노출 목록(편집 모드에서는 숨긴 것도 보여줘 다시 켤 수 있게 함)
   const visibleGroups = useMemo(() => orderedGroups.filter((g) => !topHidden.includes(g.key)), [orderedGroups, topHidden]);
+
+  // 목록 말풍선(히스토리) 클릭으로 열렸으면(openOnHistory) — detail 로드 후 1회:
+  //  선호 분야(historyPreferredGroup, ERP=경정청구·일루아=정부지원금)에 히스토리가 있으면 그 분야,
+  //  없으면 "히스토리가 있는 첫 분야"로 이동(요청 3). 어디에도 히스토리가 없으면 "데이터 있는 첫 분야"로 폴백(회귀 방지).
+  //  그 분야 하위 탭은 기본값이 "history"라 히스토리가 먼저 보인다. NO.80b
+  const didInitHistoryRef = useRef(false);
+  useEffect(() => {
+    if (!openOnHistory || didInitHistoryRef.current || !detail) return;
+    const orderedKeys = visibleGroups.map((g) => g.key);
+    const byKey = new Map(visibleGroups.map((g) => [g.key, g] as const));
+    const groupHasHistory = (key: string): boolean => {
+      const g = byKey.get(key);
+      if (!g) return false;
+      // 분야에 히스토리(엔티티 댓글)가 있는지 — 그 분야 도메인 행들의 _commentCount 합으로 판정.
+      return rowsOfGroup(detail, g).some((r) => Number((r as Record<string, unknown>)._commentCount) > 0);
+    };
+    const target =
+      pickHistoryTargetGroup(orderedKeys, groupHasHistory, historyPreferredGroup) ??
+      visibleGroups.find((g) => rowsOfGroup(detail, g).length > 0)?.key ??
+      null;
+    if (target) {
+      setActiveTab(target);
+      setSubTab("history");
+      didInitHistoryRef.current = true;
+    }
+  }, [openOnHistory, detail, visibleGroups, historyPreferredGroup]);
 
   const moveTopTab = useCallback((idx: number, dir: -1 | 1) => {
     const keys = orderedGroups.map((g) => g.key);
