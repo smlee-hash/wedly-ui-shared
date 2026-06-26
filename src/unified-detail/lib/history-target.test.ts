@@ -27,4 +27,16 @@ describe("pickHistoryTargetGroup", () => {
     const has = (k: string) => k === "labor-subsidy";
     expect(pickHistoryTargetGroup(ORDER, has, "cert")).toBe("labor-subsidy");
   });
+  it("forcePreferred: 선호 분야에 히스토리가 없어도 항상 선호 분야를 고른다(일루아 NO.80c)", () => {
+    // 경정청구만 히스토리 있고 정부지원금은 없음 — 평소엔 경정청구로 폴백
+    const has = (k: string) => k === "tax-amendment";
+    // force 없으면(기존·ERP): 경정청구로 폴백
+    expect(pickHistoryTargetGroup(ORDER, has, "government-subsidy")).toBe("tax-amendment");
+    // force 있으면(일루아): 히스토리 유무와 무관하게 항상 정부지원금
+    expect(pickHistoryTargetGroup(ORDER, has, "government-subsidy", true)).toBe("government-subsidy");
+  });
+  it("forcePreferred 라도 선호 분야가 목록에 없으면 폴백한다(안전망)", () => {
+    const has = (k: string) => k === "tax-amendment";
+    expect(pickHistoryTargetGroup(ORDER, has, "no-such-group", true)).toBe("tax-amendment");
+  });
 });

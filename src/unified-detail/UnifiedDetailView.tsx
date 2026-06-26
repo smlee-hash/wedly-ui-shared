@@ -2054,6 +2054,7 @@ export default function UnifiedDetailView({
   adapter,
   openOnHistory = false,
   historyPreferredGroup,
+  historyForcePreferred = false,
 }: {
   row: RowData;
   onClose: () => void;
@@ -2066,6 +2067,8 @@ export default function UnifiedDetailView({
   openOnHistory?: boolean;
   // 말풍선 히스토리로 열 때 우선 분야 그룹 키(ERP=tax-amendment, 일루아=government-subsidy). 없으면 히스토리 있는 첫 분야. NO.80b
   historyPreferredGroup?: string;
+  // true면 historyPreferredGroup(일루아=정부지원금)으로 항상 연다 — 히스토리 유무와 무관·다른 분야로 폴백 안 함. 기본 false=preferred+폴백(ERP). NO.80c
+  historyForcePreferred?: boolean;
 }) {
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2260,7 +2263,7 @@ export default function UnifiedDetailView({
       return rowsOfGroup(detail, g).some((r) => Number((r as Record<string, unknown>)._commentCount) > 0);
     };
     const target =
-      pickHistoryTargetGroup(orderedKeys, groupHasHistory, historyPreferredGroup) ??
+      pickHistoryTargetGroup(orderedKeys, groupHasHistory, historyPreferredGroup, historyForcePreferred) ??
       visibleGroups.find((g) => rowsOfGroup(detail, g).length > 0)?.key ??
       null;
     if (target) {
@@ -2268,7 +2271,7 @@ export default function UnifiedDetailView({
       setSubTab("history");
       didInitHistoryRef.current = true;
     }
-  }, [openOnHistory, detail, visibleGroups, historyPreferredGroup]);
+  }, [openOnHistory, detail, visibleGroups, historyPreferredGroup, historyForcePreferred]);
 
   const moveTopTab = useCallback((idx: number, dir: -1 | 1) => {
     const keys = orderedGroups.map((g) => g.key);
