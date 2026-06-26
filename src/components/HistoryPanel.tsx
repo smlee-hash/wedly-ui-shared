@@ -95,6 +95,7 @@ export function HistoryPanel({
   confirmDialog,
   alertDialog,
   seedComments,
+  readOnly = false,
   // Hive compat — pageId kept for share URL generation
   pageId,
 }: {
@@ -125,6 +126,8 @@ export function HistoryPanel({
   confirmDialog?: (message: string, opts?: { title?: string; danger?: boolean }) => Promise<boolean>;
   alertDialog?: (message: string, opts?: { title?: string }) => void;
   seedComments?: UnifiedComment[];
+  /** 보기전용(하이브 정부지원금 등): 작성칸·수정·삭제 차단. 기본 false. */
+  readOnly?: boolean;
 }) {
   // helper — relative time (R6)
   const tf = timeFormatter ?? defaultTimeAgo;
@@ -728,7 +731,7 @@ export function HistoryPanel({
                     {tf(c.createdAt)}
                   </span>
                   <div className="ml-auto inline-flex items-center gap-1 opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 transition">
-                    {canEditOrDelete(c) && editingCommentId !== c.id && (
+                    {!readOnly && canEditOrDelete(c) && editingCommentId !== c.id && (
                       <>
                         <button
                           onClick={() => startEdit(c)}
@@ -838,7 +841,8 @@ export function HistoryPanel({
         <div ref={bottomRef} />
       </div>
 
-      {/* Composer */}
+      {/* Composer — readOnly(보기전용)이면 작성칸 숨김 (노션 3867b6a9·하이브 정부지원금) */}
+      {!readOnly && (
       <div className="border-t border-wedly-bd/60 px-4 py-3">
         {/* R9: image preview strip — only when enableImagePaste and images present */}
         {enableImagePaste && pastedImages.length > 0 && (
@@ -888,6 +892,7 @@ export function HistoryPanel({
           </button>
         </div>
       </div>
+      )}
 
       {/* 카테고리 숨김 관리 모달 — 보임/숨김 토글 표 */}
       {showCategoryHideManager && (() => {
