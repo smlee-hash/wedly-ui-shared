@@ -13,10 +13,10 @@ describe("classifyUnifiedFieldValue — 하이브 읽기 분기 동일", () => {
     expect(d.text).toBe("-");
   });
 
-  it("빈 값(편집가능) → '비어 있음'", () => {
+  it("빈 값(편집가능) → '-' (편집가능/읽기전용 구분 없이 항상 '-')", () => {
     const d = classifyUnifiedFieldValue({ key: "a", label: "x" }, null, { isReadonly: false });
     expect(d.kind).toBe("empty");
-    expect(d.text).toBe("비어 있음");
+    expect(d.text).toBe("-");
   });
 
   it("date → YYYY.MM.DD (하이브 동일)", () => {

@@ -649,8 +649,8 @@ export function EditableFieldRow({
       );
     }
     if (isEmpty) {
-      // 하이브와 동일: 편집 가능 칸은 "비어 있음", 읽기전용 칸은 "-"
-      return <span className="text-wedly-muted">{isReadonly ? "-" : "비어 있음"}</span>;
+      // 빈값은 편집가능/읽기전용 구분 없이 항상 "-" (3앱 통일·노션 3867b6a9)
+      return <span className="text-wedly-muted">{"-"}</span>;
     }
     if (col.type === "multi_select" && typeof value === "string" && value) {
       return (
