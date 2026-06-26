@@ -125,8 +125,9 @@ export function classifyUnifiedFieldValue(
   value: unknown,
   opts: FieldDisplayOptions = {},
 ): FieldValueDescriptor {
-  const { isReadonly = true, resolvePersonName } = opts;
-  const emptyText = isReadonly ? "-" : "비어 있음";
+  const { resolvePersonName } = opts;
+  // 빈 값은 편집가능/읽기전용 구분 없이 항상 "-" (대표님 결정 2026-06-26·노션 3867b6a9)
+  const emptyText = "-";
 
   // 파일 타입: 값 유무와 무관히 파일로 분류 (빈 파일 → empty)
   if (field.type === "file") {
