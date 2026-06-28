@@ -7,7 +7,7 @@ import { useFieldOptions } from "./field-options-context";
 // 글자·숫자 입력기는 공용 부품(@wedly/ui-shared)을 그대로 사용 — 표 셀·상세창·하이브와 100% 동일.
 import { TextEditor, NumberEditor, isCommonBasicLabel, renderUnifiedFieldValue, detectPersonChipRole, formatPercent, type CommonFieldOverride } from "../index";
 // 선택 칸 본문(옵션 추가·색칠)·사람 선택 위젯도 하이브와 같은 공용 부품 사용.
-import { SelectDropdownBody, MultiPersonEditor } from "@wedly/detail-modal-shared";
+import { SelectDropdownBody, MultiPersonEditor, personDisplayName } from "@wedly/detail-modal-shared";
 import { cn } from "../lib/cn";
 import { shouldConfirmFieldEdit } from "./lib/edit-confirm-gate";
 
@@ -45,6 +45,11 @@ export function formatFieldValue(col: ColumnDef, value: unknown): string {
     if (!isNaN(d.getTime())) {
       return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
     }
+  }
+  // 사람 칸은 항상 "이름만" 표시 — 옛 "이름 | 이메일"/"이름 <이메일>" 값도 이름만(콤마 다중이면 토막마다).
+  if (col.type === "person") {
+    const names = v.split(",").map((s) => personDisplayName(s.trim())).filter(Boolean);
+    return names.join(", ") || "—";
   }
   return v || "—";
 }
@@ -345,8 +350,10 @@ function PersonEditor({
       setPos({ top, left: rect.left, width: rect.width });
     }
   }, []);
-  // 직원 명단 → 공용 위젯이 받는 이름 문자열 배열(이름만 저장 → 하이브·일루아 호환).
-  const userNames = managers.map((m) => m.name);
+  // 직원 명단 → 공용 위젯이 받는 이름 문자열 배열. 후보를 "이름만"으로 정규화:
+  // 하이브 managers 는 "이름 | 이메일" 풀 형식을 주는데, 그대로 저장하면 ERP/일루아(이름만)와 섞인다.
+  // personDisplayName 으로 이름만 남겨 표시·저장 모두 이름만 → 3앱 한 가지 형식으로 통일(동명이인 없음).
+  const userNames = managers.map((m) => personDisplayName(m.name));
   return (
     <>
       {/* 칸 위치를 잡기 위한 0높이 기준점(흐름 안에 둠) */}
@@ -359,9 +366,9 @@ function PersonEditor({
             style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 240), zIndex: 9999 }}
           >
             <MultiPersonEditor
-              value={value ?? ""}
+              value={personDisplayName(value ?? "")}
               userNames={userNames}
-              onSave={(v) => onSave(v === "" ? null : v)}
+              onSave={(v) => onSave(v === "" ? null : personDisplayName(v))}
               onClose={onClose}
               single
             />
