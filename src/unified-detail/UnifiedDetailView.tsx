@@ -1086,6 +1086,26 @@ function BasicInfoPanel({
     for (const f of allBasicFields) m.set(f.key, f.label);
     return m;
   }, [allBasicFields]);
+  // "표에서 불러오기" 후보로 넘길 칸 목록 — 표가 지금 쓰는 살아있는 목록과 일치시킨다.
+  // (원래 칸 + 사람이 추가한 커스텀 칸) − 삭제된 칸, 표와 동일하게 라벨/형식 덮어쓰기 반영.
+  // 이전엔 고정 ownColumns 만 넘겨, 커스텀 칸이 안 보이고 삭제된 칸이 그대로 남았다(표 컬럼설정과 불일치).
+  // ownColumns 원본은 그대로 둬 기본정보 경로(colsLite·allBasicFields)에는 영향 없음.
+  const pickerOwnColumns = useMemo(() => {
+    const deletedSet = new Set(deletedColumns);
+    const seen = new Set<string>();
+    const merged: { key: string; label: string; type?: ColumnDef["type"]; options?: string[] }[] = [];
+    for (const c of [...ownColumns, ...customColumns]) {
+      if (!c || !c.key || seen.has(c.key) || deletedSet.has(c.key)) continue;
+      seen.add(c.key);
+      merged.push({
+        key: c.key,
+        label: colLabelOverrides[c.key] ?? c.label,
+        type: (colTypeOverrides[c.key] as ColumnDef["type"]) ?? (c.type as ColumnDef["type"]),
+        options: (c as { options?: string[] }).options,
+      });
+    }
+    return merged;
+  }, [ownColumns, customColumns, deletedColumns, colLabelOverrides, colTypeOverrides]);
   const commonFieldIdForKey = useCallback(
     (k: string) => resolveCommonFieldId(k, keyToFieldId.get(k) ?? "", commonOverride),
     [keyToFieldId, commonOverride],
@@ -1367,7 +1387,7 @@ function BasicInfoPanel({
             <div className="flex items-center gap-1.5">
               <CommonFieldsLauncher
                 appSpecificLabels={[...ERP_APP_BASIC_FIELDS.map((f) => f.label), ...addedBasicLabels]}
-                ownColumns={ownColumns.map((c) => ({ key: c.key, label: c.label, type: c.type, options: c.options }))}
+                ownColumns={pickerOwnColumns}
                 reservedLabels={allBasicFields.map((f) => f.label)}
                 loadDefs={adapter.api.loadBasicFieldDefs ? () => adapter.api.loadBasicFieldDefs!(ownDomain) : undefined}
                 saveDefs={adapter.api.saveBasicFieldDefs ? (fields) => adapter.api.saveBasicFieldDefs!(ownDomain, fields as Array<Record<string, unknown>>) : undefined}
