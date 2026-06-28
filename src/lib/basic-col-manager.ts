@@ -12,7 +12,9 @@ export type BasicColDef = {
   options?: string[];
 };
 
-// 폼에서 고를 수 있는 칸 종류 — 서버 BASIC_COLUMN_TYPES 와 1:1(formula·person 등 제외).
+// 폼에서 고를 수 있는 칸 종류 — 서버 BASIC_COLUMN_TYPES 와 1:1(formula 제외).
+// person(사람): 값 선택 시 그 앱 승인 사용자 목록(loadManagers)이 뜬다. 표에서 끌어온 사람 칸도
+// 글자로 떨어지지 않고 사람으로 유지된다(colDefFromOwnColumn 이 isAllowedBasicType 로 판정).
 export const BASIC_COL_TYPE_CHOICES: { value: string; label: string }[] = [
   { value: "text", label: "글자" },
   { value: "number", label: "숫자" },
@@ -22,6 +24,7 @@ export const BASIC_COL_TYPE_CHOICES: { value: string; label: string }[] = [
   { value: "phone_number", label: "연락처" },
   { value: "email", label: "이메일" },
   { value: "file", label: "파일" },
+  { value: "person", label: "사람" },
 ];
 
 const ALLOWED_TYPES = new Set(BASIC_COL_TYPE_CHOICES.map((c) => c.value));
