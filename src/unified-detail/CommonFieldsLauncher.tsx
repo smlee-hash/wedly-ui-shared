@@ -44,7 +44,7 @@ export function CommonFieldsLauncher({
           aria-modal="true"
         >
           <div
-            className="mt-[6vh] mb-[6vh] w-full max-w-lg rounded-2xl border border-wedly-bd bg-white p-5 shadow-sm"
+            className="mt-[6vh] mb-[6vh] max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-wedly-bd bg-white p-5 shadow-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
