@@ -51,12 +51,22 @@ function EyeIcon({ off }: { off?: boolean }) {
   );
 }
 
-function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onDelete }: {
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onEdit, onDelete }: {
   item: ManagedItem;
   busy: boolean;
   canManageCommon: boolean;
   onMove: (makeCommon: boolean) => void;
   onToggleHidden: (makeHidden: boolean) => void;
+  onEdit?: () => void;
   onDelete?: () => void;
 }) {
   const common = item.isCommon;
@@ -65,6 +75,7 @@ function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onDel
   const showMove = canManageCommon;                                   // 이동 = 공통 설정 변경 → ERP만
   const showEye = canManageCommon || !common;                        // 공통 칸 노출은 ERP만 / 앱 전용 칸은 그 앱이
   const showDelete = !!item.def && !!onDelete && (canManageCommon || !common);
+  const showEdit = !!item.def && !!onEdit && (canManageCommon || !common);
   const readOnlyCommon = common && !canManageCommon;                 // 파트너 앱의 공통 칸 = 버튼 없이 표시만
   return (
     <div className="flex items-center gap-2 rounded-xl border border-wedly-bd/60 px-3 py-2.5">
@@ -98,6 +109,18 @@ function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onDel
           aria-pressed={item.hidden}
         >
           <EyeIcon off={item.hidden} />
+        </button>
+      )}
+      {showEdit && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onEdit}
+          className="flex-shrink-0 rounded-md p-1 text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-accent transition-colors disabled:opacity-50"
+          title="컬럼 수정"
+          aria-label="컬럼 수정"
+        >
+          <PencilIcon />
         </button>
       )}
       {showDelete && (
@@ -150,6 +173,12 @@ export function CommonFieldsAdmin({
   const [type, setType] = useState("text");
   const [choicesText, setChoicesText] = useState("");
   const [pickOpen, setPickOpen] = useState(false);
+
+  // 커스텀 컬럼 수정 폼 — 한 번에 한 줄만 (editingKey = 수정 중인 컬럼 key, 그 줄을 인라인 폼으로 펼침)
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editType, setEditType] = useState("text");
+  const [editChoicesText, setEditChoicesText] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -263,6 +292,36 @@ export function CommonFieldsAdmin({
     await persistDefs(removeDef(defs, item.def.key));
   };
 
+  // 커스텀 컬럼 수정 시작 — 현재 값으로 폼을 채운다.
+  const startEdit = (item: ManagedItem) => {
+    if (!item.def || busy) return;
+    setEditingKey(item.def.key);
+    setEditLabel(item.def.label);
+    setEditType(item.def.type);
+    setEditChoicesText((item.def.options || []).join("\n"));
+  };
+
+  // 수정 저장 — key 는 유지(값 연결 보존), label/type/options 만 바꾼다.
+  // 종류(type)가 실제로 바뀐 경우에만 확인창 1회. 행 데이터는 건드리지 않는다(값 유지).
+  const handleSaveEdit = async () => {
+    if (!editingKey || !editLabel.trim() || busy || !saveDefs) return;
+    const cur = defs.find((d) => d.key === editingKey);
+    if (!cur) { setEditingKey(null); return; }
+    if (
+      editType !== cur.type &&
+      !confirm("컬럼 종류를 바꾸면 이미 입력된 값이 새 형식과 맞지 않을 수 있습니다. 계속하시겠습니까?\n(이미 입력된 값 자체는 지워지지 않습니다.)")
+    ) return;
+    const def = buildDefFromForm({
+      key: editingKey,
+      label: editLabel,
+      type: editType,
+      scope: cur.scope ?? "custom",
+      choicesText: editChoicesText,
+    });
+    const ok = await persistDefs(upsertDef(defs, def));
+    if (ok) setEditingKey(null);
+  };
+
   const takenKeys = useMemo(() => new Set(defs.map((d) => d.key)), [defs]);
   const handleAddFromForm = async () => {
     if (!label.trim() || busy || !saveDefs) return;
@@ -294,23 +353,76 @@ export function CommonFieldsAdmin({
   if (loading) return <div className="text-[14px] text-wedly-muted">불러오는 중…</div>;
 
   const inputCls = "w-full text-[13px] border border-wedly-bd rounded-lg px-2.5 py-1.5 outline-none focus:border-wedly-accent";
+  // 종류 선택 드롭다운 — 좁은 폭에선 한 줄 가득, 넓으면 고정폭(추가/수정 폼 공용).
+  const typeSelectCls = `${inputCls} bg-white w-full sm:w-[130px] sm:flex-shrink-0`;
 
   const renderRows = (items: ManagedItem[], emptyText: string) =>
     items.length === 0 ? (
       <div className="rounded-xl border border-wedly-bd/60 px-3 py-3 text-[12px] text-wedly-muted">{emptyText}</div>
     ) : (
       <div className="space-y-2">
-        {items.map((it) => (
-          <ManagedRow
-            key={norm(it.label)}
-            item={it}
-            busy={busy}
-            canManageCommon={canManageCommon}
-            onMove={(mk) => move(it, mk)}
-            onToggleHidden={(mk) => toggleHidden(it, mk)}
-            onDelete={it.def ? () => handleDelete(it) : undefined}
-          />
-        ))}
+        {items.map((it) =>
+          it.def && editingKey === it.def.key ? (
+            <div key={norm(it.label)} className="rounded-xl border border-wedly-accent/50 bg-wedly-bg-gray/30 p-3 space-y-3">
+              <div className="text-[12px] font-semibold text-wedly-t2">✎ 컬럼 수정</div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  value={editLabel}
+                  onChange={(e) => setEditLabel(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); }}
+                  placeholder="컬럼 이름 (예: 비고)"
+                  className={inputCls}
+                />
+                <select value={editType} onChange={(e) => setEditType(e.target.value)} className={typeSelectCls}>
+                  {BASIC_COL_TYPE_CHOICES.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleSaveEdit}
+                    disabled={!editLabel.trim() || busy}
+                    className="flex-1 sm:flex-none px-3 py-1.5 text-[12px] font-bold text-white bg-wedly-accent rounded-lg hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    저장
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingKey(null)}
+                    disabled={busy}
+                    className="flex-1 sm:flex-none px-3 py-1.5 text-[12px] font-medium text-wedly-t2 border border-wedly-bd rounded-lg hover:bg-wedly-bg-gray transition disabled:opacity-50"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+              {isChoiceType(editType) && (
+                <div>
+                  <label className="block text-[11px] text-wedly-muted mb-1">선택지 (줄바꿈 또는 쉼표로 구분)</label>
+                  <textarea
+                    value={editChoicesText}
+                    onChange={(e) => setEditChoicesText(e.target.value)}
+                    placeholder={"예: 상\n중\n하"}
+                    rows={3}
+                    className={`${inputCls} resize-y`}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            <ManagedRow
+              key={norm(it.label)}
+              item={it}
+              busy={busy}
+              canManageCommon={canManageCommon}
+              onMove={(mk) => move(it, mk)}
+              onToggleHidden={(mk) => toggleHidden(it, mk)}
+              onEdit={it.def ? () => startEdit(it) : undefined}
+              onDelete={it.def ? () => handleDelete(it) : undefined}
+            />
+          )
+        )}
       </div>
     );
 
@@ -342,7 +454,7 @@ export function CommonFieldsAdmin({
         {canManageDefs && (
           <div className="rounded-xl border border-wedly-bd/60 bg-wedly-bg-gray/30 p-3 space-y-3">
             <div className="text-[12px] font-semibold text-wedly-t2">＋ 커스텀 컬럼 추가</div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
@@ -350,7 +462,7 @@ export function CommonFieldsAdmin({
                 placeholder="컬럼 이름 (예: 비고)"
                 className={inputCls}
               />
-              <select value={type} onChange={(e) => setType(e.target.value)} className={`${inputCls} bg-white w-[130px] flex-shrink-0`}>
+              <select value={type} onChange={(e) => setType(e.target.value)} className={typeSelectCls}>
                 {BASIC_COL_TYPE_CHOICES.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
@@ -359,7 +471,7 @@ export function CommonFieldsAdmin({
                 type="button"
                 onClick={handleAddFromForm}
                 disabled={!label.trim() || busy}
-                className="flex-shrink-0 px-3 py-1.5 text-[12px] font-bold text-white bg-wedly-accent rounded-lg hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto flex-shrink-0 px-3 py-1.5 text-[12px] font-bold text-white bg-wedly-accent rounded-lg hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 추가
               </button>
