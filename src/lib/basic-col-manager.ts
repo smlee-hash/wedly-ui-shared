@@ -112,3 +112,12 @@ export function buildDefFromForm(input: {
   }
   return def;
 }
+
+// 사람(person) 칸은 항상 독립 키(custom_)를 갖게 한다. 표·하이브 유래 칸 키(예: "18계약담당자")를
+// 그대로 쓰면 원본 칸과 값이 얽히고(별칭), 상세창의 사람칸 읽기전용 판정(isReadonlyPerson)이
+// 'custom_ 아님'으로 잠가버린다. 독립 키를 주면 별도의 빈 칸으로 시작하고 사람 선택 편집이 된다.
+// person 이 아니거나 이미 custom_ 키면 그대로 둔다(값 연결 보존). (NO.83 재작업)
+export function ensureIndependentPersonKey(def: BasicColDef, taken: Iterable<string>): BasicColDef {
+  if (def.type !== "person" || def.key.startsWith("custom_")) return def;
+  return { ...def, key: uniqueColKey(`custom_${Date.now()}`, taken) };
+}

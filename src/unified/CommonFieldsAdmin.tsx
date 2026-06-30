@@ -25,6 +25,7 @@ import {
   setDefScope,
   colDefFromOwnColumn,
   buildDefFromForm,
+  ensureIndependentPersonKey,
   type BasicColDef,
 } from "../lib/basic-col-manager";
 
@@ -307,18 +308,25 @@ export function CommonFieldsAdmin({
     if (!editingKey || !editLabel.trim() || busy || !saveDefs) return;
     const cur = defs.find((d) => d.key === editingKey);
     if (!cur) { setEditingKey(null); return; }
-    if (
-      editType !== cur.type &&
-      !confirm("컬럼 종류를 바꾸면 이미 입력된 값이 새 형식과 맞지 않을 수 있습니다. 계속하시겠습니까?\n(이미 입력된 값 자체는 지워지지 않습니다.)")
-    ) return;
-    const def = buildDefFromForm({
+    // 표·하이브 유래 칸(custom_ 아님)을 '사람'으로 바꾸면 독립 키를 줘 별도 빈 칸으로 분리한다.
+    const becomingIndependentPerson = editType === "person" && !editingKey.startsWith("custom_");
+    if (editType !== cur.type) {
+      const msg = becomingIndependentPerson
+        ? "이 칸을 '사람' 칸으로 바꾸면 기존 표 칸과 분리된 '새 빈 칸'이 됩니다.\n기존에 입력된 값은 원래 칸에 그대로 남고, 이 칸은 비어서 시작합니다. 계속하시겠습니까?"
+        : "컬럼 종류를 바꾸면 이미 입력된 값이 새 형식과 맞지 않을 수 있습니다. 계속하시겠습니까?\n(이미 입력된 값 자체는 지워지지 않습니다.)";
+      if (!confirm(msg)) return;
+    }
+    const built = buildDefFromForm({
       key: editingKey,
       label: editLabel,
       type: editType,
       scope: cur.scope ?? "custom",
       choicesText: editChoicesText,
     });
-    const ok = await persistDefs(upsertDef(defs, def));
+    // person + 비custom_ 키면 새 독립 키 부여 → 옛 키 def 제거 후 새 키로 추가(빈 칸으로 시작).
+    const def = ensureIndependentPersonKey(built, takenKeys);
+    const base = def.key !== editingKey ? removeDef(defs, editingKey) : defs;
+    const ok = await persistDefs(upsertDef(base, def));
     if (ok) setEditingKey(null);
   };
 
@@ -332,7 +340,8 @@ export function CommonFieldsAdmin({
   };
   const handlePull = async (col: { key: string; label: string; type?: string; options?: string[] }) => {
     if (busy || !saveDefs) return;
-    const def = colDefFromOwnColumn(col, "custom");
+    // 표에서 끌어온 칸이 '사람'이면 독립 키를 줘 원본 칸과 값이 얽히지(별칭) 않게 한다.
+    const def = ensureIndependentPersonKey(colDefFromOwnColumn(col, "custom"), takenKeys);
     if (takenKeys.has(def.key)) { setError("이미 추가된 컬럼입니다."); return; }
     const ok = await persistDefs(upsertDef(defs, def));
     if (ok) setPickOpen(false);
