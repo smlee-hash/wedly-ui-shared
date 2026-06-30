@@ -9,6 +9,7 @@ import {
   buildDefFromForm,
   isChoiceType,
   isAllowedBasicType,
+  ensureIndependentPersonKey,
   type BasicColDef,
 } from "./basic-col-manager";
 
@@ -93,5 +94,25 @@ describe("형식 판정 보조", () => {
     expect(isChoiceType("text")).toBe(false);
     expect(isAllowedBasicType("file")).toBe(true);
     expect(isAllowedBasicType("formula")).toBe(false);
+  });
+});
+
+describe("ensureIndependentPersonKey — 사람 칸 독립 키 보장 (NO.83 재작업)", () => {
+  it("person 타입 + custom_ 아닌 키 → 새 custom_ 키 부여(라벨·종류 보존)", () => {
+    const def: BasicColDef = { key: "18계약담당자", label: "(정부) 계약담당자", type: "person", scope: "custom" };
+    const out = ensureIndependentPersonKey(def, new Set(["18계약담당자"]));
+    expect(out.key.startsWith("custom_")).toBe(true);
+    expect(out.key).not.toBe("18계약담당자");
+    expect(out.label).toBe("(정부) 계약담당자");
+    expect(out.type).toBe("person");
+    expect(out.scope).toBe("custom");
+  });
+  it("이미 custom_ 인 person 키는 그대로(값 연결 보존)", () => {
+    const def: BasicColDef = { key: "custom_1", label: "조회 담당자", type: "person", scope: "common" };
+    expect(ensureIndependentPersonKey(def, new Set()).key).toBe("custom_1");
+  });
+  it("person 이 아니면 키를 바꾸지 않음", () => {
+    const def: BasicColDef = { key: "18계약담당자", label: "계약담당자", type: "text", scope: "custom" };
+    expect(ensureIndependentPersonKey(def, new Set()).key).toBe("18계약담당자");
   });
 });
