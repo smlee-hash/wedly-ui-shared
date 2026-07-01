@@ -5,12 +5,21 @@ import type { RowData } from "./collab-table-core";
 
 export type FilterOperator =
   | "equals"
+  | "not_equals"
   | "in"
   | "not_in"
   | "is_empty"
   | "is_not_empty"
   | "contains"
-  | "on_or_before";
+  | "not_contains"
+  | "on_or_before"
+  | "on_or_after"
+  | "date_between"
+  | "date_today"
+  | "date_yesterday"
+  | "date_this_week"
+  | "date_this_month"
+  | "date_last_month";
 
 export type FilterCondition = {
   field: string;
@@ -33,8 +42,8 @@ export type ViewTab = {
  */
 export const EMPTY_OPTION_VALUE = "(미입력)";
 
-/** 한 행이 한 조건에 맞는지 판정(하이브와 동일). */
-export function matchesFilter(row: RowData, filter: FilterCondition): boolean {
+/** 한 행이 한 조건에 맞는지 판정(하이브와 동일). 상대 날짜 연산자는 todayISO(기준일) 필요. */
+export function matchesFilter(row: RowData, filter: FilterCondition, todayISO?: string): boolean {
   const rawVal = row[filter.field];
   const strVal = rawVal != null ? String(rawVal) : "";
   const isEmpty = rawVal === null || rawVal === undefined || rawVal === "";
@@ -77,6 +86,30 @@ export function matchesFilter(row: RowData, filter: FilterCondition): boolean {
     case "on_or_before":
       if (isEmpty || !filter.value) return false;
       return strVal.split("T")[0] <= String(filter.value);
+    case "not_equals": {
+      const target = String(filter.value || "");
+      // '(미입력)' 을 고른 경우 = 빈 값이 아닌 항목에 매칭(값 다름 = 미입력 아님).
+      if (target === EMPTY_OPTION_VALUE) return !isEmpty;
+      return !(strVal === target || (parts ? parts.includes(target) : false));
+    }
+    case "not_contains":
+      if (Array.isArray(filter.value)) return !filter.value.some((v) => strVal.includes(v));
+      return !strVal.includes(String(filter.value || ""));
+    case "on_or_after":
+    case "date_between":
+    case "date_today":
+    case "date_yesterday":
+    case "date_this_week":
+    case "date_this_month":
+    case "date_last_month": {
+      if (isEmpty) return false;
+      const day = strVal.split("T")[0];
+      const win = resolveDateWindow(filter, todayISO || day);
+      if (win.from === undefined && win.to === undefined) return false;
+      if (win.from !== undefined && day < win.from) return false;
+      if (win.to !== undefined && day > win.to) return false;
+      return true;
+    }
     default:
       return true;
   }
@@ -100,4 +133,93 @@ export function filterRowsByTab(rows: RowData[], tab: ViewTab | null): RowData[]
  */
 export function buildTabFromDraft<T extends ViewTab>(tab: T, label: string, filters: FilterCondition[]): T {
   return { ...tab, label, filters };
+}
+
+// ── 날짜 필터 계산(순수) ─────────────────────────────────────────
+// 기준일(todayISO, "YYYY-MM-DD")을 주입받아 상대/범위 날짜를 [from, to] 구간으로 환산.
+// 비교는 값의 날짜부분("YYYY-MM-DD") 사전식 비교(ISO 정렬 성질). Date 파싱 최소화·UTC 고정.
+export type DateWindow = { from?: string; to?: string };
+
+function ymd(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function parseYmd(s: string): Date {
+  const [y, m, d] = s.split("-").map((n) => parseInt(n, 10));
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+}
+
+export function resolveDateWindow(
+  cond: { operator: FilterOperator; value?: string | string[] },
+  todayISO: string,
+): DateWindow {
+  const today = parseYmd(todayISO);
+  switch (cond.operator) {
+    case "date_today":
+      return { from: todayISO, to: todayISO };
+    case "date_yesterday": {
+      const d = new Date(today); d.setUTCDate(d.getUTCDate() - 1);
+      return { from: ymd(d), to: ymd(d) };
+    }
+    case "date_this_week": {
+      // 월요일 시작. getUTCDay(): 0=일..6=토 → 월요일까지 뒤로 (day+6)%7 일.
+      const day = today.getUTCDay();
+      const back = (day + 6) % 7;
+      const mon = new Date(today); mon.setUTCDate(mon.getUTCDate() - back);
+      const sun = new Date(mon); sun.setUTCDate(sun.getUTCDate() + 6);
+      return { from: ymd(mon), to: ymd(sun) };
+    }
+    case "date_this_month": {
+      const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      const last = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
+      return { from: ymd(first), to: ymd(last) };
+    }
+    case "date_last_month": {
+      const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+      const last = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0));
+      return { from: ymd(first), to: ymd(last) };
+    }
+    case "on_or_after":
+      return cond.value ? { from: String(cond.value) } : {};
+    case "on_or_before":
+      return cond.value ? { to: String(cond.value) } : {};
+    case "date_between": {
+      const v = cond.value;
+      if (Array.isArray(v) && v[0] && v[1]) return { from: String(v[0]), to: String(v[1]) };
+      return {};
+    }
+    default:
+      return {};
+  }
+}
+
+// ── 다조건 필터(노션식 필터 바) ─────────────────────────────────
+const NO_VALUE_OPERATORS = new Set<FilterOperator>([
+  "is_empty", "is_not_empty",
+  "date_today", "date_yesterday", "date_this_week", "date_this_month", "date_last_month",
+]);
+
+/** 조건이 필터로 적용 가능한 상태인지(값이 필요한 연산자는 값이 채워졌는지). */
+export function isConditionComplete(cond: FilterCondition): boolean {
+  if (NO_VALUE_OPERATORS.has(cond.operator)) return true;
+  if (cond.operator === "in" || cond.operator === "not_in") {
+    return Array.isArray(cond.value) && cond.value.length > 0;
+  }
+  if (cond.operator === "date_between") {
+    return Array.isArray(cond.value) && !!cond.value[0] && !!cond.value[1];
+  }
+  return typeof cond.value === "string" && cond.value.trim() !== "";
+}
+
+/** 여러 조건을 AND 로 적용해 행을 거른다. 미완성 조건은 건너뛴다(통과). 완성 0개면 전체 반환. */
+export function filterRowsByConditions(
+  rows: RowData[],
+  conditions: FilterCondition[],
+  todayISO: string,
+): RowData[] {
+  const active = conditions.filter(isConditionComplete);
+  if (active.length === 0) return rows;
+  return rows.filter((r) => active.every((c) => matchesFilter(r, c, todayISO)));
 }
