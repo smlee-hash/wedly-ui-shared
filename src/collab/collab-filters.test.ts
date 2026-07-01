@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchesFilter, matchesTab, filterRowsByTab, buildTabFromDraft, EMPTY_OPTION_VALUE, type ViewTab } from "./collab-filters";
+import { matchesFilter, matchesTab, filterRowsByTab, buildTabFromDraft, EMPTY_OPTION_VALUE, resolveDateWindow, filterRowsByConditions, isConditionComplete, type ViewTab } from "./collab-filters";
 import type { RowData } from "./collab-table-core";
 
 describe("matchesFilter", () => {
@@ -169,5 +169,101 @@ describe("not_in — 다중 선택(제외): 고른 값만 빼고 전부 표시",
   });
   it("빈 행 + 빈 제외목록 → 표시", () => {
     expect(matchesFilter({ status: "" } as RowData, { field: "status", operator: "not_in", value: [] })).toBe(true);
+  });
+});
+
+describe("resolveDateWindow (상대/범위 날짜 → from/to)", () => {
+  const TODAY = "2026-07-15"; // 수요일
+
+  it("오늘/어제", () => {
+    expect(resolveDateWindow({ operator: "date_today" }, TODAY)).toEqual({ from: "2026-07-15", to: "2026-07-15" });
+    expect(resolveDateWindow({ operator: "date_yesterday" }, TODAY)).toEqual({ from: "2026-07-14", to: "2026-07-14" });
+  });
+
+  it("이번 주(월~일)", () => {
+    // 2026-07-15(수) 기준 주: 월 2026-07-13 ~ 일 2026-07-19
+    expect(resolveDateWindow({ operator: "date_this_week" }, TODAY)).toEqual({ from: "2026-07-13", to: "2026-07-19" });
+  });
+
+  it("이번 달 / 지난 달(말일 포함)", () => {
+    expect(resolveDateWindow({ operator: "date_this_month" }, TODAY)).toEqual({ from: "2026-07-01", to: "2026-07-31" });
+    expect(resolveDateWindow({ operator: "date_last_month" }, TODAY)).toEqual({ from: "2026-06-01", to: "2026-06-30" });
+  });
+
+  it("이후/이전/기간", () => {
+    expect(resolveDateWindow({ operator: "on_or_after", value: "2026-07-10" }, TODAY)).toEqual({ from: "2026-07-10" });
+    expect(resolveDateWindow({ operator: "on_or_before", value: "2026-07-10" }, TODAY)).toEqual({ to: "2026-07-10" });
+    expect(resolveDateWindow({ operator: "date_between", value: ["2026-07-01", "2026-07-10"] }, TODAY)).toEqual({ from: "2026-07-01", to: "2026-07-10" });
+  });
+
+  it("연/월 경계: 1월 15일의 지난 달 = 작년 12월", () => {
+    expect(resolveDateWindow({ operator: "date_last_month" }, "2026-01-15")).toEqual({ from: "2025-12-01", to: "2025-12-31" });
+  });
+});
+
+describe("matchesFilter — 노션 추가 연산자", () => {
+  const TODAY = "2026-07-15";
+  const row: RowData = { 상호명: "김밥천국", 상태: "가망, 계약대기", 계약일: "2026-07-13T09:00:00", 빈칸: "" };
+
+  it("not_equals / not_contains (텍스트)", () => {
+    expect(matchesFilter(row, { field: "상호명", operator: "not_equals", value: "김밥천국" })).toBe(false);
+    expect(matchesFilter(row, { field: "상호명", operator: "not_equals", value: "다른곳" })).toBe(true);
+    expect(matchesFilter(row, { field: "상호명", operator: "not_contains", value: "천국" })).toBe(false);
+    expect(matchesFilter(row, { field: "상호명", operator: "not_contains", value: "왕국" })).toBe(true);
+  });
+
+  it("not_in (드롭다운 제외, 다중선택 분해) — 기존 로직 유지", () => {
+    expect(matchesFilter(row, { field: "상태", operator: "not_in", value: ["가망"] })).toBe(false);
+    expect(matchesFilter(row, { field: "상태", operator: "not_in", value: ["보류"] })).toBe(true);
+  });
+
+  it("상대 날짜(이번 주 포함)/기간, 빈 값 제외", () => {
+    // 계약일 2026-07-13 은 2026-07-15 기준 '이번 주(월13~일19)'에 포함
+    expect(matchesFilter(row, { field: "계약일", operator: "date_this_week" }, TODAY)).toBe(true);
+    expect(matchesFilter(row, { field: "계약일", operator: "date_today" }, TODAY)).toBe(false);
+    expect(matchesFilter(row, { field: "계약일", operator: "on_or_after", value: "2026-07-14" }, TODAY)).toBe(false);
+    expect(matchesFilter(row, { field: "계약일", operator: "date_between", value: ["2026-07-01", "2026-07-31"] }, TODAY)).toBe(true);
+    expect(matchesFilter(row, { field: "빈칸", operator: "date_this_month" }, TODAY)).toBe(false);
+  });
+});
+
+describe("isConditionComplete", () => {
+  it("값 없는 연산자는 완성", () => {
+    expect(isConditionComplete({ field: "a", operator: "is_empty" })).toBe(true);
+    expect(isConditionComplete({ field: "a", operator: "date_this_month" })).toBe(true);
+  });
+  it("in/not_in 은 배열 비어있으면 미완성", () => {
+    expect(isConditionComplete({ field: "a", operator: "in", value: [] })).toBe(false);
+    expect(isConditionComplete({ field: "a", operator: "in", value: ["x"] })).toBe(true);
+  });
+  it("date_between 은 둘 다 있어야 완성", () => {
+    expect(isConditionComplete({ field: "a", operator: "date_between", value: ["2026-07-01", ""] })).toBe(false);
+    expect(isConditionComplete({ field: "a", operator: "date_between", value: ["2026-07-01", "2026-07-10"] })).toBe(true);
+  });
+  it("텍스트/단일값 연산자는 빈 문자열이면 미완성", () => {
+    expect(isConditionComplete({ field: "a", operator: "contains", value: "" })).toBe(false);
+    expect(isConditionComplete({ field: "a", operator: "contains", value: "김" })).toBe(true);
+  });
+});
+
+describe("filterRowsByConditions (AND, 미완성 조건 건너뜀)", () => {
+  const TODAY = "2026-07-15";
+  const rows: RowData[] = [
+    { 상호명: "김밥천국", 상태: "가망", 계약일: "2026-07-13" },
+    { 상호명: "박가네", 상태: "계약대기", 계약일: "2026-06-30" },
+  ];
+  it("완성된 조건만 AND 로 적용", () => {
+    const out = filterRowsByConditions(
+      rows,
+      [
+        { field: "상태", operator: "in", value: ["가망"] },
+        { field: "상호명", operator: "contains", value: "" }, // 미완성 → 무시
+      ],
+      TODAY,
+    );
+    expect(out.map((r) => r.상호명)).toEqual(["김밥천국"]);
+  });
+  it("완성 조건 0개면 전체 반환", () => {
+    expect(filterRowsByConditions(rows, [{ field: "상태", operator: "in", value: [] }], TODAY)).toHaveLength(2);
   });
 });
