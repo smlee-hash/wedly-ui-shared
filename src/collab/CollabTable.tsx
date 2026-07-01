@@ -63,6 +63,8 @@ export type CollabTableProps = {
   };
   /** 셀 값 렌더러(생략 시 종류별 기본 표시) */
   renderFieldValue?: (col: ColumnDef, value: CellValue, row: RowData) => ReactNode;
+  /** 줄 전체 색칠(조건부 서식). 그 줄 데이터로 색 클래스(예 "bg-wedly-bg-red")를 돌려주면 그 줄에 칠한다. null이면 색 없음(기존과 동일). */
+  getRowColorClass?: (row: RowData) => string | null | undefined;
   /** 컬럼 강조(점·머리색). 생략 시 없음 */
   getColAccent?: (col: ColumnDef) => { dotClass: string; headerTint: string } | null;
   /** 상태별 필터 탭(생략 시 탭 없음 — 기존과 100% 동일). 각 앱이 자기 목록을 넣어준다. */
@@ -419,6 +421,7 @@ export function CollabTable({
   onCreateNew: onCreateNewProp,
   mobile,
   renderFieldValue,
+  getRowColorClass,
   getColAccent: getColAccentProp,
   tabs,
   tabAdmin,
@@ -715,10 +718,16 @@ export function CollabTable({
   const renderRow = useCallback((row: RowData, virtualIndex: number) => {
     const id = String(row[rowIdKey] ?? "");
     const commentCount = typeof row._commentCount === "number" ? (row._commentCount as number) : 0;
+    // 줄 전체 색칠(조건부 서식) — 앱이 준 색이 있으면 그 줄에 칠하고, 파란 hover/선택색보다 우선한다.
+    const rowColor = getRowColorClass?.(row);
     return (
       <tr
         key={id || virtualIndex}
-        className={cn("border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30", checkedIds.has(id) && "bg-wedly-bg-blue/30")}
+        className={cn(
+          "border-t border-wedly-bd/60",
+          rowColor ? rowColor : "hover:bg-wedly-bg-blue/30",
+          !rowColor && checkedIds.has(id) && "bg-wedly-bg-blue/30",
+        )}
       >
         <td className="py-2 px-3 w-10 text-center sticky left-0 z-10 bg-white">
           <input
@@ -936,7 +945,7 @@ export function CollabTable({
         mobileCardFields={mobile?.cardFields ?? []}
         allColumns={columns}
         openRow={(row) => onOpenRow(row)}
-        getConditionalFormatClass={() => null}
+        getConditionalFormatClass={(row) => getRowColorClass?.(row) ?? null}
         getColLabel={getColLabel}
         statusKey={mobile?.statusKey ?? ""}
         getStatusClass={mobileStatusClass}
