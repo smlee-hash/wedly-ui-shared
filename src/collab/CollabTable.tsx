@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../lib/cn";
-import { bothManagersFilled } from "../lib/manager-exclusivity";
 import { DesktopTable } from "../components/DesktopTable";
 import { MobileCardList } from "../components/MobileCardList";
 import { TopControls } from "../components/TopControls";
@@ -832,8 +831,6 @@ export function CollabTable({
   const renderRow = useCallback((row: RowData, virtualIndex: number) => {
     const id = String(row[rowIdKey] ?? "");
     const commentCount = typeof row._commentCount === "number" ? (row._commentCount as number) : 0;
-    // 조회 담당자·다지기 담당자가 둘 다 지정된 예외 데이터 → 행 빨간 강조(파란 hover/선택색보다 우선).
-    const bothManagers = bothManagersFilled(row as Record<string, unknown>);
     return (
       <tr
         key={id || virtualIndex}
@@ -842,7 +839,7 @@ export function CollabTable({
           "border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30",
           checkedIds.has(id),
           "bg-wedly-bg-blue/30",
-          bothManagers ? "bg-wedly-bg-red" : getRowColorClass?.(row),
+          getRowColorClass?.(row),
         )}
       >
         <td className="py-2 px-3 w-10 text-center sticky left-0 z-10 bg-white">
@@ -1076,7 +1073,7 @@ export function CollabTable({
         mobileCardFields={mobile?.cardFields ?? []}
         allColumns={columns}
         openRow={(row, panel) => onOpenRow(row, panel)}
-        getConditionalFormatClass={(row) => (bothManagersFilled(row as Record<string, unknown>) ? "bg-wedly-bg-red border-wedly-bd-red" : (getRowColorClass?.(row) ?? null))}
+        getConditionalFormatClass={(row) => getRowColorClass?.(row) ?? null}
         getColLabel={getColLabel}
         statusKey={mobile?.statusKey ?? ""}
         getStatusClass={mobileStatusClass}
