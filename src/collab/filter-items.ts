@@ -77,12 +77,77 @@ export function seedItemsFromDefaults(defaults: FilterCondition[]): FilterItem[]
   return defaults.map((d) => ({ id: genItemId(), field: d.field, operator: d.operator, value: d.value, pinned: true }));
 }
 
-/** 초기화: 사용자 항목 제거 + pinned 항목 값 비움. */
-export function resetItems(items: FilterItem[]): FilterItem[] {
-  return items.filter((it) => it.pinned).map((it) => ({ ...it, value: undefined }));
+/** 조건 식별 키(field+operator). 같은 칸·같은 조건이면 동일 기본필터로 본다. */
+function condKey(field: string, operator: FilterOperator): string {
+  return `${field} ${operator}`;
+}
+
+/** 초기화: 모든 항목 유지. pinned(기본)은 기본값으로 복원, 사용자 항목은 값만 비움. */
+export function resetItems(items: FilterItem[], defaults: FilterCondition[] = []): FilterItem[] {
+  const defByKey = new Map<string, FilterCondition>();
+  for (const d of defaults) {
+    const k = condKey(d.field, d.operator);
+    if (!defByKey.has(k)) defByKey.set(k, d);
+  }
+  return items.map((it) => {
+    if (it.pinned) {
+      const d = defByKey.get(condKey(it.field, it.operator));
+      return { ...it, value: d ? d.value : undefined };
+    }
+    return { ...it, value: undefined };
+  });
+}
+
+/**
+ * 로드 시 관리자 기본 필터(서버)를 항상 바탕에 두고 세션(개인) 항목을 얹는다.
+ * - saved 비었으면 → 기본 필터로 시드.
+ * - 세션 pinned 항목: 현재 defaults에 있으면 유지(개인 변경값 보존), 없으면 제거(관리자가 지움).
+ * - 사용자 추가(비pinned) 항목: 그대로 유지.
+ * - defaults 중 세션에 없던 항목: 뒤에 추가(관리자 신규 기본필터 전파).
+ */
+export function reconcileItemsWithDefaults(
+  saved: FilterItem[] | null | undefined,
+  defaults: FilterCondition[],
+): FilterItem[] {
+  if (!saved || saved.length === 0) return seedItemsFromDefaults(defaults);
+  const defByKey = new Map<string, FilterCondition>();
+  for (const d of defaults) {
+    const k = condKey(d.field, d.operator);
+    if (!defByKey.has(k)) defByKey.set(k, d);
+  }
+  const covered = new Set<string>();
+  const out: FilterItem[] = [];
+  for (const it of saved) {
+    if (it.pinned) {
+      const k = condKey(it.field, it.operator);
+      if (!defByKey.has(k)) continue; // 관리자가 지운 기본필터 → 제거
+      if (covered.has(k)) continue;   // 중복 방지
+      covered.add(k);
+      out.push(it);                    // 개인 변경값 보존
+    } else {
+      out.push(it);                    // 사용자 추가 항목 유지
+    }
+  }
+  for (const d of defaults) {
+    const k = condKey(d.field, d.operator);
+    if (covered.has(k)) continue;
+    covered.add(k);
+    out.push({ id: genItemId(), field: d.field, operator: d.operator, value: d.value, pinned: true });
+  }
+  return out;
 }
 
 /** 표시 항목 → 조건 배열(엔진 입력). */
 export function itemsToConditions(items: FilterItem[]): FilterCondition[] {
   return items.map((it) => ({ field: it.field, operator: it.operator, ...(it.value !== undefined ? { value: it.value } : {}) }));
+}
+
+/** 필터 항목 순서 변경(드래그). from 항목을 to 위치로 이동. 경계 밖/동일이면 원본 그대로 반환. */
+export function reorderItems<T>(items: T[], from: number, to: number): T[] {
+  if (from === to) return items;
+  if (from < 0 || from >= items.length || to < 0 || to >= items.length) return items;
+  const next = items.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
 }

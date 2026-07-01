@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   filterCategory, defaultOperator, seedItemsFromDefaults, resetItems, itemsToConditions, operatorsFor, isValueNeeded,
+  reorderItems, reconcileItemsWithDefaults,
 } from "./filter-items";
 
 describe("filterCategory", () => {
@@ -49,15 +50,78 @@ describe("seedItemsFromDefaults", () => {
 });
 
 describe("resetItems", () => {
-  it("사용자 항목 제거 + pinned 값 비움", () => {
+  const defs = [{ field: "상태", operator: "in" as const, value: ["가망"] }];
+  it("pinned은 기본값 복원, 사용자 항목은 값만 비움, 모든 항목 유지", () => {
     const items = [
-      { id: "1", field: "상태", operator: "in" as const, value: ["가망"], pinned: true },
+      { id: "1", field: "상태", operator: "in" as const, value: ["계약"], pinned: true },
       { id: "2", field: "상호명", operator: "contains" as const, value: "김" },
     ];
-    const out = resetItems(items);
+    const out = resetItems(items, defs);
+    expect(out).toHaveLength(2); // 둘 다 유지
+    expect(out[0].value).toEqual(["가망"]); // pinned → 기본값 복원
+    expect(out[0].pinned).toBe(true);
+    expect(out[1].value).toBeUndefined();   // 사용자 항목 → 값만 비움
+    expect(out[1].field).toBe("상호명");     // 항목 유지
+  });
+  it("기본필터 없으면 pinned 없음 → 전부 값만 해제(항목 유지)", () => {
+    const items = [{ id: "2", field: "상호명", operator: "contains" as const, value: "김" }];
+    const out = resetItems(items, []);
     expect(out).toHaveLength(1);
-    expect(out[0].field).toBe("상태");
     expect(out[0].value).toBeUndefined();
+  });
+});
+
+describe("reorderItems", () => {
+  const items = [
+    { id: "a", field: "상태", operator: "in" as const },
+    { id: "b", field: "상호명", operator: "contains" as const },
+    { id: "c", field: "계약일", operator: "date_today" as const },
+  ];
+  it("from을 to로 이동", () => {
+    expect(reorderItems(items, 0, 2).map((i) => i.id)).toEqual(["b", "c", "a"]);
+    expect(reorderItems(items, 2, 0).map((i) => i.id)).toEqual(["c", "a", "b"]);
+  });
+  it("같은 위치·경계 밖은 원본 반환", () => {
+    expect(reorderItems(items, 1, 1)).toBe(items);
+    expect(reorderItems(items, -1, 0)).toBe(items);
+    expect(reorderItems(items, 0, 9)).toBe(items);
+  });
+  it("원본 배열 불변", () => {
+    const copy = items.slice();
+    reorderItems(items, 0, 2);
+    expect(items).toEqual(copy);
+  });
+});
+
+describe("reconcileItemsWithDefaults", () => {
+  const defs = [
+    { field: "상태", operator: "in" as const, value: ["가망"] },
+    { field: "영업담당", operator: "equals" as const, value: "김철수" },
+  ];
+  it("세션 비었으면 기본필터로 시드(모두 pinned)", () => {
+    const out = reconcileItemsWithDefaults(null, defs);
+    expect(out).toHaveLength(2);
+    expect(out.every((i) => i.pinned)).toBe(true);
+    expect(out[0].value).toEqual(["가망"]);
+  });
+  it("세션에 없던 기본필터는 뒤에 추가(전파)", () => {
+    const saved = [{ id: "u1", field: "상호명", operator: "contains" as const, value: "김" }];
+    const out = reconcileItemsWithDefaults(saved, defs);
+    expect(out.map((i) => i.field)).toEqual(["상호명", "상태", "영업담당"]);
+    expect(out[1].pinned).toBe(true);
+    expect(out[2].pinned).toBe(true);
+  });
+  it("세션 pinned의 개인 변경값은 유지", () => {
+    const saved = [{ id: "p1", field: "상태", operator: "in" as const, value: ["계약"], pinned: true }];
+    const out = reconcileItemsWithDefaults(saved, defs);
+    const stateItem = out.find((i) => i.field === "상태");
+    expect(stateItem?.value).toEqual(["계약"]); // 기본값 ["가망"]로 덮어쓰지 않음
+  });
+  it("관리자가 지운 기본필터(pinned)는 제거", () => {
+    const saved = [{ id: "p9", field: "삭제된칸", operator: "in" as const, value: ["x"], pinned: true }];
+    const out = reconcileItemsWithDefaults(saved, defs);
+    expect(out.find((i) => i.field === "삭제된칸")).toBeUndefined();
+    expect(out).toHaveLength(2); // defs 2개만
   });
 });
 
