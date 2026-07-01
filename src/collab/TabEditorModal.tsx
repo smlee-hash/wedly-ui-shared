@@ -27,12 +27,21 @@ type OperatorChoice = { value: FilterOperator; label: string };
 
 const OPERATOR_LABELS: Record<FilterOperator, string> = {
   equals: "같음",
+  not_equals: "다름",
   in: "다중 선택(포함)",
   not_in: "다중 선택(제외)",
   contains: "텍스트 포함",
+  not_contains: "텍스트 미포함",
   is_empty: "비어 있음",
   is_not_empty: "값 있음",
   on_or_before: "이 날짜 이전",
+  on_or_after: "이 날짜 이후",
+  date_between: "기간",
+  date_today: "오늘",
+  date_yesterday: "어제",
+  date_this_week: "이번 주",
+  date_this_month: "이번 달",
+  date_last_month: "지난 달",
 };
 
 const NO_VALUE_OPS: FilterOperator[] = ["is_empty", "is_not_empty"];
