@@ -5,7 +5,7 @@ import type { ColumnDef } from "../types/columns";
 import { EMPTY_OPTION_VALUE, type FilterOperator } from "./collab-filters";
 import {
   type FilterItem, type FilterCategory,
-  filterCategory, operatorsFor, defaultOperator, genItemId, isValueNeeded,
+  filterCategory, operatorsFor, defaultOperator, genItemId, isValueNeeded, reorderItems,
 } from "./filter-items";
 
 export type FilterField = { key: string; label: string; type: ColumnDef["type"] | string };
@@ -32,6 +32,7 @@ export function FilterBar({
   getOptions, getOptionColorClass, isAdmin, onSaveAsDefault, savingDefault,
 }: FilterBarProps) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const fieldByKey = useMemo(() => {
     const m = new Map<string, FilterField>();
     for (const f of fields) m.set(f.key, f);
@@ -76,11 +77,23 @@ export function FilterBar({
 
       {visible && (
         <>
-          {items.map((it) => {
+          {items.map((it, idx) => {
             const field = fieldByKey.get(it.field);
             const cat: FilterCategory = field ? filterCategory(field.type) : "text";
             return (
-              <div key={it.id} className="relative">
+              <div
+                key={it.id}
+                className={cn("relative cursor-move", dragIndex === idx && "opacity-40")}
+                draggable
+                onDragStart={(e) => { setDragIndex(idx); e.dataTransfer.effectAllowed = "move"; }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragIndex !== null && dragIndex !== idx) onChange(reorderItems(items, dragIndex, idx));
+                  setDragIndex(null);
+                }}
+                onDragEnd={() => setDragIndex(null)}
+              >
                 <button
                   type="button"
                   onClick={() => setOpenId(openId === it.id ? null : it.id)}
@@ -94,7 +107,7 @@ export function FilterBar({
                   )}
                 >
                   {it.pinned && <PinIcon />}
-                  <span>{chipLabel(field?.label || it.field, it, cat)}</span>
+                  <span>{field?.label || it.field}</span>
                   <ChevronIcon />
                 </button>
                 {!it.pinned && (
@@ -165,15 +178,6 @@ function isComplete(it: FilterItem): boolean {
   return typeof it.value === "string" && it.value.trim() !== "";
 }
 
-function chipLabel(fieldLabel: string, it: FilterItem, cat: FilterCategory): string {
-  const opLabel = operatorsFor(cat).find((o) => o.op === it.operator)?.label ?? "";
-  if (!isValueNeeded(it.operator)) return `${fieldLabel}: ${opLabel}`;
-  if (Array.isArray(it.value)) {
-    if (it.operator === "date_between") return it.value[0] && it.value[1] ? `${fieldLabel}: ${it.value[0]}~${it.value[1]}` : `${fieldLabel}: 기간`;
-    return it.value.length ? `${fieldLabel}: ${it.value.join(", ")}` : `${fieldLabel}: ${opLabel}`;
-  }
-  return it.value ? `${fieldLabel} ${opLabel}: ${it.value}` : `${fieldLabel}: ${opLabel}`;
-}
 
 function FilterPopover({
   item, field, cat, fields, getOptions, getOptionColorClass, onPatch, onClose,
