@@ -494,10 +494,18 @@ export function CollabTable({
   const COL_ORDER_KEY = `${storagePrefix}:col-order`;
   const COL_LABELS_KEY = `${storagePrefix}:col-labels`;
   const ACTIVE_TAB_KEY = `${storagePrefix}:active-tab`;
+  // 검색어는 브라우저 탭(session) 단위로만 유지: 새로고침엔 남고, 탭 종료 시 사라짐.
+  const SESSION_SEARCH_KEY = `${storagePrefix}:session-search`;
 
   // 표 상태
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchInput, setSearchInput] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    try { return sessionStorage.getItem(SESSION_SEARCH_KEY) || ""; } catch { return ""; }
+  });
+  const [debouncedSearch, setDebouncedSearch] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    try { return (sessionStorage.getItem(SESSION_SEARCH_KEY) || "").trim().toLowerCase(); } catch { return ""; }
+  });
   // 내부 정렬 상태(비제어형). sortProp 이 주어지면 덮어쓰임.
   const [sortConfigInternal, setSortConfigInternal] = useState<SortConfig>(null);
   // 제어형 우선: sortProp 이 주어지면 그 값, 아니면 내부 상태
@@ -593,6 +601,11 @@ export function CollabTable({
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim().toLowerCase()), 100);
     return () => clearTimeout(t);
   }, [searchInput]);
+
+  // 검색어를 브라우저 탭(session)에 기록 → 같은 탭 새로고침 시 유지, 탭 종료 시 삭제.
+  useEffect(() => {
+    try { sessionStorage.setItem(SESSION_SEARCH_KEY, searchInput); } catch {}
+  }, [SESSION_SEARCH_KEY, searchInput]);
 
   const orderedColumns = useMemo(() => orderColumns(columns, colOrder), [columns, colOrder]);
   // 서버 모드(값 도착)면: 보일 컬럼 = 전체 − 숨김목록. 그 외(로딩중·기존 모드)면: 저장된 '보일 컬럼' 집합.
