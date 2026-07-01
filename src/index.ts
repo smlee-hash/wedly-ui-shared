@@ -130,6 +130,7 @@ export type { FilterBarProps, FilterField } from "./collab/FilterBar";
 export {
   filterCategory, operatorsFor, defaultOperator, isValueNeeded,
   seedItemsFromDefaults, resetItems, itemsToConditions, genItemId,
+  reconcileItemsWithDefaults, reorderItems,
 } from "./collab/filter-items";
 export type { FilterItem, FilterCategory, OperatorOption } from "./collab/filter-items";
 // 공용 탭 편집창 — 이름 + 표시형식(표/캘린더) + 거르기 조건. 하이브 편집창과 같은 방식.
