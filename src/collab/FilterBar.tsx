@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { cn } from "../lib/cn";
 import type { ColumnDef } from "../types/columns";
-import type { FilterOperator } from "./collab-filters";
+import { EMPTY_OPTION_VALUE, type FilterOperator } from "./collab-filters";
 import {
   type FilterItem, type FilterCategory,
   filterCategory, operatorsFor, defaultOperator, genItemId, isValueNeeded,
@@ -89,7 +89,7 @@ export function FilterBar({
                     it.pinned
                       ? "border-wedly-bd-blue bg-wedly-bg-blue/40 text-wedly-navy"
                       : isComplete(it)
-                        ? "border-wedly-bd-strong bg-white text-wedly-t1"
+                        ? "border-wedly-bd bg-wedly-bg-gray text-wedly-t1"
                         : "border-wedly-bd bg-white text-wedly-muted",
                   )}
                 >
@@ -237,7 +237,9 @@ function ValueEditor({
   if (!isValueNeeded(op)) return null;
 
   if (op === "in" || op === "not_in") {
-    const opts = getOptions(field.key);
+    // '(미입력)'을 맨 앞에 — 빈 값(미입력) 항목도 포함/제외로 고를 수 있게(탭 편집창과 동일).
+    const base = getOptions(field.key);
+    const opts = base.includes(EMPTY_OPTION_VALUE) ? base : [EMPTY_OPTION_VALUE, ...base];
     const selected = new Set(Array.isArray(item.value) ? item.value : []);
     return (
       <div className="max-h-40 overflow-y-auto rounded-lg border border-wedly-bd p-1">
