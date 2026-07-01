@@ -83,8 +83,8 @@ export function FilterBar({
             return (
               <div
                 key={it.id}
-                className={cn("relative cursor-move", dragIndex === idx && "opacity-40")}
-                draggable
+                className={cn("relative", openId !== it.id && "cursor-move", dragIndex === idx && "opacity-40")}
+                draggable={openId !== it.id}
                 onDragStart={(e) => { setDragIndex(idx); e.dataTransfer.effectAllowed = "move"; }}
                 onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
                 onDrop={(e) => {
