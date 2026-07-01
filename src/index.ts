@@ -122,6 +122,16 @@ export { matchesFilter, matchesTab, filterRowsByTab } from "./collab/collab-filt
 export type { FilterOperator, FilterCondition, ViewTab } from "./collab/collab-filters";
 export { FilterTabs } from "./collab/FilterTabs";
 export type { FilterTabsProps, FilterTabsAdmin } from "./collab/FilterTabs";
+// 노션식 다조건 필터 — 순수 엔진 + 필터 바 부품 + 항목 헬퍼
+export { filterRowsByConditions, isConditionComplete, resolveDateWindow } from "./collab/collab-filters";
+export type { DateWindow } from "./collab/collab-filters";
+export { FilterBar } from "./collab/FilterBar";
+export type { FilterBarProps, FilterField } from "./collab/FilterBar";
+export {
+  filterCategory, operatorsFor, defaultOperator, isValueNeeded,
+  seedItemsFromDefaults, resetItems, itemsToConditions, genItemId,
+} from "./collab/filter-items";
+export type { FilterItem, FilterCategory, OperatorOption } from "./collab/filter-items";
 // 공용 탭 편집창 — 이름 + 표시형식(표/캘린더) + 거르기 조건. 하이브 편집창과 같은 방식.
 export { default as TabEditorModal } from "./collab/TabEditorModal";
 
