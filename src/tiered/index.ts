@@ -349,6 +349,57 @@ export function resolveConditionalFormula(
   return field.formula;
 }
 
+// 이 formula 칸의 계산 결과가 (차수 밖 평면 기본정보에서) 달라질 수 있는 "의존 평면 칸 키"들.
+//  - 조건부 수식: 각 규칙 조건 칸(leftKey·clauses[].leftKey·field-kind 오른쪽 key)·옛 conditionFieldKey
+//  - 날짜 수식: dateFormula.baseKey
+//  - leftKey/baseKey 가 또 다른 (차수) 수식 칸을 가리키면 그 칸 의존까지 재귀 수집(seen 순환 차단).
+// 수식 항(term)의 columnKey 는 차수 안 값이라 평면 의존 아님 → 제외.
+// (저장 경로가 "조건/기준 칸 단독 저장"을 감지해 연결 표값을 재계산할 때 쓴다.)
+export function formulaDependencyKeys(
+  field: FieldDef,
+  fields: FieldDef[] = [],
+  seen: ReadonlySet<string> = new Set<string>(),
+): string[] {
+  if (seen.has(field.key)) return [];
+  const nextSeen = new Set(seen);
+  nextSeen.add(field.key);
+  const byKey = new Map(fields.map((f) => [f.key, f]));
+  const out = new Set<string>();
+  const addDep = (k: string | undefined | null) => {
+    if (!k || typeof k !== "string") return;
+    out.add(k);
+    const ref = byKey.get(k);
+    if (ref && ref.type === "formula" && ref.key !== field.key) {
+      for (const d of formulaDependencyKeys(ref, fields, nextSeen)) out.add(d);
+    }
+  };
+  const cond = field.conditional;
+  if (cond && Array.isArray(cond.rules)) {
+    if (cond.conditionFieldKey) addDep(cond.conditionFieldKey);
+    for (const rule of cond.rules) {
+      if (!rule) continue;
+      const clauses: ConditionClause[] =
+        Array.isArray(rule.clauses) && rule.clauses.length > 0
+          ? rule.clauses
+          : rule.leftKey || cond.conditionFieldKey
+            ? [{
+                leftKey: (rule.leftKey ?? cond.conditionFieldKey) as string,
+                right: rule.right ?? { kind: "text", value: rule.whenValue ?? "" },
+                op: rule.op ?? "eq",
+              }]
+            : [];
+      for (const c of clauses) {
+        if (!c) continue;
+        addDep(c.leftKey);
+        if (c.right && c.right.kind === "field") addDep(c.right.key);
+      }
+    }
+  }
+  const df = field.dateFormula as { baseKey?: unknown } | undefined;
+  if (df && typeof df.baseKey === "string" && df.baseKey) addDep(df.baseKey);
+  return [...out];
+}
+
 // 항 사슬을 순차 계산(왼→오, 우선순위 없음). 묶음(group) 안에서도 재사용한다.
 // operand: 한 항의 값과 "실제 입력이 있었는지". (group 항은 호출부 operand 가 재귀 처리)
 function evalTermChain(
