@@ -133,6 +133,7 @@ export type CollabTableProps = {
    */
   columnGrouping?: {
     commonColumnKeys?: string[];
+    commonLabelByKey?: Record<string, string>;
     onPromoteToCommon?: (key: string) => void;
     onDemoteFromCommon?: (key: string) => void;
     canDemoteFromCommon?: (key: string) => boolean;
@@ -1016,6 +1017,7 @@ export function CollabTable({
         canChangeType={columnAdmin?.canChangeType}
         typeOptions={columnAdmin?.typeOptions}
         commonColumnKeys={columnGrouping?.commonColumnKeys}
+        commonLabelByKey={columnGrouping?.commonLabelByKey}
         onPromoteToCommon={columnGrouping?.onPromoteToCommon}
         onDemoteFromCommon={columnGrouping?.onDemoteFromCommon}
         canDemoteFromCommon={columnGrouping?.canDemoteFromCommon}
