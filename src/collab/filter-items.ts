@@ -67,9 +67,35 @@ export type FilterItem = {
 };
 
 let _seq = 0;
+// 페이지를 새로 열 때마다 _seq가 0으로 초기화되므로, 이전 로드가 브라우저 탭(sessionStorage)에
+// 저장해 둔 id(f1,f2…)와 새로 만든 id가 겹칠 수 있다. 로드마다 고유한 소금값을 앞에 붙여
+// 서로 다른 로드의 id가 절대 겹치지 않게 한다. (id가 겹치면 두 필터가 같은 항목으로 취급돼
+// 한 필터의 드롭다운·값 변경이 다른 필터에도 함께 적용되는 버그가 난다.)
+const _idSalt = Math.random().toString(36).slice(2, 8);
 export function genItemId(): string {
   _seq += 1;
-  return `f${_seq}`;
+  return `f${_idSalt}_${_seq}`;
+}
+
+/**
+ * 항목들의 id가 겹치면(이전 버그 빌드가 sessionStorage에 저장해 둔 중복 id 등) 새 id를 부여해
+ * 모두 고유하게 만든다. React key·팝오버 열림·값 수정이 모두 id로 대상을 지목하므로, 중복 id는
+ * 서로 다른 필터를 같은 필터로 오인하게 만든다(한쪽 조작이 다른쪽에 함께 적용). 원본은 불변.
+ */
+export function ensureUniqueIds(items: FilterItem[]): FilterItem[] {
+  const seen = new Set<string>();
+  let changed = false;
+  const out = items.map((it) => {
+    if (!it.id || seen.has(it.id)) {
+      changed = true;
+      const nid = genItemId();
+      seen.add(nid);
+      return { ...it, id: nid };
+    }
+    seen.add(it.id);
+    return it;
+  });
+  return changed ? out : items;
 }
 
 /** 관리자 기본 필터(조건 배열) → pinned 필터 항목(값 유지). */
@@ -134,7 +160,8 @@ export function reconcileItemsWithDefaults(
     covered.add(k);
     out.push({ id: genItemId(), field: d.field, operator: d.operator, value: d.value, pinned: true });
   }
-  return out;
+  // 복원된 세션 항목이 (이전 버그 빌드 탓에) 중복 id를 갖고 있으면 로드 시점에 치유한다.
+  return ensureUniqueIds(out);
 }
 
 /** 표시 항목 → 조건 배열(엔진 입력). */
