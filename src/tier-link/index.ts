@@ -3,3 +3,5 @@
 // API 라우트 등 서버 코드는 이 진입로(@wedly/ui-shared/tier-link)로 가져온다(Turbopack 서버/클라이언트 경계 보호).
 export * from "./config";
 export * from "./sync";
+// 조건/기준 칸 의존 수집 헬퍼(순수) — 서버 저장 경로의 조건칸 재계산(case D)에 쓴다.
+export { formulaDependencyKeys } from "../tiered";
