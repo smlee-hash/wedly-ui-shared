@@ -11,6 +11,7 @@
 export { cn } from "./lib/cn";
 export * from "./lib/utils";
 export * from "./lib/options";
+export { pickCommonColumns } from "./lib/column-common-classify";
 
 // M2: 공통/앱별 칸 전역 설정 읽기·쓰기 도우미 (관리자 설정 화면 → 각 앱 /api/common-fields 로 연결)
 export {
