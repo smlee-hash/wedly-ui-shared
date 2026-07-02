@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   filterCategory, defaultOperator, seedItemsFromDefaults, resetItems, itemsToConditions, operatorsFor, isValueNeeded,
-  reorderItems, reconcileItemsWithDefaults,
+  reorderItems, reconcileItemsWithDefaults, genItemId,
 } from "./filter-items";
 
 describe("filterCategory", () => {
@@ -122,6 +122,25 @@ describe("reconcileItemsWithDefaults", () => {
     const out = reconcileItemsWithDefaults(saved, defs);
     expect(out.find((i) => i.field === "삭제된칸")).toBeUndefined();
     expect(out).toHaveLength(2); // defs 2개만
+  });
+  it("복원된 세션에 중복 id가 있어도 결과 id는 모두 고유 — 한 필터 조작이 다른 필터에 함께 적용되는 버그 방지", () => {
+    // 이전(버그) 빌드가 같은 id(f1)로 두 필터를 저장해 둔 상태를 재현.
+    const saved = [
+      { id: "f1", field: "상호명", operator: "contains" as const, value: "김" },
+      { id: "f1", field: "대표자명", operator: "contains" as const, value: "이" },
+    ];
+    const out = reconcileItemsWithDefaults(saved, []);
+    expect(out).toHaveLength(2); // 두 항목 모두 유지
+    const ids = out.map((i) => i.id);
+    expect(new Set(ids).size).toBe(2); // id는 서로 달라야 함
+  });
+});
+
+describe("genItemId", () => {
+  it("연속 호출 시 서로 다른 id (같은 id면 필터가 서로를 같은 필터로 오인)", () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 500; i++) ids.add(genItemId());
+    expect(ids.size).toBe(500);
   });
 });
 
