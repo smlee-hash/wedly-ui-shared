@@ -22,6 +22,10 @@ export type FilterBarProps = {
   isAdmin?: boolean;
   /** 관리자: 현재 필터들을 '기본 필터'로 서버 저장. 있으면 저장 버튼 노출. */
   onSaveAsDefault?: () => void;
+  /** 관리자: 이 표(활성 탭)의 저장된 기본 필터를 해제(서버에서 비움). hasDefault true 일 때만 노출. */
+  onReleaseDefault?: () => void;
+  /** 이 표(활성 탭)에 저장된 관리자 기본 필터가 있는지. 있으면 '기본 필터 해제' 버튼 노출. */
+  hasDefault?: boolean;
   savingDefault?: boolean;
 };
 
@@ -29,7 +33,7 @@ const CHIP = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 t
 
 export function FilterBar({
   fields, items, onChange, visible, onToggleVisible, onReset,
-  getOptions, getOptionColorClass, isAdmin, onSaveAsDefault, savingDefault,
+  getOptions, getOptionColorClass, isAdmin, onSaveAsDefault, onReleaseDefault, hasDefault, savingDefault,
 }: FilterBarProps) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -110,7 +114,7 @@ export function FilterBar({
                   <span>{field?.label || it.field}</span>
                   <ChevronIcon />
                 </button>
-                {!it.pinned && (
+                {(!it.pinned || isAdmin) && (
                   <button
                     type="button"
                     onClick={() => remove(it.id)}
@@ -130,6 +134,7 @@ export function FilterBar({
                     getOptionColorClass={getOptionColorClass}
                     onPatch={(n) => patch(it.id, n)}
                     onClose={() => setOpenId(null)}
+                    onDelete={(!it.pinned || isAdmin) ? () => remove(it.id) : undefined}
                   />
                 )}
               </div>
@@ -165,6 +170,18 @@ export function FilterBar({
               {savingDefault ? "저장 중…" : "기본 필터로 저장"}
             </button>
           )}
+
+          {isAdmin && hasDefault && onReleaseDefault && (
+            <button
+              type="button"
+              onClick={onReleaseDefault}
+              disabled={savingDefault}
+              className="rounded-lg border border-wedly-bd-red px-2.5 py-1.5 text-[12px] text-wedly-red transition-colors hover:bg-wedly-bg-red disabled:opacity-50"
+              title="이 탭의 저장된 기본 필터를 해제(모든 사용자 화면에서 제거)"
+            >
+              기본 필터 해제
+            </button>
+          )}
         </>
       )}
     </div>
@@ -180,11 +197,11 @@ function isComplete(it: FilterItem): boolean {
 
 
 function FilterPopover({
-  item, field, cat, fields, getOptions, getOptionColorClass, onPatch, onClose,
+  item, field, cat, fields, getOptions, getOptionColorClass, onPatch, onClose, onDelete,
 }: {
   item: FilterItem; field: FilterField; cat: FilterCategory; fields: FilterField[];
   getOptions: (k: string) => string[]; getOptionColorClass?: (o: string) => string;
-  onPatch: (n: Partial<FilterItem>) => void; onClose: () => void;
+  onPatch: (n: Partial<FilterItem>) => void; onClose: () => void; onDelete?: () => void;
 }) {
   const ops = operatorsFor(cat);
   return (
@@ -222,7 +239,16 @@ function FilterPopover({
           onPatch={onPatch}
         />
 
-        <div className="mt-2 flex justify-end">
+        <div className="mt-2 flex items-center justify-between">
+          {onDelete ? (
+            <button
+              type="button"
+              onClick={() => { onDelete(); onClose(); }}
+              className="rounded-lg border border-wedly-bd-red px-2.5 py-1 text-[12px] text-wedly-red hover:bg-wedly-bg-red"
+            >
+              필터 삭제
+            </button>
+          ) : <span />}
           <button type="button" onClick={onClose} className="rounded-lg border border-wedly-bd px-2.5 py-1 text-[12px] text-wedly-t2 hover:bg-wedly-bg-gray">닫기</button>
         </div>
       </div>
