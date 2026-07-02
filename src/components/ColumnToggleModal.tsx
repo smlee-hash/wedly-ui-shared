@@ -64,6 +64,9 @@ type Props<TCol extends ColumnToggleColumn> = {
   // 주어지면 목록을 "공통 칸(상세창 기본정보)" / "그 외 칸" 두 섹션으로 나눠 렌더.
   // 미지정 시 기존 평면 목록(하이브·일루아 무손상).
   commonColumnKeys?: string[];
+  // 공통 칸의 정식 표시 이름(키→라벨). 주어지면 "공통 칸" 섹션에서 표 원본 라벨 대신 이 이름을 보인다.
+  // (상세창 기본정보와 이름 일치 — 예: 검토보고서→"리포트"). 미지정 시 기존 라벨 그대로.
+  commonLabelByKey?: Record<string, string>;
   // "그외" 행에 "공통으로" 버튼 — 클릭 시 해당 칸을 공통으로 승격
   onPromoteToCommon?: (key: string) => void;
   // 삭제된 칸 키 목록 — 하단 "삭제된 칸 복원" 칩 목록으로 표시
@@ -108,6 +111,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   canChangeType,
   typeOptions,
   commonColumnKeys,
+  commonLabelByKey,
   onPromoteToCommon,
   deletedColumns,
   onRestoreColumn,
@@ -120,7 +124,12 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   if (!open) return null;
   const q = search.trim().toLowerCase();
   const visibleCols = q
-    ? allColumns.filter((c) => getColLabel(c).toLowerCase().includes(q) || c.key.toLowerCase().includes(q))
+    ? allColumns.filter(
+        (c) =>
+          getColLabel(c).toLowerCase().includes(q) ||
+          c.key.toLowerCase().includes(q) ||
+          (commonLabelByKey?.[c.key] ?? "").toLowerCase().includes(q),
+      )
     : allColumns;
   const TYPE_OPTS = typeOptions ?? DEFAULT_COLUMN_TYPE_OPTIONS;
   const canEdit = (col: TCol) => (canEditColumn ? canEditColumn(col) : col.key.startsWith("custom_"));
@@ -192,7 +201,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
               aria-hidden="true"
             />
           )}
-          {getColLabel(col)}
+          {(!isOther && commonLabelByKey?.[col.key]) || getColLabel(col)}
         </span>
         <div className="hidden group-hover:flex items-center gap-1">
           {/* 그외 칸 → "공통으로" 버튼 */}
