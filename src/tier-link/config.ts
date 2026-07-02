@@ -8,6 +8,7 @@ export type ColumnTierLink = {
   area: LinkArea;        // 정산/계약/환불 차수 카드
   tierFieldKey: string;  // 차수 카드 안의 칸 키
   mode: LinkMode;        // sum=합계(읽기전용) | latest=최신차수(편집)
+  readonly?: boolean;    // 자동계산(formula) 칸 연결 — latest 라도 표에서 편집 불가(읽기전용)
 };
 
 // 영역 → entry.data 안의 (자기분야) 차수 데이터 저장 키
@@ -64,6 +65,12 @@ export const LINKABLE_COL_TYPES = new Set(["number", "percent", "date", "text", 
 // 합계가 의미 없는 타입은 최신차수(편집)로만.
 export function isLatestOnlyLinkType(type: string | undefined): boolean {
   return type === "select" || type === "percent";
+}
+
+// 읽기전용 연결인가 — 합계(sum)이거나 readonly 플래그(자동계산 칸 연결).
+// 표 셀 편집 차단·서버 직접수정 거부에 함께 쓴다.
+export function isReadonlyLink(link: ColumnTierLink): boolean {
+  return link.mode === "sum" || link.readonly === true;
 }
 
 export type LinkableColumn = { key: string; label: string; type: string };

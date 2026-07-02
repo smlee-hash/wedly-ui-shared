@@ -57,9 +57,19 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
   );
   const fieldOptions = useMemo(() => areaFields.map((f) => ({ value: f.key, label: f.label })), [areaFields]);
   const selectedColType = useMemo(() => linkableCols.find((c) => c.key === colKey)?.type, [linkableCols, colKey]);
+  // 선택한 차수 칸이 자동계산(formula)이면: 사람이 못 고치는 칸 → 읽기전용으로만 연결.
+  //   금액 수식 → 합계(차수별 합) 또는 최신차수(마지막 차수 값) 선택 가능(둘 다 읽기전용).
+  //   날짜 수식 → 더할 수 없으니 최신차수(마지막 차수 계산 날짜)만.
+  const tierField = useMemo(() => areaFields.find((f) => f.key === fieldKey), [areaFields, fieldKey]);
+  const tierFieldIsFormula = tierField?.type === "formula";
+  const tierFieldIsDateFormula = !!tierFieldIsFormula
+    && (!!(tierField as { dateFormula?: unknown } | undefined)?.dateFormula
+      || (tierField as { formulaResult?: string } | undefined)?.formulaResult === "date");
   const sectionLabel = (k: string) => adapter.sections.find((s) => s.key === k)?.label ?? k;
 
   useEffect(() => { if (isLatestOnlyLinkType(selectedColType) && mode !== "latest") setMode("latest"); }, [selectedColType, mode]);
+  // 날짜 수식만 최신차수로 강제(합계 불가). 금액 수식은 사용자가 합계/최신 선택.
+  useEffect(() => { if (tierFieldIsDateFormula && mode !== "latest") setMode("latest"); }, [tierFieldIsDateFormula, mode]);
 
   useEffect(() => {
     adapter.loadLinks().then((ls) => { setLinks(ls); setLoading(false); }).catch(() => setLoading(false));
@@ -69,10 +79,11 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      let fs = (await adapter.loadFields(section, area).catch(() => [])).filter((f) => f.type !== "formula");
+      // 자동계산(formula) 칸도 포함 — 연결 시 표에 그 계산값을 읽기전용으로 보여준다.
+      let fs = await adapter.loadFields(section, area).catch(() => []);
       let base = false;
       if (fs.length === 0 && section !== adapter.ownDomain) {
-        fs = (await adapter.loadFields(adapter.ownDomain, area).catch(() => [])).filter((f) => f.type !== "formula");
+        fs = await adapter.loadFields(adapter.ownDomain, area).catch(() => []);
         base = fs.length > 0;
       }
       if (cancelled) return;
@@ -95,7 +106,7 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
   async function runPreview() {
     if (!colKey || !fieldKey) { setNotice("컬럼과 차수 칸을 고르세요."); return; }
     if (links.some((l) => l.columnKey === colKey)) { setNotice("이미 연결된 컬럼입니다."); return; }
-    const link: ColumnTierLink = { columnKey: colKey, section, area, tierFieldKey: fieldKey, mode };
+    const link: ColumnTierLink = { columnKey: colKey, section, area, tierFieldKey: fieldKey, mode, ...(tierFieldIsFormula ? { readonly: true } : {}) };
     if (adapter.previewMigrate && adapter.applyMigrate) {
       const pv = await adapter.previewMigrate(link).catch(() => null);
       if (!pv) { setNotice("미리보기 실패"); return; }
@@ -140,7 +151,7 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
             <div className="text-[13px] text-wedly-t1">
               <span className="font-semibold">{colLabelMap[l.columnKey] || l.columnKey}</span>
               <span className="text-wedly-muted"> ↔ {sectionLabel(l.section ?? adapter.ownDomain)} · {AREA_LABEL[l.area]} · {l.tierFieldKey}</span>
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-wedly-bg-blue text-wedly-accent">{l.mode === "sum" ? "합계(읽기전용)" : "최신차수(편집)"}</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-wedly-bg-blue text-wedly-accent">{l.readonly ? "최신차수(읽기전용)" : l.mode === "sum" ? "합계(읽기전용)" : "최신차수(편집)"}</span>
             </div>
             <button onClick={() => removeLink(l.columnKey)} disabled={saving} className="px-3 py-2 text-[13px] font-medium text-white bg-wedly-red rounded-lg hover:bg-wedly-red/90 transition-colors">해제</button>
           </div>
@@ -185,10 +196,27 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
         {/* 종류 */}
         <div>
           <label className="block text-[12px] text-wedly-muted mb-1">연결 종류</label>
-          <div className="flex gap-2">
-            <button onClick={() => setMode("sum")} disabled={isLatestOnlyLinkType(selectedColType)} title={isLatestOnlyLinkType(selectedColType) ? "드롭다운·비율(%) 칸은 최신차수(편집)로만 연결됩니다." : undefined} className={`px-3 py-2 rounded-lg text-[13px] border disabled:opacity-40 disabled:cursor-not-allowed ${mode === "sum" ? "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>합계(읽기전용)</button>
-            <button onClick={() => setMode("latest")} className={`px-3 py-2 rounded-lg text-[13px] border ${mode === "latest" ? "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>최신차수(편집)</button>
-          </div>
+          {tierFieldIsDateFormula ? (
+            // 날짜 수식 칸: 더할 수 없어 최신차수(마지막 차수 계산 날짜) 읽기전용 고정.
+            <div className="inline-flex items-center px-3 py-2 rounded-lg text-[13px] border bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold">
+              최신차수(읽기전용)
+              <span className="ml-2 text-[11px] font-normal text-wedly-muted">날짜 수식 칸은 합계할 수 없어 마지막 차수 값만 표시합니다.</span>
+            </div>
+          ) : tierFieldIsFormula ? (
+            // 금액 수식 칸: 합계(차수별 합) / 최신차수(마지막 차수) 선택 — 둘 다 읽기전용(자동계산이라 편집 불가).
+            <>
+              <div className="flex gap-2">
+                <button onClick={() => setMode("sum")} className={`px-3 py-2 rounded-lg text-[13px] border ${mode === "sum" ? "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>합계(읽기전용)</button>
+                <button onClick={() => setMode("latest")} className={`px-3 py-2 rounded-lg text-[13px] border ${mode === "latest" ? "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>최신차수(읽기전용)</button>
+              </div>
+              <span className="mt-1 block text-[11px] text-wedly-muted">자동계산 칸이라 표에서는 편집할 수 없습니다(읽기전용).</span>
+            </>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={() => setMode("sum")} disabled={isLatestOnlyLinkType(selectedColType)} title={isLatestOnlyLinkType(selectedColType) ? "드롭다운·비율(%) 칸은 최신차수(편집)로만 연결됩니다." : undefined} className={`px-3 py-2 rounded-lg text-[13px] border disabled:opacity-40 disabled:cursor-not-allowed ${mode === "sum" ? "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>합계(읽기전용)</button>
+              <button onClick={() => setMode("latest")} className={`px-3 py-2 rounded-lg text-[13px] border ${mode === "latest" ? "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>최신차수(편집)</button>
+            </div>
+          )}
         </div>
 
         <button onClick={runPreview} disabled={saving} className="mt-2 px-4 py-2 text-[13px] font-bold text-white bg-wedly-accent rounded-lg hover:brightness-110 transition-colors">{adapter.previewMigrate ? "미리보기" : "연결 추가"}</button>
