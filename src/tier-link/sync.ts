@@ -7,13 +7,19 @@ import {
   type ColumnTierLink,
   type LinkArea,
 } from "./config";
-import { evalFormulaForTier, type FieldDef, type TierData } from "../tiered";
+import { evalFormulaForTier, evalDateFormulaForTier, type FieldDef, type TierData } from "../tiered";
 
 type Tier = Record<string, unknown>;
 
-// computeLinkedValue 가 formula 차수 칸을 계산하려면 그 (섹션·영역)의 칸 정의가 필요하다.
+// computeLinkedValue 가 formula 차수 칸을 계산하려면 그 (섹션·영역)의 칸 정의(fields)와,
+// 조건부 수식(주소 등 기본정보에 따라 식이 달라지는 칸)을 위한 conditionValues(회사 평면값)가 필요하다.
 // 미제공 시 기존 동작(저장값 읽기) 그대로 = 완전 뒤호환.
-export type ComputeCtx = { fields?: FieldDef[] };
+export type ComputeCtx = { fields?: FieldDef[]; conditionValues?: Record<string, unknown> };
+
+// formula 칸이 날짜 수식(결과가 날짜)인지 — 날짜는 합계 불가, 최신차수 표시만.
+function isDateFormulaField(field: FieldDef | undefined): boolean {
+  return !!field && field.type === "formula" && (!!field.dateFormula || field.formulaResult === "date");
+}
 
 function toNum(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -40,24 +46,30 @@ export function parseTierContainer(raw: unknown): { tiers: Tier[]; ok: boolean }
 }
 
 export function computeLinkedValue(tiers: Tier[], link: ColumnTierLink, ctx?: ComputeCtx): number | string | null {
-  const field = ctx?.fields?.find((f) => f.key === link.tierFieldKey);
+  const fields = (ctx?.fields ?? []) as FieldDef[];
+  const cond = ctx?.conditionValues;
+  const field = fields.find((f) => f.key === link.tierFieldKey);
   const isFormula = field?.type === "formula";
-  // formula 차수 칸은 값이 저장돼 있지 않다 → 차수 카드와 동일한 계산기로 그때그때 계산(PARITY).
-  const valAt = (t: Tier): number | null =>
+  const isDateFml = isDateFormulaField(field);
+  // formula 차수 칸은 값이 저장돼 있지 않다 → 차수 카드와 동일한 계산기로 그때그때 계산(PARITY, 조건값 포함).
+  // 합계용 숫자값 — 날짜 수식은 더할 수 없어 제외(null).
+  const numAt = (t: Tier): number | null =>
     isFormula
-      ? evalFormulaForTier(field as FieldDef, t as unknown as TierData, ctx!.fields as FieldDef[])
+      ? (isDateFml ? null : evalFormulaForTier(field as FieldDef, t as unknown as TierData, fields, undefined, cond))
       : toNum(t[link.tierFieldKey]);
   if (link.mode === "sum") {
     let any = false, total = 0;
     for (const t of tiers) {
-      const n = valAt(t);
+      const n = numAt(t);
       if (n !== null) { any = true; total += n; }
     }
     return any ? total : null;
   }
+  // 최신차수
   if (tiers.length === 0) return null;
-  if (isFormula) return valAt(tiers[tiers.length - 1]); // formula 최신차수: 계산값(없으면 null)
   const last = tiers[tiers.length - 1];
+  if (isDateFml) return evalDateFormulaForTier(field as FieldDef, last as unknown as TierData, fields, undefined, cond);
+  if (isFormula) return evalFormulaForTier(field as FieldDef, last as unknown as TierData, fields, undefined, cond);
   const v = last[link.tierFieldKey];
   if (v === null || v === undefined || v === "") return null;
   const n = toNum(v);
@@ -82,12 +94,13 @@ export function recomputeFlatFromTiers(
   area: LinkArea,
   ownDomain: string,
   fields?: FieldDef[],
+  conditionValues?: Record<string, unknown>,
 ): Record<string, number | string | null> {
   const out: Record<string, number | string | null> = {};
   for (const link of links) {
     if (linkSection(link, ownDomain) !== section) continue;
     if (link.area !== area) continue;
-    out[link.columnKey] = computeLinkedValue(tiers, link, { fields });
+    out[link.columnKey] = computeLinkedValue(tiers, link, { fields, conditionValues });
   }
   return out;
 }
@@ -104,7 +117,8 @@ export function recomputeFlatForContainer(
   if (!parsed) return {};
   const { tiers, ok } = parseTierContainer(data[containerKey]);
   if (!ok) return {};
-  return recomputeFlatFromTiers(tiers, links, parsed.section, parsed.area, ownDomain, fields);
+  // 조건부 수식용 기본정보 = 이 entry 의 평면값(data). 차수 안에 없는 조건 칸(예: 주소)은 여기서 조회된다.
+  return recomputeFlatFromTiers(tiers, links, parsed.section, parsed.area, ownDomain, fields, data);
 }
 
 export type SyncOutcome = { synced: Record<string, number | string | null> } | { rejected: string };

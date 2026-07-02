@@ -132,3 +132,67 @@ describe("applyColumnTierSync — readonly(자동계산) 연결 직접수정 거
     expect("rejected" in out).toBe(true);
   });
 });
+
+// ── 수식 완성: 조건부 금액 합계 + 날짜 수식 최신 ──
+describe("computeLinkedValue — 조건부 금액 수식 합계(conditionValues)", () => {
+  const feeField = {
+    key: "fee", label: "수수료", type: "formula" as const,
+    formula: [
+      { op: "+", unit: "column", value: 0, columnKey: "계약금" },
+      { op: "*", unit: "percent", value: 30 },
+    ],
+    conditional: {
+      rules: [{
+        op: "contains" as const, leftKey: "주소",
+        right: { kind: "text" as const, value: "서울" },
+        formula: [
+          { op: "+", unit: "column", value: 0, columnKey: "계약금" },
+          { op: "*", unit: "percent", value: 20 },
+        ],
+      }],
+    },
+  };
+  const fields = [{ key: "계약금", label: "계약금", type: "number" as const }, feeField];
+  const link: ColumnTierLink = { columnKey: "표수수료", area: "contract", tierFieldKey: "fee", mode: "sum" };
+
+  it("조건값 주소=서울이면 20%로 합산", () => {
+    const tiers = [{ 계약금: 1000 }, { 계약금: 2000 }]; // 200 + 400
+    expect(computeLinkedValue(tiers, link, { fields, conditionValues: { 주소: "서울시 강남" } })).toBe(600);
+  });
+  it("조건값 없으면 base 30%", () => {
+    expect(computeLinkedValue([{ 계약금: 1000 }], link, { fields })).toBe(300);
+  });
+});
+
+describe("computeLinkedValue — 날짜 수식", () => {
+  const dateField = {
+    key: "예정일", label: "정산예정일", type: "formula" as const,
+    formulaResult: "date" as const,
+    dateFormula: { mode: "offset" as const, baseKey: "착수일", offsets: [{ amount: 30, unit: "day" as const }] },
+  };
+  const fields = [{ key: "착수일", label: "착수일", type: "date" as const }, dateField];
+  it("최신차수의 계산 날짜 반환", () => {
+    const link: ColumnTierLink = { columnKey: "표예정일", area: "contract", tierFieldKey: "예정일", mode: "latest" };
+    expect(computeLinkedValue([{ 착수일: "2026-01-01" }, { 착수일: "2026-02-01" }], link, { fields })).toBe("2026-03-03");
+  });
+  it("합계 모드는 날짜라 null(더할 수 없음)", () => {
+    const link: ColumnTierLink = { columnKey: "표예정일", area: "contract", tierFieldKey: "예정일", mode: "sum" };
+    expect(computeLinkedValue([{ 착수일: "2026-02-01" }], link, { fields })).toBe(null);
+  });
+});
+
+describe("recomputeFlatForContainer — entry data를 조건값으로", () => {
+  const feeField = {
+    key: "fee", label: "수수료", type: "formula" as const,
+    formula: [{ op: "+", unit: "column", value: 0, columnKey: "계약금" }, { op: "*", unit: "percent", value: 30 }],
+    conditional: { rules: [{ op: "contains" as const, leftKey: "주소", right: { kind: "text" as const, value: "서울" },
+      formula: [{ op: "+", unit: "column", value: 0, columnKey: "계약금" }, { op: "*", unit: "percent", value: 20 }] }] },
+  };
+  const fields = [{ key: "계약금", label: "계약금", type: "number" as const }, feeField];
+  const links: ColumnTierLink[] = [{ columnKey: "표수수료", section: "government-subsidy", area: "contract", tierFieldKey: "fee", mode: "sum" }];
+  it("data.주소=서울이면 20% 반영", () => {
+    const data: Record<string, unknown> = { 주소: "서울 강남", 계약정보_차수: JSON.stringify([{ 계약금: 1000 }]) };
+    const out = recomputeFlatForContainer(data, links, "계약정보_차수", "government-subsidy", fields);
+    expect(out["표수수료"]).toBe(200);
+  });
+});
