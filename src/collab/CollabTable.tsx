@@ -811,16 +811,26 @@ export function CollabTable({
   // resizingRef는 드래그 중 칸 순서 끌기를 막는 용도(참/거짓만 본다).
   const onResizeStart = useCallback((e: React.PointerEvent, colKey: string) => {
     resizingRef.current = { key: colKey };
+    // 시작폭 = 지금 화면에 보이는 실제 칸 폭(늘어난 값 포함)을 측정 → 드래그가 잡은 만큼 1:1.
+    // (고정 120 가정 시, table-layout:fixed+minWidth:100%로 늘어난 실제 폭과 어긋나 확 튐)
+    const cell = document.querySelector(`[data-col="${colKey}"]`) as HTMLElement | null;
+    const startWidth = (cell ? Math.round(cell.getBoundingClientRect().width) : 0) || colWidths[colKey] || 100;
     startColumnResize({
       event: e,
-      startWidth: colWidths[colKey] || 120,
+      startWidth,
       onCommit: (finalW) => {
         resizingRef.current = null;
         setColWidthsAndStore((p) => ({ ...p, [colKey]: finalW }));
       },
     });
   }, [colWidths, setColWidthsAndStore]);
-  const onResizeDoubleClick = useCallback((colKey: string) => setColWidthsAndStore((p) => ({ ...p, [colKey]: 160 })), [setColWidthsAndStore]);
+  // 더블클릭 = 그 칸의 값 중 가장 긴 것에 맞춰 자동 폭(잘려도 scrollWidth로 전체 폭 측정, 여백+32, 최대 500).
+  const onResizeDoubleClick = useCallback((colKey: string) => {
+    const cells = document.querySelectorAll(`[data-col="${colKey}"]`);
+    let maxW = 60;
+    cells.forEach((c) => { const w = (c as HTMLElement).scrollWidth + 32; if (w > maxW) maxW = w; });
+    setColWidthsAndStore((p) => ({ ...p, [colKey]: Math.min(maxW, 500) }));
+  }, [setColWidthsAndStore]);
 
   // 모바일 카드 설정
   const titleCol = useMemo(() => columns.find((c) => c.type === "title"), [columns]);
