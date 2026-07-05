@@ -1,7 +1,7 @@
 // 협업 상세창 분야(영역) 그룹 정의 — 3앱 공통.
 // 윗줄 탭은 고정 5개 그룹. "정부지원금" 그룹은 정책자금·정부지원금·무상지원금 3개를 하나로 합친
 // 가상 영역(데이터를 구분 없이 나란히 나열). domains 값은 customer-360 의 실제 도메인 키 문자열.
-// cert(기업인증)·patent(특허)는 데이터 모델이 없어 빈 그룹(현황표에서 '준비 중').
+// cert(기업인증)·patent(특허)는 2026-07-05 자체 저장소(CertEntry/PatentEntry, ERP) 개설로 연결(결정11).
 export type DomainGroup = { key: string; label: string; domains: string[] };
 
 export const DOMAIN_GROUPS: DomainGroup[] = [
@@ -12,8 +12,8 @@ export const DOMAIN_GROUPS: DomainGroup[] = [
     domains: ["policy-fund", "government-subsidy", "free-subsidy"],
   },
   { key: "labor-subsidy", label: "노무", domains: ["labor-subsidy"] },
-  { key: "cert", label: "기업인증", domains: [] },
-  { key: "patent", label: "특허", domains: [] },
+  { key: "cert", label: "기업인증", domains: ["cert"] },
+  { key: "patent", label: "특허", domains: ["patent"] },
 ];
 
 // 자기영역 하위 탭 표시 순서: 미팅 → 차수계약 → 정산 → 차수환불 → 그 외.
