@@ -98,70 +98,82 @@ export function ensureUniqueIds(items: FilterItem[]): FilterItem[] {
   return changed ? out : items;
 }
 
-/** 관리자 기본 필터(조건 배열) → pinned 필터 항목(값 유지). */
-export function seedItemsFromDefaults(defaults: FilterCondition[]): FilterItem[] {
-  return defaults.map((d) => ({ id: genItemId(), field: d.field, operator: d.operator, value: d.value, pinned: true }));
-}
-
-/** 조건 식별 키(field+operator). 같은 칸·같은 조건이면 동일 기본필터로 본다. */
-function condKey(field: string, operator: FilterOperator): string {
-  return `${field} ${operator}`;
-}
-
-/** 초기화: 모든 항목 유지. pinned(기본)은 기본값으로 복원, 사용자 항목은 값만 비움. */
-export function resetItems(items: FilterItem[], defaults: FilterCondition[] = []): FilterItem[] {
-  const defByKey = new Map<string, FilterCondition>();
-  for (const d of defaults) {
-    const k = condKey(d.field, d.operator);
-    if (!defByKey.has(k)) defByKey.set(k, d);
-  }
-  return items.map((it) => {
-    if (it.pinned) {
-      const d = defByKey.get(condKey(it.field, it.operator));
-      return { ...it, value: d ? d.value : undefined };
-    }
-    return { ...it, value: undefined };
-  });
+/**
+ * '기본 필터 = 칸(컬럼)만 공유' 모델용 seed 연산자.
+ * 갓 시드된 기본 칸이 '빈 값' 상태에서 자동으로 목록을 거르지 않도록, 카테고리별로
+ * '값이 필요한' 연산자(값 없으면 isConditionComplete=false)를 고른다.
+ * (조건·값은 각 사용자 개인 몫 — 서버가 공유하는 건 '어떤 칸을 보여줄지'뿐.)
+ */
+export function seedOperatorFor(cat: FilterCategory): FilterOperator {
+  if (cat === "date") return "date_between";
+  if (cat === "select") return "in";
+  return "contains";
 }
 
 /**
- * 로드 시 관리자 기본 필터(서버)를 항상 바탕에 두고 세션(개인) 항목을 얹는다.
- * - saved 비었으면 → 기본 필터로 시드.
- * - 세션 pinned 항목: 현재 defaults에 있으면 유지(개인 변경값 보존), 없으면 제거(관리자가 지움).
- * - 사용자 추가(비pinned) 항목: 그대로 유지.
- * - defaults 중 세션에 없던 항목: 뒤에 추가(관리자 신규 기본필터 전파).
+ * 저장(관리자 '기본 필터로 저장'): 현재 필터 칩들 → 기본 '칸' 목록.
+ * 칸(field)만 남기고(중복 제거) 값·개인 조건은 버린다. operator 는 카테고리별 seed 연산자로 정규화
+ * (서버엔 '어떤 칸을 모두에게 보여줄지'만 의미 있음). typeOf 로 각 칸의 종류를 얻는다.
  */
-export function reconcileItemsWithDefaults(
-  saved: FilterItem[] | null | undefined,
-  defaults: FilterCondition[],
-): FilterItem[] {
-  if (!saved || saved.length === 0) return seedItemsFromDefaults(defaults);
-  const defByKey = new Map<string, FilterCondition>();
-  for (const d of defaults) {
-    const k = condKey(d.field, d.operator);
-    if (!defByKey.has(k)) defByKey.set(k, d);
+export function itemsToDefaultColumns(
+  items: FilterItem[],
+  typeOf: (field: string) => string | undefined,
+): FilterCondition[] {
+  const seen = new Set<string>();
+  const out: FilterCondition[] = [];
+  for (const it of items) {
+    if (!it.field || seen.has(it.field)) continue;
+    seen.add(it.field);
+    out.push({ field: it.field, operator: seedOperatorFor(filterCategory(typeOf(it.field) ?? "text")) });
   }
-  const covered = new Set<string>();
+  return out;
+}
+
+/**
+ * 로드: 관리자 기본 '칸' 목록을 세션(개인) 칩 위에 정합한다.
+ * - 세션의 기본 칸(pinned): 아직 기본에 있으면 개인 조건·값 그대로 유지, 관리자가 뺀 칸이면 제거.
+ * - 사용자가 직접 추가한 칩(비pinned): 유지.
+ * - 세션에 없던 기본 칸: '빈 값' pinned 로 새로 시드(seed 연산자).
+ * 값은 절대 서버에서 오지 않는다(항상 개인 세션). 중복 id 는 치유.
+ */
+export function reconcileItemsWithDefaultColumns(
+  saved: FilterItem[] | null | undefined,
+  defaultCols: FilterCondition[],
+  typeOf: (field: string) => string | undefined,
+): FilterItem[] {
+  const defByField = new Map<string, FilterCondition>();
+  for (const d of defaultCols) if (d.field && !defByField.has(d.field)) defByField.set(d.field, d);
+
   const out: FilterItem[] = [];
-  for (const it of saved) {
+  const covered = new Set<string>();
+  for (const it of saved ?? []) {
     if (it.pinned) {
-      const k = condKey(it.field, it.operator);
-      if (!defByKey.has(k)) continue; // 관리자가 지운 기본필터 → 제거
-      if (covered.has(k)) continue;   // 중복 방지
-      covered.add(k);
-      out.push(it);                    // 개인 변경값 보존
+      if (!defByField.has(it.field)) continue; // 관리자가 뺀 기본 칸 → 제거
+      if (covered.has(it.field)) continue;      // 중복 방지
+      covered.add(it.field);
+      out.push(it);                             // 개인 조건·값 유지
     } else {
-      out.push(it);                    // 사용자 추가 항목 유지
+      out.push(it);                             // 사용자 추가 칩 유지
     }
   }
-  for (const d of defaults) {
-    const k = condKey(d.field, d.operator);
-    if (covered.has(k)) continue;
-    covered.add(k);
-    out.push({ id: genItemId(), field: d.field, operator: d.operator, value: d.value, pinned: true });
+  for (const d of defaultCols) {
+    if (covered.has(d.field)) continue;
+    covered.add(d.field);
+    out.push({
+      id: genItemId(),
+      field: d.field,
+      operator: seedOperatorFor(filterCategory(typeOf(d.field) ?? "text")),
+      value: undefined,
+      pinned: true,
+    });
   }
   // 복원된 세션 항목이 (이전 버그 빌드 탓에) 중복 id를 갖고 있으면 로드 시점에 치유한다.
   return ensureUniqueIds(out);
+}
+
+/** 초기화(↻): 모든 칩(칸·조건) 유지, 고른 값만 비운다. */
+export function resetItemValues(items: FilterItem[]): FilterItem[] {
+  return items.map((it) => ({ ...it, value: undefined }));
 }
 
 /** 표시 항목 → 조건 배열(엔진 입력). */
