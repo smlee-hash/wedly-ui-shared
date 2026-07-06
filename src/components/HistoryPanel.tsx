@@ -805,7 +805,7 @@ export function HistoryPanel({
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void saveEdit();
                       }}
                       rows={3}
-                      className="w-full px-3 py-2 text-[16px] sm:text-[13px] border border-wedly-accent rounded-lg bg-white text-wedly-t1 resize-none outline-none focus:ring-2 focus:ring-wedly-accent/30 min-h-[96px] max-h-[320px] leading-relaxed overflow-y-auto"
+                      className="w-full px-3 py-2 text-[16px] sm:text-[13px] border border-wedly-accent rounded-lg bg-white text-wedly-t1 resize-none outline-none focus:ring-2 focus:ring-wedly-accent/30 min-h-[56px] max-h-[320px] leading-relaxed overflow-y-auto"
                     />
                     <div className="flex items-center justify-end gap-2">
                       <button
