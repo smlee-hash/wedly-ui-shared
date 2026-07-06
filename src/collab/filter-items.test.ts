@@ -122,6 +122,27 @@ describe("reconcileItemsWithDefaultColumns", () => {
     expect(out.map((i) => i.field)).toEqual(["메모"]);
   });
 
+  it("저장된 값-필요 연산자는 typeOf 없이도 그대로 시드(로드 타이밍 버그 방지)", () => {
+    // 커스텀 날짜 칸이 아직 목록에 안 실린 첫 로드(typeOf→undefined)라도, 저장값이 date_between 이면
+    // text(contains)로 오분류하지 않고 저장된 date_between 을 그대로 쓴다.
+    const defs: FilterCondition[] = [{ field: "custom_방문일", operator: "date_between" }];
+    const out = reconcileItemsWithDefaultColumns(null, defs, typeOfFrom({})); // typeOf 아무것도 모름
+    expect(out[0].operator).toBe("date_between");
+    expect(out[0].value).toBeUndefined();
+    expect(out[0].pinned).toBe(true);
+  });
+
+  it("옛 데이터의 값-불필요 연산자(date_this_month 등)는 종류별 seed 로 교정(자동필터 방지)", () => {
+    const defs: FilterCondition[] = [
+      { field: "계약일", operator: "date_this_month" }, // 옛 데이터: 값없이 자동필터되던 연산자
+      { field: "DB분류", operator: "is_empty" },
+    ];
+    const out = reconcileItemsWithDefaultColumns(null, defs, TY);
+    expect(out[0].operator).toBe("date_between"); // date → 값 필요형으로 교정
+    expect(out[1].operator).toBe("in");           // select → 값 필요형으로 교정
+    expect(out.every((i) => i.value === undefined)).toBe(true);
+  });
+
   it("복원된 세션에 중복 id 가 있어도 결과 id 는 모두 고유", () => {
     const saved: FilterItem[] = [
       { id: "f1", field: "메모", operator: "contains", value: "김" },

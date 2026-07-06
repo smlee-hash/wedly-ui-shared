@@ -159,13 +159,14 @@ export function reconcileItemsWithDefaultColumns(
   for (const d of defaultCols) {
     if (covered.has(d.field)) continue;
     covered.add(d.field);
-    out.push({
-      id: genItemId(),
-      field: d.field,
-      operator: seedOperatorFor(filterCategory(typeOf(d.field) ?? "text")),
-      value: undefined,
-      pinned: true,
-    });
+    // 저장 시 이미 종류별 seed 연산자(값 필요형)로 정규화돼 오므로 저장된 operator 를 그대로 쓴다.
+    // (로드 시점엔 커스텀 컬럼 종류가 아직 목록에 안 실려 typeOf 가 불완전할 수 있어, 저장값 우선이 더 안전.)
+    // 단 옛 데이터의 '값 불필요' 연산자(date_this_month·is_empty 등)는 빈 값이어도 자동 필터를
+    // 유발하므로, 그 경우에만 종류별 seed 로 교정한다(값 개인 원칙 유지).
+    const op = d.operator && isValueNeeded(d.operator)
+      ? d.operator
+      : seedOperatorFor(filterCategory(typeOf(d.field) ?? "text"));
+    out.push({ id: genItemId(), field: d.field, operator: op, value: undefined, pinned: true });
   }
   // 복원된 세션 항목이 (이전 버그 빌드 탓에) 중복 id를 갖고 있으면 로드 시점에 치유한다.
   return ensureUniqueIds(out);
