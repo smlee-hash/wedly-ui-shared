@@ -13,7 +13,8 @@ import type { SelectDropdownColorFamily } from "@wedly/detail-modal-shared";
 export type FileFieldDef = { key: string; label: string };
 
 /** 기본정보 통합 파일 칸(2개+더보기)이 쓰는 경량 파일 표현 — 앱별 getAllFiles 가 반환 */
-export type FileMetaLite = { name: string; url: string; category?: string };
+// at = 첨부(업로드) 시각 ISO. 있으면 "가장 최근 첨부"를 미리보기 앞에 보이게 정렬하는 데 쓴다(옛 파일엔 없음).
+export type FileMetaLite = { name: string; url: string; category?: string; at?: string };
 
 // ── FieldOptionsBundle — editors.tsx 가 ERP 옵션/색 모듈에서 쓰던 심볼 모음 ──
 // editors.tsx 는 이 번들을 FieldOptionsContext(React Context)를 통해 주입받고,
