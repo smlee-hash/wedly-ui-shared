@@ -7,6 +7,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { cn } from "../lib/cn";
+import { useAutoResizeTextarea } from "../hooks/useAutoResizeTextarea";
 import { timeAgo as defaultTimeAgo } from "../lib/utils";
 import {
   parseCommentBody,
@@ -169,6 +170,9 @@ export function HistoryPanel({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+  useAutoResizeTextarea(textareaRef, draft);
+  useAutoResizeTextarea(editTextareaRef, editDraft);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // R9 — image paste state
@@ -792,6 +796,7 @@ export function HistoryPanel({
                 {editingCommentId === c.id ? (
                   <div className="ml-7 space-y-2">
                     <textarea
+                      ref={editTextareaRef}
                       autoFocus
                       value={editDraft}
                       onChange={(e) => setEditDraft(e.target.value)}
@@ -800,7 +805,7 @@ export function HistoryPanel({
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void saveEdit();
                       }}
                       rows={3}
-                      className="w-full px-3 py-2 text-[16px] sm:text-[13px] border border-wedly-accent rounded-lg bg-white text-wedly-t1 resize-y outline-none focus:ring-2 focus:ring-wedly-accent/30"
+                      className="w-full px-3 py-2 text-[16px] sm:text-[13px] border border-wedly-accent rounded-lg bg-white text-wedly-t1 resize-none outline-none focus:ring-2 focus:ring-wedly-accent/30 min-h-[96px] max-h-[320px] leading-relaxed overflow-y-auto"
                     />
                     <div className="flex items-center justify-end gap-2">
                       <button
@@ -880,7 +885,7 @@ export function HistoryPanel({
               ? "히스토리를 입력하세요... (Enter로 등록) · 이미지 Ctrl+V로 붙여넣기"
               : "히스토리를 입력하세요... (Enter로 등록)"}
             rows={2}
-            className="flex-1 px-3 py-2 text-[16px] sm:text-[13px] border border-wedly-bd rounded-lg resize-none outline-none focus:ring-2 focus:ring-wedly-accent/20 focus:border-wedly-accent"
+            className="flex-1 px-3 py-2 text-[16px] sm:text-[13px] border border-wedly-bd rounded-lg resize-none outline-none focus:ring-2 focus:ring-wedly-accent/20 focus:border-wedly-accent min-h-[96px] max-h-[320px] leading-relaxed overflow-y-auto"
           />
           <button
             onClick={handleSend}
