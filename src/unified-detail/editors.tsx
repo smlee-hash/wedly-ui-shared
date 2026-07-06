@@ -205,22 +205,25 @@ function MultiSelectEditor({
   const selected = new Set(value ? value.split(", ") : []);
   const ref = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; width: number } | null>(null);
   const [adding, setAdding] = useState(false);
   const [newOpt, setNewOpt] = useState("");
   const [newColor, setNewColor] = useState(fo.OPTION_COLOR_PALETTE[0]);
   const [liveOptions, setLiveOptions] = useState(options);
   const addInputRef = useRef<HTMLInputElement>(null);
-  // 트리거(칸) 위치 기준으로 화면 좌표 계산 — 아래 공간이 모자라면 위로 펼침(모달 클리핑 방지).
-  // 형제 SelectEditor·PersonEditor 와 동일한 portal 방식. (예전 absolute top-full 은 모달 맨 아래
-  // 칸에서 드롭다운이 잘렸음 — 일루아 진행상태 재작업 요청 2026-07-02.)
+  // 트리거(칸) 위치 기준 화면 좌표 계산 — 모달 overflow 에 잘리지 않게 createPortal 로 띄운다(SelectEditor 와 동일).
+  // 위로 펼칠 때는 bottom 앵커로 '칸 윗변에 붙인다'(top=최대높이 오프셋이면 칸에서 멀리 떨어져 뜸 — NO.46 ①).
   useEffect(() => {
     if (anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect();
-      const dropH = 320;
+      const dropH = 300;
       const spaceBelow = window.innerHeight - rect.bottom - 8;
-      const top = spaceBelow >= dropH ? rect.bottom + 4 : rect.top - Math.min(dropH, rect.top - 8) - 4;
-      setPos({ top, left: rect.left, width: rect.width });
+      const width = Math.min(Math.max(rect.width, 220), window.innerWidth - 32);
+      if (spaceBelow >= dropH || spaceBelow >= rect.top) {
+        setPos({ top: rect.bottom + 4, left: rect.left, width });           // 아래로 — 칸 바로 아래
+      } else {
+        setPos({ bottom: window.innerHeight - rect.top + 4, left: rect.left, width }); // 위로 — 칸 윗변에 붙임
+      }
     }
   }, []);
   useEffect(() => {
@@ -259,7 +262,7 @@ function MultiSelectEditor({
           <div
             ref={ref}
             className="fixed max-h-[300px] overflow-y-auto bg-white border border-wedly-bd rounded-xl shadow-lg py-1"
-            style={{ top: pos.top, left: pos.left, width: Math.max(pos.width, 260), zIndex: 9999 }}
+            style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, zIndex: 9999 }}
           >
       {liveOptions.map((opt) => {
         const colorClass = fo.getOptionColorClass(opt, fo.STATUS_COLORS, fo.SELECT_BADGE_COLORS);
@@ -338,7 +341,7 @@ function MultiSelectEditor({
           </div>,
           document.body,
         )}
-      </>
+    </>
   );
 }
 
