@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-  filterCategory, defaultOperator, seedItemsFromDefaults, resetItems, itemsToConditions, operatorsFor, isValueNeeded,
-  reorderItems, reconcileItemsWithDefaults, genItemId,
+  filterCategory, defaultOperator, itemsToConditions, operatorsFor, isValueNeeded,
+  reorderItems, genItemId,
+  seedOperatorFor, itemsToDefaultColumns, reconcileItemsWithDefaultColumns, resetItemValues,
+  type FilterItem,
 } from "./filter-items";
+import type { FilterCondition } from "./collab-filters";
 
 describe("filterCategory", () => {
   it("타입 → 카테고리 매핑", () => {
@@ -37,37 +40,130 @@ describe("isValueNeeded", () => {
   });
 });
 
-describe("seedItemsFromDefaults", () => {
-  it("기본 필터를 pinned 항목으로(값 유지)", () => {
-    const items = seedItemsFromDefaults(
-      [{ field: "상태", operator: "in", value: ["가망"] }, { field: "상호명", operator: "contains", value: "김" }],
-    );
-    expect(items).toHaveLength(2);
-    expect(items[0].pinned).toBe(true);
-    expect(items[0].field).toBe("상태");
-    expect(items[0].value).toEqual(["가망"]);
+// ── '기본 필터 = 칸(컬럼)만 공유' 모델 ────────────────────────────────
+const typeOfFrom = (m: Record<string, string>) => (f: string) => m[f];
+
+describe("seedOperatorFor", () => {
+  it("빈 값이면 자동 필터되지 않는(값 필요) 연산자를 고른다", () => {
+    // 값 없으면 isConditionComplete=false → 갓 시드된 빈 기본 칸이 목록을 거르지 않음.
+    expect(seedOperatorFor("date")).toBe("date_between");
+    expect(seedOperatorFor("select")).toBe("in");
+    expect(seedOperatorFor("text")).toBe("contains");
+    expect(isValueNeeded(seedOperatorFor("date"))).toBe(true);
+    expect(isValueNeeded(seedOperatorFor("select"))).toBe(true);
+    expect(isValueNeeded(seedOperatorFor("text"))).toBe(true);
   });
 });
 
-describe("resetItems", () => {
-  const defs = [{ field: "상태", operator: "in" as const, value: ["가망"] }];
-  it("pinned은 기본값 복원, 사용자 항목은 값만 비움, 모든 항목 유지", () => {
-    const items = [
-      { id: "1", field: "상태", operator: "in" as const, value: ["계약"], pinned: true },
-      { id: "2", field: "상호명", operator: "contains" as const, value: "김" },
+describe("itemsToDefaultColumns", () => {
+  const TY = typeOfFrom({ DB분류: "multi_select", 계약일: "date", 메모: "text", 영업담당: "person" });
+
+  it("칸만 남긴다(중복 제거·값 제외·seed 연산자로 정규화)", () => {
+    const items: FilterItem[] = [
+      { id: "a", field: "DB분류", operator: "in", value: ["경정청구"] },
+      { id: "b", field: "계약일", operator: "date_this_month" }, // 값없는 연산자여도 저장 땐 seed 로
+      { id: "c", field: "DB분류", operator: "not_in", value: ["x"] }, // 중복 칸 → 무시
     ];
-    const out = resetItems(items, defs);
-    expect(out).toHaveLength(2); // 둘 다 유지
-    expect(out[0].value).toEqual(["가망"]); // pinned → 기본값 복원
-    expect(out[0].pinned).toBe(true);
-    expect(out[1].value).toBeUndefined();   // 사용자 항목 → 값만 비움
-    expect(out[1].field).toBe("상호명");     // 항목 유지
+    expect(itemsToDefaultColumns(items, TY)).toEqual([
+      { field: "DB분류", operator: "in" },
+      { field: "계약일", operator: "date_between" },
+    ]);
   });
-  it("기본필터 없으면 pinned 없음 → 전부 값만 해제(항목 유지)", () => {
-    const items = [{ id: "2", field: "상호명", operator: "contains" as const, value: "김" }];
-    const out = resetItems(items, []);
-    expect(out).toHaveLength(1);
+
+  it("값(선택한 값)은 절대 서버로 나가지 않는다(칸만) — person 은 text 계열이라 seed=contains", () => {
+    const items: FilterItem[] = [{ id: "a", field: "영업담당", operator: "equals", value: "김철수", pinned: true }];
+    const out = itemsToDefaultColumns(items, TY);
+    expect(out).toEqual([{ field: "영업담당", operator: "contains" }]);
+    expect(out[0]).not.toHaveProperty("value");
+  });
+
+  it("종류를 못 찾으면 text 로 간주(contains)", () => {
+    const out = itemsToDefaultColumns([{ id: "a", field: "미지칸", operator: "equals", value: "z" }], typeOfFrom({}));
+    expect(out).toEqual([{ field: "미지칸", operator: "contains" }]);
+  });
+});
+
+describe("reconcileItemsWithDefaultColumns", () => {
+  const TY = typeOfFrom({ 영업담당: "person", 계약일: "date", 메모: "text", 옛기본: "text", DB분류: "multi_select" });
+
+  it("세션 없으면 기본 칸을 '빈 값' pinned 로 시드(operator 는 종류별 seed 로 재계산)", () => {
+    const defs: FilterCondition[] = [{ field: "DB분류", operator: "in" }, { field: "계약일", operator: "date_between" }];
+    const out = reconcileItemsWithDefaultColumns(null, defs, TY);
+    expect(out.map((i) => [i.field, i.operator, i.value, i.pinned])).toEqual([
+      ["DB분류", "in", undefined, true],
+      ["계약일", "date_between", undefined, true],
+    ]);
+  });
+
+  it("세션의 개인 값(pinned)은 유지, 관리자가 뺀 칸은 제거, 사용자 칩은 유지, 신규 기본 칸은 빈 값", () => {
+    const saved: FilterItem[] = [
+      { id: "p1", field: "영업담당", operator: "equals", value: "김철수", pinned: true }, // 개인 조건·값 유지
+      { id: "p2", field: "옛기본", operator: "contains", value: "x", pinned: true },       // 관리자가 뺌 → 제거
+      { id: "u1", field: "메모", operator: "contains", value: "abc" },                     // 사용자 칩 유지
+    ];
+    const defs: FilterCondition[] = [{ field: "영업담당", operator: "in" }, { field: "계약일", operator: "date_between" }];
+    const out = reconcileItemsWithDefaultColumns(saved, defs, TY);
+    expect(out.map((i) => i.field)).toEqual(["영업담당", "메모", "계약일"]);
+    expect(out[0].value).toBe("김철수");        // 개인 조건·값 보존(연산자도 그대로 equals)
+    expect(out[0].operator).toBe("equals");
+    expect(out[0].pinned).toBe(true);
+    expect(out[1].pinned).toBeFalsy();          // 사용자 칩
+    expect(out[2].value).toBeUndefined();       // 신규 기본 칸 = 빈 값
+    expect(out[2].operator).toBe("date_between");
+    expect(out[2].pinned).toBe(true);
+  });
+
+  it("defaults 비면(해제) 기본 칸 모두 제거, 사용자 칩만 남음", () => {
+    const saved: FilterItem[] = [
+      { id: "p1", field: "영업담당", operator: "in", value: ["김"], pinned: true },
+      { id: "u1", field: "메모", operator: "contains", value: "a" },
+    ];
+    const out = reconcileItemsWithDefaultColumns(saved, [], TY);
+    expect(out.map((i) => i.field)).toEqual(["메모"]);
+  });
+
+  it("저장된 값-필요 연산자는 typeOf 없이도 그대로 시드(로드 타이밍 버그 방지)", () => {
+    // 커스텀 날짜 칸이 아직 목록에 안 실린 첫 로드(typeOf→undefined)라도, 저장값이 date_between 이면
+    // text(contains)로 오분류하지 않고 저장된 date_between 을 그대로 쓴다.
+    const defs: FilterCondition[] = [{ field: "custom_방문일", operator: "date_between" }];
+    const out = reconcileItemsWithDefaultColumns(null, defs, typeOfFrom({})); // typeOf 아무것도 모름
+    expect(out[0].operator).toBe("date_between");
     expect(out[0].value).toBeUndefined();
+    expect(out[0].pinned).toBe(true);
+  });
+
+  it("옛 데이터의 값-불필요 연산자(date_this_month 등)는 종류별 seed 로 교정(자동필터 방지)", () => {
+    const defs: FilterCondition[] = [
+      { field: "계약일", operator: "date_this_month" }, // 옛 데이터: 값없이 자동필터되던 연산자
+      { field: "DB분류", operator: "is_empty" },
+    ];
+    const out = reconcileItemsWithDefaultColumns(null, defs, TY);
+    expect(out[0].operator).toBe("date_between"); // date → 값 필요형으로 교정
+    expect(out[1].operator).toBe("in");           // select → 값 필요형으로 교정
+    expect(out.every((i) => i.value === undefined)).toBe(true);
+  });
+
+  it("복원된 세션에 중복 id 가 있어도 결과 id 는 모두 고유", () => {
+    const saved: FilterItem[] = [
+      { id: "f1", field: "메모", operator: "contains", value: "김" },
+      { id: "f1", field: "DB분류", operator: "in", value: ["x"] },
+    ];
+    const out = reconcileItemsWithDefaultColumns(saved, [], TY);
+    expect(out).toHaveLength(2);
+    expect(new Set(out.map((i) => i.id)).size).toBe(2);
+  });
+});
+
+describe("resetItemValues", () => {
+  it("모든 칩(칸·조건) 유지, 고른 값만 비움", () => {
+    const items: FilterItem[] = [
+      { id: "a", field: "DB분류", operator: "in", value: ["경정청구"], pinned: true },
+      { id: "b", field: "메모", operator: "contains", value: "abc" },
+    ];
+    expect(resetItemValues(items)).toEqual([
+      { id: "a", field: "DB분류", operator: "in", value: undefined, pinned: true },
+      { id: "b", field: "메모", operator: "contains", value: undefined },
+    ]);
   });
 });
 
@@ -90,49 +186,6 @@ describe("reorderItems", () => {
     const copy = items.slice();
     reorderItems(items, 0, 2);
     expect(items).toEqual(copy);
-  });
-});
-
-describe("reconcileItemsWithDefaults", () => {
-  const defs = [
-    { field: "상태", operator: "in" as const, value: ["가망"] },
-    { field: "영업담당", operator: "equals" as const, value: "김철수" },
-  ];
-  it("세션 비었으면 기본필터로 시드(모두 pinned)", () => {
-    const out = reconcileItemsWithDefaults(null, defs);
-    expect(out).toHaveLength(2);
-    expect(out.every((i) => i.pinned)).toBe(true);
-    expect(out[0].value).toEqual(["가망"]);
-  });
-  it("세션에 없던 기본필터는 뒤에 추가(전파)", () => {
-    const saved = [{ id: "u1", field: "상호명", operator: "contains" as const, value: "김" }];
-    const out = reconcileItemsWithDefaults(saved, defs);
-    expect(out.map((i) => i.field)).toEqual(["상호명", "상태", "영업담당"]);
-    expect(out[1].pinned).toBe(true);
-    expect(out[2].pinned).toBe(true);
-  });
-  it("세션 pinned의 개인 변경값은 유지", () => {
-    const saved = [{ id: "p1", field: "상태", operator: "in" as const, value: ["계약"], pinned: true }];
-    const out = reconcileItemsWithDefaults(saved, defs);
-    const stateItem = out.find((i) => i.field === "상태");
-    expect(stateItem?.value).toEqual(["계약"]); // 기본값 ["가망"]로 덮어쓰지 않음
-  });
-  it("관리자가 지운 기본필터(pinned)는 제거", () => {
-    const saved = [{ id: "p9", field: "삭제된칸", operator: "in" as const, value: ["x"], pinned: true }];
-    const out = reconcileItemsWithDefaults(saved, defs);
-    expect(out.find((i) => i.field === "삭제된칸")).toBeUndefined();
-    expect(out).toHaveLength(2); // defs 2개만
-  });
-  it("복원된 세션에 중복 id가 있어도 결과 id는 모두 고유 — 한 필터 조작이 다른 필터에 함께 적용되는 버그 방지", () => {
-    // 이전(버그) 빌드가 같은 id(f1)로 두 필터를 저장해 둔 상태를 재현.
-    const saved = [
-      { id: "f1", field: "상호명", operator: "contains" as const, value: "김" },
-      { id: "f1", field: "대표자명", operator: "contains" as const, value: "이" },
-    ];
-    const out = reconcileItemsWithDefaults(saved, []);
-    expect(out).toHaveLength(2); // 두 항목 모두 유지
-    const ids = out.map((i) => i.id);
-    expect(new Set(ids).size).toBe(2); // id는 서로 달라야 함
   });
 });
 
