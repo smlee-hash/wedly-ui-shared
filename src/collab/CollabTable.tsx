@@ -254,6 +254,7 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
   // 옵션 구조 편집(색상·삭제) — 단일선택(CellSelectEditor→SelectDropdownBody)과 동일한 콜백·게이팅
   const [colorPickerOpt, setColorPickerOpt] = useState<string | null>(null);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [colorOverrides, setColorOverrides] = useState<Record<string, string>>({});
   const [, forceRerender] = useState(0);
 
   // 현재 선택된 값 집합 (콤마+공백 구분)
@@ -304,6 +305,13 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
     const name = newOptInput.trim();
     if (!name) return;
     cfg?.onAddOption?.(columnKey, name);
+    // 같은 세션에서 지웠던 이름을 다시 추가하면 목록에 다시 보이게 removed 해제
+    setRemoved((prev) => {
+      if (!prev.has(name)) return prev;
+      const next = new Set(prev);
+      next.delete(name);
+      return next;
+    });
     setSelected((prev) => new Set([...prev, name]));
     setNewOptInput("");
     setAddingNew(false);
@@ -320,6 +328,8 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
 
   const handleSetColor = (opt: string, color: { bg: string; text: string }) => {
     cfg?.onSetColor?.(columnKey, opt, color as unknown as string);
+    // 표시 저장소 동기화는 새로고침 시점 — 편집기 안에서는 로컬 덮어쓰기로 즉시 반영
+    setColorOverrides((prev) => ({ ...prev, [opt]: `${color.bg} ${color.text}` }));
     setColorPickerOpt(null);
     forceRerender((n) => n + 1);
   };
@@ -351,7 +361,7 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
           <div className="py-1">
             {liveOptions.map((opt) => {
               const isOn = selected.has(opt);
-              const colorClass = cfg?.getColorClass?.(columnKey, opt) ?? "bg-wedly-bg-gray text-wedly-t2";
+              const colorClass = colorOverrides[opt] ?? cfg?.getColorClass?.(columnKey, opt) ?? "bg-wedly-bg-gray text-wedly-t2";
               const isPickerOpen = colorPickerOpt === opt;
               return (
                 <div key={opt} className="relative">
