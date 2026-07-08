@@ -221,6 +221,7 @@ function MultiSelectEditor({
   const [liveOptions, setLiveOptions] = useState(options);
   // 옵션 구조 편집(색상·삭제) — 단일선택(ErpSelectDropdownBody)과 동일 콜백·이벤트
   const [colorPickerOpt, setColorPickerOpt] = useState<string | null>(null);
+  const [colorOverrides, setColorOverrides] = useState<Record<string, string>>({});
   const [, forceRerender] = useState(0);
   const addInputRef = useRef<HTMLInputElement>(null);
   // 트리거(칸) 위치 기준 화면 좌표 계산 — 모달 overflow 에 잘리지 않게 createPortal 로 띄운다(SelectEditor 와 동일).
@@ -266,6 +267,8 @@ function MultiSelectEditor({
   };
   const handleSetColor = (opt: string, color: { bg: string; text: string }) => {
     fo.setOptionColor(opt, color);
+    // 공유 색이 이미 있던 옵션은 서버 응답 전까지 옛 색이 우선될 수 있어 로컬 덮어쓰기로 즉시 반영
+    setColorOverrides((prev) => ({ ...prev, [opt]: `${color.bg} ${color.text}` }));
     setColorPickerOpt(null);
     forceRerender((n) => n + 1);
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("option-color-changed"));
@@ -274,6 +277,12 @@ function MultiSelectEditor({
     if (!fieldKey) return;
     fo.removeCustomOption(fieldKey, opt);
     setLiveOptions((prev) => prev.filter((o) => o !== opt));
+    // 삭제한 옵션이 현재 행 값에 선택돼 있으면 값에서도 해제 — 옵션 행이 사라진 뒤 해제할 UI 경로가 없어지는 것 방지
+    if (selected.has(opt)) {
+      const next = new Set(selected);
+      next.delete(opt);
+      onSave(Array.from(next).join(", "));
+    }
     setColorPickerOpt(null);
     forceRerender((n) => n + 1);
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("option-color-changed"));
@@ -291,7 +300,7 @@ function MultiSelectEditor({
             style={{ top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, zIndex: 9999 }}
           >
       {liveOptions.map((opt) => {
-        const colorClass = fo.getOptionColorClass(opt, fo.STATUS_COLORS, fo.SELECT_BADGE_COLORS);
+        const colorClass = colorOverrides[opt] ?? fo.getOptionColorClass(opt, fo.STATUS_COLORS, fo.SELECT_BADGE_COLORS);
         const isPickerOpen = colorPickerOpt === opt;
         return (
           <div key={opt} className="relative">
