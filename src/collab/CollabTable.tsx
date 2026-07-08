@@ -251,6 +251,10 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
   const [addingNew, setAddingNew] = useState(false);
   const [newOptInput, setNewOptInput] = useState("");
   const newOptRef = useRef<HTMLInputElement>(null);
+  // 옵션 구조 편집(색상·삭제) — 단일선택(CellSelectEditor→SelectDropdownBody)과 동일한 콜백·게이팅
+  const [colorPickerOpt, setColorPickerOpt] = useState<string | null>(null);
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [, forceRerender] = useState(0);
 
   // 현재 선택된 값 집합 (콤마+공백 구분)
   const [selected, setSelected] = useState<Set<string>>(() => {
@@ -305,8 +309,35 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
     setAddingNew(false);
   };
 
-  // 옵션 목록: cfg.getOptions 로 최신 상태 반영
-  const liveOptions = cfg?.getOptions?.(columnKey) ?? options;
+  const canSetColor = !!cfg?.onSetColor && !!cfg?.colorFamilies && cfg.colorFamilies.length > 0;
+  const canDelete = !!cfg?.allowDelete && !!cfg?.onDeleteOption;
+  // colorFamilies 런타임 실형태는 단일선택(SelectDropdownBody)과 같은 {name, shades[]} —
+  // CellSelectEditor 의 캐스트와 동일하게 맞춘다(선언 타입 {name, classes} 는 소비 앱들이 as never 로 전달 중).
+  const families = (cfg?.colorFamilies ?? []) as unknown as Array<{
+    name: string;
+    shades: Array<{ shade: string; bg: string; text: string; bgHex: string }>;
+  }>;
+
+  const handleSetColor = (opt: string, color: { bg: string; text: string }) => {
+    cfg?.onSetColor?.(columnKey, opt, color as unknown as string);
+    setColorPickerOpt(null);
+    forceRerender((n) => n + 1);
+  };
+
+  const handleDeleteOption = (opt: string) => {
+    cfg?.onDeleteOption?.(columnKey, opt);
+    // 목록에서 지우고, 선택돼 있었다면 선택도 해제(저장 시 지운 옵션이 되살아나지 않게)
+    setRemoved((prev) => new Set([...prev, opt]));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(opt);
+      return next;
+    });
+    setColorPickerOpt(null);
+  };
+
+  // 옵션 목록: cfg.getOptions 로 최신 상태 반영 + 방금 지운 옵션 제외
+  const liveOptions = (cfg?.getOptions?.(columnKey) ?? options).filter((o) => !removed.has(o));
 
   return (
     <>
@@ -321,23 +352,75 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
             {liveOptions.map((opt) => {
               const isOn = selected.has(opt);
               const colorClass = cfg?.getColorClass?.(columnKey, opt) ?? "bg-wedly-bg-gray text-wedly-t2";
+              const isPickerOpen = colorPickerOpt === opt;
               return (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => toggle(opt)}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-wedly-bg-blue/40 transition-colors"
-                >
-                  <span className={cn(
-                    "flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] transition-colors",
-                    isOn ? "border-wedly-accent bg-wedly-accent text-white" : "border-wedly-bd bg-white",
-                  )}>
-                    {isOn && "✓"}
-                  </span>
-                  <span className={cn("inline-block rounded-full px-2 py-0.5 text-[12px] font-medium", colorClass)}>
-                    {opt}
-                  </span>
-                </button>
+                <div key={opt} className="relative">
+                  <div className="flex w-full items-center gap-1 px-3 py-1.5 hover:bg-wedly-bg-blue/40 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => toggle(opt)}
+                      className="flex flex-1 items-center gap-2 text-left min-w-0"
+                    >
+                      <span className={cn(
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] transition-colors",
+                        isOn ? "border-wedly-accent bg-wedly-accent text-white" : "border-wedly-bd bg-white",
+                      )}>
+                        {isOn && "✓"}
+                      </span>
+                      <span className={cn("inline-block rounded-full px-2 py-0.5 text-[12px] font-medium truncate", colorClass)}>
+                        {opt}
+                      </span>
+                    </button>
+                    {canSetColor && (
+                      <button
+                        type="button"
+                        className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition flex-shrink-0"
+                        title="색상 변경"
+                        onClick={(e) => { e.stopPropagation(); setColorPickerOpt(isPickerOpen ? null : opt); }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+                          <circle cx="5.5" cy="6.5" r="1" fill="currentColor" />
+                          <circle cx="10.5" cy="6.5" r="1" fill="currentColor" />
+                          <circle cx="8" cy="10.5" r="1" fill="currentColor" />
+                        </svg>
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-red/40 hover:text-wedly-red transition flex-shrink-0"
+                        title="옵션 삭제"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteOption(opt); }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  {isPickerOpen && canSetColor && (
+                    <div className="px-3 pb-2 pt-1.5 bg-wedly-bg-gray/50 border-t border-wedly-bd/40 space-y-1">
+                      {families.map((family) => (
+                        <div key={family.name} className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-wedly-muted w-7 shrink-0">{family.name}</span>
+                          <div className="flex gap-1">
+                            {family.shades.map((s) => (
+                              <button
+                                key={s.shade}
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleSetColor(opt, { bg: s.bg, text: s.text }); }}
+                                className="w-5 h-5 rounded-full border border-wedly-bd hover:scale-110 transition-transform"
+                                title={`${family.name} · ${s.shade}`}
+                                style={{ backgroundColor: s.bgHex }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
