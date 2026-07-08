@@ -34,6 +34,51 @@ export default function BasicFilesField({
     .sort((a, b) => (Date.parse(b.at ?? "") || 0) - (Date.parse(a.at ?? "") || 0))
     .slice(0, 2);
 
+  // NO.104 재작업: 인라인 다운로드 — 팝업에 들어가지 않아도 카드에서 바로 받도록.
+  const dl = adapter.fileDownload;
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [dlError, setDlError] = useState<string | null>(null);
+  const dlHref = (f: { name: string; url: string }) => {
+    if (!dl) return "";
+    const p = new URLSearchParams();
+    p.set("name", f.name || "파일");
+    if (f.url) p.set("url", f.url);
+    if (entryId) p.set("entryId", entryId);
+    if (f.name) p.set("fileName", f.name);
+    return `${dl.apiPath}?${p.toString()}`;
+  };
+  // 전체 다운로드 — 카드의 전체 파일 목록을 서버로 보내 ZIP 하나로 저장(팝업 FilesTab 과 동일 형태).
+  const downloadAll = async () => {
+    if (!dl || downloadingAll || files.length === 0) return;
+    setDownloadingAll(true);
+    setDlError(null);
+    try {
+      const label = dl.zipLabel?.(row)?.trim() || "첨부파일";
+      const res = await fetch(dl.allApiPath, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label,
+          files: files.map((f) => ({ fileName: f.name || "파일", url: f.url, entryId })),
+        }),
+      });
+      if (!res.ok) throw new Error("전체 다운로드에 실패했어요. 잠시 후 다시 시도해 주세요.");
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `${label}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (e) {
+      setDlError(e instanceof Error ? e.message : "전체 다운로드에 실패했어요.");
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
   // 팝업에서 막 업로드/삭제한 결과를 헤더 "전체 N개" 카운트에 즉시 반영(행 갱신 전까지의 시차 제거).
   // 패널이 현재 표시 중인 파일 수를 올려주고, 행(row)이 새 데이터로 바뀌면(저장 후 행 갱신) 리셋해 행 기준으로 돌아간다.
   const [liveCount, setLiveCount] = useState<number | null>(null);
@@ -58,17 +103,23 @@ export default function BasicFilesField({
       ) : (
         <>
           {inline.map((f, i) => (
-            <a
-              key={i}
-              href={f.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[13px] text-wedly-t1 hover:text-wedly-accent min-w-0"
-              title={f.name}
-            >
-              <span className="flex-shrink-0">📎</span>
-              <span className="truncate">{f.name}</span>
-            </a>
+            <div key={i} className="flex items-center gap-1 min-w-0">
+              <a
+                href={f.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-1 items-center gap-2 px-3 py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[13px] text-wedly-t1 hover:text-wedly-accent min-w-0"
+                title={f.name}
+              >
+                <span className="flex-shrink-0">📎</span>
+                <span className="truncate">{f.name}</span>
+              </a>
+              {dl && f.url && (
+                <a href={dlHref(f)} download={f.name || "파일"} onClick={(e) => e.stopPropagation()} className="w-7 h-7 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-wedly-muted hover:bg-wedly-bg-blue/40 hover:text-wedly-accent inline-flex items-center justify-center flex-shrink-0 transition" title="다운로드" aria-label={`${f.name} 다운로드`}>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v8M5 7.5l3 3 3-3M3 13.5h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </a>
+              )}
+            </div>
           ))}
           {files.length > inline.length && (
             <button
@@ -83,7 +134,21 @@ export default function BasicFilesField({
           )}
           <div className="flex w-fit items-center gap-2 px-1 text-[12px]">
             <button type="button" onClick={() => setOpen(true)} className="text-wedly-accent font-medium hover:underline">파일 추가</button>
+            {dl && files.length >= 2 && (
+              <>
+                <span className="text-wedly-muted">|</span>
+                <button
+                  type="button"
+                  onClick={downloadAll}
+                  disabled={downloadingAll}
+                  className="text-wedly-accent font-medium hover:underline disabled:opacity-50"
+                >
+                  {downloadingAll ? "압축 중…" : "전체 다운로드"}
+                </button>
+              </>
+            )}
           </div>
+          {dlError && <span className="px-1 text-[12px] text-wedly-red">{dlError}</span>}
         </>
       )}
 
