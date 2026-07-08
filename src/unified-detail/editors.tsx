@@ -200,12 +200,15 @@ function MultiSelectEditor({
   fieldKey,
   onSave,
   onClose,
+  canDelete = false,
 }: {
   value: string;
   options: string[];
   fieldKey?: string;
   onSave: (v: string) => void;
   onClose: () => void;
+  /** 옵션 삭제 버튼 노출 여부 — 단일선택 SelectEditor 의 canDelete(isAdmin)와 동일 게이팅 */
+  canDelete?: boolean;
 }) {
   const fo = useFieldOptions();
   const selected = new Set(value ? value.split(", ") : []);
@@ -216,6 +219,9 @@ function MultiSelectEditor({
   const [newOpt, setNewOpt] = useState("");
   const [newColor, setNewColor] = useState(fo.OPTION_COLOR_PALETTE[0]);
   const [liveOptions, setLiveOptions] = useState(options);
+  // 옵션 구조 편집(색상·삭제) — 단일선택(ErpSelectDropdownBody)과 동일 콜백·이벤트
+  const [colorPickerOpt, setColorPickerOpt] = useState<string | null>(null);
+  const [, forceRerender] = useState(0);
   const addInputRef = useRef<HTMLInputElement>(null);
   // 트리거(칸) 위치 기준 화면 좌표 계산 — 모달 overflow 에 잘리지 않게 createPortal 로 띄운다(SelectEditor 와 동일).
   // 위로 펼칠 때는 bottom 앵커로 '칸 윗변에 붙인다'(top=최대높이 오프셋이면 칸에서 멀리 떨어져 뜸 — NO.46 ①).
@@ -258,6 +264,20 @@ function MultiSelectEditor({
     setNewOpt("");
     setAdding(false);
   };
+  const handleSetColor = (opt: string, color: { bg: string; text: string }) => {
+    fo.setOptionColor(opt, color);
+    setColorPickerOpt(null);
+    forceRerender((n) => n + 1);
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("option-color-changed"));
+  };
+  const handleDeleteOption = (opt: string) => {
+    if (!fieldKey) return;
+    fo.removeCustomOption(fieldKey, opt);
+    setLiveOptions((prev) => prev.filter((o) => o !== opt));
+    setColorPickerOpt(null);
+    forceRerender((n) => n + 1);
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("option-color-changed"));
+  };
   return (
     <>
       {/* 칸 위치를 잡기 위한 0높이 기준점(흐름 안에 둠) */}
@@ -272,26 +292,76 @@ function MultiSelectEditor({
           >
       {liveOptions.map((opt) => {
         const colorClass = fo.getOptionColorClass(opt, fo.STATUS_COLORS, fo.SELECT_BADGE_COLORS);
+        const isPickerOpen = colorPickerOpt === opt;
         return (
-          <button
-            key={opt}
-            onClick={() => toggle(opt)}
-            className="w-full text-left px-3 py-1.5 text-[13px] hover:bg-wedly-bg-gray flex items-center gap-2"
-          >
-            <div
-              className={cn(
-                "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0",
-                selected.has(opt) ? "bg-wedly-accent border-wedly-accent" : "border-wedly-bd",
-              )}
-            >
-              {selected.has(opt) && (
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                  <path d="M2.5 6l2.5 2.5 4.5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <div key={opt} className="relative">
+            <div className="w-full px-3 py-1.5 hover:bg-wedly-bg-gray flex items-center gap-1">
+              <button
+                onClick={() => toggle(opt)}
+                className="flex flex-1 items-center gap-2 text-left text-[13px] min-w-0"
+              >
+                <div
+                  className={cn(
+                    "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0",
+                    selected.has(opt) ? "bg-wedly-accent border-wedly-accent" : "border-wedly-bd",
+                  )}
+                >
+                  {selected.has(opt) && (
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 6l2.5 2.5 4.5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+                <span className={cn("inline-block px-2 py-0.5 rounded-md text-[11px] font-medium truncate", colorClass)}>{opt}</span>
+              </button>
+              <button
+                type="button"
+                className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition flex-shrink-0"
+                title="색상 변경"
+                onClick={(e) => { e.stopPropagation(); setColorPickerOpt(isPickerOpen ? null : opt); }}
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+                  <circle cx="5.5" cy="6.5" r="1" fill="currentColor" />
+                  <circle cx="10.5" cy="6.5" r="1" fill="currentColor" />
+                  <circle cx="8" cy="10.5" r="1" fill="currentColor" />
                 </svg>
+              </button>
+              {canDelete && !!fieldKey && (
+                <button
+                  type="button"
+                  className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-red/40 hover:text-wedly-red transition flex-shrink-0"
+                  title="옵션 삭제"
+                  onClick={(e) => { e.stopPropagation(); handleDeleteOption(opt); }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
               )}
             </div>
-            <span className={cn("inline-block px-2 py-0.5 rounded-md text-[11px] font-medium", colorClass)}>{opt}</span>
-          </button>
+            {isPickerOpen && (
+              <div className="px-3 pb-2 pt-1.5 bg-wedly-bg-gray/50 border-t border-wedly-bd/40 space-y-1">
+                {fo.OPTION_COLOR_FAMILIES.map((family) => (
+                  <div key={family.name} className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-wedly-muted w-7 shrink-0">{family.name}</span>
+                    <div className="flex gap-1">
+                      {family.shades.map((s) => (
+                        <button
+                          key={s.shade}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleSetColor(opt, { bg: s.bg, text: s.text }); }}
+                          className="w-5 h-5 rounded-full border border-wedly-bd hover:scale-110 transition-transform"
+                          title={`${family.name} · ${s.shade}`}
+                          style={{ backgroundColor: s.bgHex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         );
       })}
       <div className="border-t border-wedly-bd/60 mt-1 pt-1 px-2 pb-1">
@@ -819,6 +889,7 @@ export function EditableFieldRow({
                 /* 토글마다 저장하되 창은 닫지 않음(여러 개 선택 가능). 바깥 클릭(onClose) 때만 닫는다. */
                 onSave={(v) => onUpdate(col.key, v || null)}
                 onClose={() => setEditing(false)}
+                canDelete={isAdmin}
               />
             )}
             {col.type === "person" && (
