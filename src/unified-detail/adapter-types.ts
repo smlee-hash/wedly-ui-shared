@@ -206,6 +206,17 @@ export interface UnifiedDetailAdapter {
    */
   getAllFiles: (row: Record<string, unknown>, detail?: CustomerDetailLite | null) => FileMetaLite[];
   /**
+   * NO.104 재작업: 기본정보 파일 칸 인라인 다운로드 통로 (선택 — 미주입 시 버튼 없음).
+   * apiPath    개별 다운로드 GET (?name=&url=&entryId=&fileName=) → 파일을 "저장"으로 반환
+   * allApiPath 전체 다운로드 POST { label, files:[{fileName,url,entryId}] } → ZIP 반환
+   * zipLabel   ZIP 파일명(업체명). 없거나 빈값이면 "첨부파일".
+   */
+  fileDownload?: {
+    apiPath: string;
+    allApiPath: string;
+    zipLabel?: (row: Record<string, unknown>) => string;
+  };
+  /**
    * 기본정보 파일 칸에서 파일을 열 때 호출(선택). 앱이 만료된 노션 임시링크를 자동 갱신해 안전하게 연다.
    * 없으면 BasicFilesField 가 기본 동작(주소를 새 창으로 직접 열기). ERP·일루아는 미주입 → 기존 동작 유지.
    */
