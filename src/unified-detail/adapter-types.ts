@@ -205,6 +205,18 @@ export interface UnifiedDetailAdapter {
    * ERP·하이브 구현은 detail 을 무시(인자 적은 함수도 호환).
    */
   getAllFiles: (row: Record<string, unknown>, detail?: CustomerDetailLite | null) => FileMetaLite[];
+
+  /**
+   * NO.104 재작업: 기본정보 파일 칸 인라인 다운로드 통로 (선택 — 미주입 시 버튼 없음).
+   * apiPath    개별 다운로드 GET (?name=&url=&entryId=&fileName=) → 파일을 "저장"으로 반환
+   * allApiPath 전체 다운로드 POST { label, files:[{fileName,url,entryId}] } → ZIP 반환
+   * zipLabel   ZIP 파일명(업체명). 없거나 빈값이면 "첨부파일".
+   */
+  fileDownload?: {
+    apiPath: string;
+    allApiPath: string;
+    zipLabel?: (row: Record<string, unknown>) => string;
+  };
 }
 
 /** 어댑터가 분야 그룹별로 주입하는 커스텀 편집기 패널의 props (components.sectionPanels 값). */
