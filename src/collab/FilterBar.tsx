@@ -294,11 +294,13 @@ function ValueEditor({
 
   if (op === "date_between") {
     const v = Array.isArray(item.value) ? item.value : ["", ""];
+    // 팝오버(w-64) 폭을 넘지 않도록 시작·종료 날짜칸을 세로로 쌓는다(가로 배치 시 네이티브 날짜칸이
+    // 팝오버 밖으로 삐져나오던 문제, 2026-07-09 이아영 지적 해결).
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex flex-col gap-1">
         <input type="date" value={v[0] || ""} onChange={(e) => onPatch({ value: [e.target.value, v[1] || ""] })}
           className="w-full rounded-lg border border-wedly-bd px-2 py-1.5 text-[13px]" />
-        <span className="text-wedly-muted">~</span>
+        <span className="text-center text-[11px] leading-none text-wedly-muted">~</span>
         <input type="date" value={v[1] || ""} onChange={(e) => onPatch({ value: [v[0] || "", e.target.value] })}
           className="w-full rounded-lg border border-wedly-bd px-2 py-1.5 text-[13px]" />
       </div>
