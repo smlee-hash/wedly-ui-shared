@@ -39,6 +39,43 @@ describe("filterRowsBySearch", () => {
   });
 });
 
+// NO.82 — 전화·번호 검색은 하이픈/구분자와 무관하게 숫자만 비교(부분검색 포함).
+// '덧붙이기' 방식: 기존 글자 검색은 그대로 두고, 번호형 검색어에서만 숫자 매칭을 추가한다.
+describe("filterRowsBySearch — 번호형 하이픈 무시(숫자만) 검색 (NO.82)", () => {
+  const rows: RowData[] = [
+    { _id: "1", name: "가나상사", phone: "010-1234-5678", biz: "123-45-67890" },
+    { _id: "2", name: "라마상사", phone: "01087651234" }, // 하이픈 없이 저장
+    { _id: "3", name: "바사상사", phone: "" },
+  ];
+  const ids = (q: string) => filterRowsBySearch(rows, q).map((r) => r._id);
+
+  it("하이픈 없이 친 전체 번호 → 하이픈 저장값 조회", () => {
+    expect(ids("01012345678")).toEqual(["1"]);
+  });
+  it("하이픈 포함 검색어도 동일 조회", () => {
+    expect(ids("010-1234-5678")).toEqual(["1"]);
+  });
+  it("뒷 8자리 부분검색(하이픈 없음)", () => {
+    expect(ids("12345678")).toEqual(["1"]);
+  });
+  it("부분검색 + 하이픈 포함", () => {
+    expect(ids("1234-5678")).toEqual(["1"]);
+  });
+  it("하이픈 없이 저장된 값도 하이픈 넣어 검색되면 조회", () => {
+    expect(ids("0108-765")).toEqual(["2"]);
+  });
+  it("사업자번호도 하이픈 무시 숫자 검색", () => {
+    expect(ids("1234567890")).toEqual(["1"]);
+  });
+  it("빈 전화 행은 숫자 검색에 걸리지 않음", () => {
+    expect(ids("010")).toEqual(["1", "2"]); // '' 저장(3번)은 제외
+  });
+  it("숫자 아닌 검색어는 기존 글자검색 그대로(회귀 없음)", () => {
+    expect(ids("가나")).toEqual(["1"]);
+    expect(filterRowsBySearch(rows, "없는회사")).toHaveLength(0);
+  });
+});
+
 describe("sortRows / nextSortConfig", () => {
   const rows: RowData[] = [{ _id: "1", v: "나" }, { _id: "2", v: "" }, { _id: "3", v: "가" }];
   it("정렬 설정이 없으면 원본 순서", () => {
