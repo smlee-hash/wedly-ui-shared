@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import type { ColumnDef } from "../types/columns";
 import { useFieldOptions } from "./field-options-context";
+import { COMMON_KEY_MIRROR } from "../unified/sections";
 // 글자·숫자 입력기는 공용 부품(@wedly/ui-shared)을 그대로 사용 — 표 셀·상세창·하이브와 100% 동일.
 import { TextEditor, NumberEditor, isCommonBasicLabel, renderUnifiedFieldValue, detectPersonChipRole, formatPercent, type CommonFieldOverride } from "../index";
 // 선택 칸 본문(옵션 추가·색칠)·사람 선택 위젯도 하이브와 같은 공용 부품 사용.
@@ -17,6 +18,17 @@ import { parseUploadSuccess } from "./upload-response";
 function mergeColOptions(defOptions: string[] | undefined, appOptions: string[]): string[] {
   if (!defOptions || defOptions.length === 0) return appOptions;
   return Array.from(new Set([...defOptions, ...appOptions]));
+}
+
+// 통일쌍(미러) 칸은 두 키 중 한쪽에만 선택지가 저장돼 있을 수 있다.
+// 예: 'DB 분류'는 상세창에서 정식키(59DB담당)로 합쳐지지만, 실제 선택지(위들리/하이브/기존고객)는
+// 짝 키(custom_…_b1wc)에만 등록돼 있어 상세창 드롭다운이 비어 보였다(사장님 신고 2026-07-09).
+// → 미러 짝 키의 선택지까지 합쳐, 어느 키에 저장돼 있든 드롭다운에 뜨게 한다(중복 제거).
+function optionsWithMirror(getOpts: (k: string) => string[], key: string): string[] {
+  const own = getOpts(key);
+  const mirror = COMMON_KEY_MIRROR[key];
+  if (!mirror) return own;
+  return Array.from(new Set([...own, ...getOpts(mirror)]));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -883,7 +895,7 @@ export function EditableFieldRow({
             {(col.type === "select" || col.type === "status") && (
               <SelectEditor
                 value={String(value ?? "")}
-                options={mergeColOptions(col.options, fo.getFieldOptions(col.key))}
+                options={mergeColOptions(col.options, optionsWithMirror((k) => fo.getFieldOptions(k), col.key))}
                 fieldKey={col.key}
                 onSave={(v) => handleSave(v || null)}
                 onClose={() => setEditing(false)}
@@ -893,7 +905,7 @@ export function EditableFieldRow({
             {col.type === "multi_select" && (
               <MultiSelectEditor
                 value={String(value ?? "")}
-                options={mergeColOptions(col.options, fo.getFieldOptions(col.key))}
+                options={mergeColOptions(col.options, optionsWithMirror((k) => fo.getFieldOptions(k), col.key))}
                 fieldKey={col.key}
                 /* 토글마다 저장하되 창은 닫지 않음(여러 개 선택 가능). 바깥 클릭(onClose) 때만 닫는다. */
                 onSave={(v) => onUpdate(col.key, v || null)}
