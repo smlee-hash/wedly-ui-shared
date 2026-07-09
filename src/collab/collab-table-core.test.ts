@@ -82,9 +82,10 @@ describe("filterRowsBySearch — 번호형 하이픈 무시(숫자만) 검색 (N
     ];
     // "1234": 옛 글자검색도 콤마로 안 걸림 + 6자리 이하라 숫자매칭 미적용 → 0건(금액 12,340,000 안 딸려옴)
     expect(filterRowsBySearch(rows2, "1234")).toHaveLength(0);
-    // "35"·"3.5": 퍼센트 3.5% 딸려오지 않음
+    // "35": 6자리 이하라 숫자매칭 미적용 → 퍼센트 3.5%(숫자 35)가 딸려오지 않음(글자로도 '3.5%'에 "35" 없음)
     expect(filterRowsBySearch(rows2, "35")).toHaveLength(0);
-    expect(filterRowsBySearch(rows2, "3.5")).toHaveLength(0);
+    // "3.5": 글자 그대로 '3.5%'에 존재 → 기존 글자검색으로 매칭됨(원래 동작·회귀 아님, 숫자 경로와 무관)
+    expect(filterRowsBySearch(rows2, "3.5").map((r) => r._id)).toEqual(["A"]);
     // 7자리 이상은 정상 숫자매칭
     expect(filterRowsBySearch(rows2, "6329002").map((r) => r._id)).toEqual(["B"]);
   });
