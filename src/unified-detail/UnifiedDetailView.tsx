@@ -1344,9 +1344,11 @@ function BasicInfoPanel({
           void adapter.api.saveBasicField(bizno, "erp", fieldId, newVal).then((rec) => { if (rec) setBasicRecord(rec); });
         }
         onSaved?.();
-      } catch {
+      } catch (e) {
         setBasicRow((r) => ({ ...r, [key]: prev }));
-        alert(`'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
+        // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
+        const m = e instanceof Error ? e.message : "";
+        alert(m || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
       }
     },
     [basicRow, entryId, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter],
