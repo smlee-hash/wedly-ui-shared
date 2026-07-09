@@ -74,6 +74,20 @@ describe("filterRowsBySearch — 번호형 하이픈 무시(숫자만) 검색 (N
     expect(ids("가나")).toEqual(["1"]);
     expect(filterRowsBySearch(rows, "없는회사")).toHaveLength(0);
   });
+  // 오탐 방지(7자리 문턱): 짧은 숫자는 숫자매칭을 켜지 않아 금액/퍼센트 칸이 딸려오지 않는다.
+  it("짧은 숫자(6자리 이하)는 숫자매칭 미적용 — 금액·퍼센트 칸 오탐 없음", () => {
+    const rows2: RowData[] = [
+      { _id: "A", name: "가", amount: "12,340,000", rate: "3.5%" },
+      { _id: "B", name: "나", phone: "010-6329-0022" },
+    ];
+    // "1234": 옛 글자검색도 콤마로 안 걸림 + 6자리 이하라 숫자매칭 미적용 → 0건(금액 12,340,000 안 딸려옴)
+    expect(filterRowsBySearch(rows2, "1234")).toHaveLength(0);
+    // "35"·"3.5": 퍼센트 3.5% 딸려오지 않음
+    expect(filterRowsBySearch(rows2, "35")).toHaveLength(0);
+    expect(filterRowsBySearch(rows2, "3.5")).toHaveLength(0);
+    // 7자리 이상은 정상 숫자매칭
+    expect(filterRowsBySearch(rows2, "6329002").map((r) => r._id)).toEqual(["B"]);
+  });
 });
 
 describe("sortRows / nextSortConfig", () => {
