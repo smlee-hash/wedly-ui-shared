@@ -16,19 +16,29 @@ export function normalizeSort(s: SortConfig): SortRule[] {
   return [s];
 }
 
-/** 밑줄(_)로 시작하는 내부 키는 제외하고, 나머지 값들을 이어붙여 대소문자 무시 부분일치 검색 */
+/** 밑줄(_)로 시작하는 내부 키는 제외하고, 나머지 값들을 이어붙여 대소문자 무시 부분일치 검색.
+ *  NO.82 — 검색어가 '번호형'(숫자·공백·괄호·+·.·- 만)이고 숫자가 2자리 이상이면,
+ *  각 칸 값의 '숫자만' 부분일치도 함께 본다 → 전화/사업자번호를 하이픈·저장형식과 무관하게 검색.
+ *  덧붙이기(additive) 방식: 기존 글자 부분일치는 그대로 먼저 판정(OR)하므로, 지금 잡히던
+ *  결과가 사라지지 않고(비회귀), 숫자 매칭은 번호형 검색어에서만 켜져 글자 검색엔 영향 없음. */
 export function filterRowsBySearch(rows: RowData[], query: string): RowData[] {
   const q = query.trim().toLowerCase();
   if (!q) return rows;
+  // 번호형 검색어일 때만 '숫자만' 비교를 준비(전화/사업자번호 하이픈 무시). 그 외엔 종전과 동일.
+  const qDigits = /^[0-9\s()+.\-]+$/.test(q) ? q.replace(/\D/g, "") : "";
+  const useDigits = qDigits.length >= 2;
   return rows.filter((row) => {
     const parts: string[] = [];
+    let digitHit = false;
     for (const k in row) {
       if (k.startsWith("_")) continue;
       const v = row[k];
       if (v == null || v === "") continue;
-      parts.push(String(v).toLowerCase());
+      const sv = String(v).toLowerCase();
+      parts.push(sv);
+      if (useDigits && !digitHit && sv.replace(/\D/g, "").includes(qDigits)) digitHit = true;
     }
-    return parts.join(" ").includes(q);
+    return parts.join(" ").includes(q) || digitHit;
   });
 }
 
