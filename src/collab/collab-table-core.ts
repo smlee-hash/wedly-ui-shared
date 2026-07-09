@@ -17,16 +17,18 @@ export function normalizeSort(s: SortConfig): SortRule[] {
 }
 
 /** 밑줄(_)로 시작하는 내부 키는 제외하고, 나머지 값들을 이어붙여 대소문자 무시 부분일치 검색.
- *  NO.82 — 검색어가 '번호형'(숫자·공백·괄호·+·.·- 만)이고 숫자가 2자리 이상이면,
+ *  NO.82 — 검색어가 '번호형'(숫자·공백·괄호·+·.·- 만)이고 숫자가 7자리 이상(전화·사업자번호 길이)이면,
  *  각 칸 값의 '숫자만' 부분일치도 함께 본다 → 전화/사업자번호를 하이픈·저장형식과 무관하게 검색.
+ *  7자리 문턱: 짧은 숫자(2~6자리)로 금액('12,340,000')·퍼센트('3.5%')·날짜 칸이 딸려오는 오탐 방지.
+ *  6자리 이하 숫자는 종전 글자검색으로만 판정(원래 동작) — 하이픈 한 그룹 안의 4자리 등은 글자로 이미 잡힘.
  *  덧붙이기(additive) 방식: 기존 글자 부분일치는 그대로 먼저 판정(OR)하므로, 지금 잡히던
  *  결과가 사라지지 않고(비회귀), 숫자 매칭은 번호형 검색어에서만 켜져 글자 검색엔 영향 없음. */
 export function filterRowsBySearch(rows: RowData[], query: string): RowData[] {
   const q = query.trim().toLowerCase();
   if (!q) return rows;
-  // 번호형 검색어일 때만 '숫자만' 비교를 준비(전화/사업자번호 하이픈 무시). 그 외엔 종전과 동일.
+  // 번호형(숫자 7자리+) 검색어일 때만 '숫자만' 비교를 준비(전화/사업자번호 하이픈 무시). 그 외엔 종전과 동일.
   const qDigits = /^[0-9\s()+.\-]+$/.test(q) ? q.replace(/\D/g, "") : "";
-  const useDigits = qDigits.length >= 2;
+  const useDigits = qDigits.length >= 7;
   return rows.filter((row) => {
     const parts: string[] = [];
     let digitHit = false;
