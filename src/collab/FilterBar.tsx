@@ -278,6 +278,7 @@ function ValueEditor({
           <label key={o} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[13px] hover:bg-wedly-bg-gray">
             <input
               type="checkbox"
+              className="shrink-0"
               checked={selected.has(o)}
               onChange={(e) => {
                 const next = new Set(selected);
@@ -285,7 +286,7 @@ function ValueEditor({
                 onPatch({ value: [...next] });
               }}
             />
-            <span className={cn("rounded px-1.5 py-0.5", getOptionColorClass?.(o))}>{o}</span>
+            <span title={o} className={cn("min-w-0 truncate rounded px-1.5 py-0.5", getOptionColorClass?.(o))}>{o}</span>
           </label>
         ))}
       </div>
