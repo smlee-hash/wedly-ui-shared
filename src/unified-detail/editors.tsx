@@ -728,7 +728,6 @@ export function EditableFieldRow({
   commonOverride,
   loadManagers,
   isNew = false,
-  locked,
 }: {
   col: ColumnDef;
   value: unknown;
@@ -742,8 +741,6 @@ export function EditableFieldRow({
   loadManagers?: () => Promise<{ id: string; name: string }[]>;
   /** 신규 등록 폼이면 true — 칸마다 저장 확인창을 띄우지 않는다(입력 중 반복 팝업 방지). */
   isNew?: boolean;
-  /** 상호배타 잠금 — 상대 칸이 지정돼 이 칸 입력을 막을 때. reason 은 잠금 안내문. */
-  locked?: { locked: boolean; reason?: string };
 }) {
   const fo = useFieldOptions();
   const [editing, setEditing] = useState(false);
@@ -752,9 +749,7 @@ export function EditableFieldRow({
   // 편집 가능한 형식만 입력칸을 띄운다. person·읽기전용 타입은 표시만(빈 입력칸 방지).
   // multi_select·file은 편집 가능 — isReadonly에서 제외.
   const isReadonly = fo.READONLY_TYPES.has(col.type) || fo.isReadonlyPerson(col);
-  // 상호배타 잠금(상대 칸 지정) — 편집 진입을 막는다. 읽기전용과 합쳐 판정.
-  const lockedByExclusivity = !!locked?.locked;
-  const effectiveReadonly = isReadonly || lockedByExclusivity;
+  const effectiveReadonly = isReadonly;
 
   const handleSave = useCallback(
     (newVal: string | number | boolean | null) => {
@@ -954,9 +949,6 @@ export function EditableFieldRow({
             }`}
           >
             <div className="flex-1 min-w-0">{displayValue}</div>
-            {lockedByExclusivity && (
-              <span className="text-[11px] text-wedly-muted whitespace-nowrap">🔒 {locked?.reason ?? "다른 담당자가 지정되어 잠김"}</span>
-            )}
           </div>
         )}
       </div>
