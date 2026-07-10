@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo, type DragEvent } from "react";
 import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, refreshCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
 import { type ColumnDef } from "../types/columns";
-import { bothManagersFilled, managerLockState } from "../lib/manager-exclusivity";
 import {
   customerKeyFromTaxRow,
   resolveBasicFieldValue,
@@ -1459,11 +1458,6 @@ function BasicInfoPanel({
           ) : (
             // 일반 모드 — 값 입력 (저장된 순서 반영)
             <div>
-              {bothManagersFilled((isNew ? (draft ?? {}) : basicRow) as Record<string, unknown>) && (
-                <div className="mb-2 rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-3 py-2 text-[12px] text-wedly-red" role="alert">
-                  조회 담당자와 다지기 담당자가 모두 지정되어 있습니다. 둘 중 하나만 남겨 주세요.
-                </div>
-              )}
             <div className="divide-y divide-wedly-bd/60">
               {groupedFields.length === 0 && (
                 <div className="py-4 text-center text-[12px] text-wedly-muted">표시할 칸이 없습니다.</div>
@@ -1502,8 +1496,6 @@ function BasicInfoPanel({
                     </div>
                   );
                 }
-                const curVals = (isNew ? (draft ?? {}) : basicRow) as Record<string, unknown>;
-                const lock = managerLockState(f.key, curVals);
                 return (
                   <EditableFieldRow
                     key={f.key}
@@ -1514,7 +1506,6 @@ function BasicInfoPanel({
                     colorCommon
                     commonOverride={commonOverride}
                     loadManagers={loadManagers}
-                    locked={lock}
                   />
                 );
               })}
