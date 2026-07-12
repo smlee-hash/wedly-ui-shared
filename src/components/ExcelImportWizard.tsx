@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useRef, useState } from "react";
 import {
-  computeHeaderSignature, autoMatchMapping, validateRequiredMapping, applyMapping,
+  computeHeaderSignature, autoMatchMapping, validateRequiredMapping, validateRequiredValues, applyMapping,
   applyFixedValues, availableFixedFields, mappingTargetsExcludingFixed,
   type TargetField, type ColumnMapping, type FixedValues,
 } from "../excel-import";
@@ -42,6 +42,12 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
 
   const signature = useMemo(() => (parsed ? computeHeaderSignature(parsed.headers) : ""), [parsed]);
   const missingRequired = useMemo(() => validateRequiredMapping(mapping, targetFields), [mapping, targetFields]);
+  // 필수 칸인데 값이 빈 줄 — 매핑돼 있어도 셀이 비면 다음 단계로 못 가게 막는다.
+  const requiredValueIssues = useMemo(
+    () => (parsed ? validateRequiredValues(parsed.rows, mapping, fixedValues, targetFields) : []),
+    [parsed, mapping, fixedValues, targetFields],
+  );
+  const requiredBlocked = missingRequired.length > 0 || requiredValueIssues.length > 0;
   const previewRows = useMemo(
     () => (parsed ? applyFixedValues(applyMapping(parsed.rows.slice(0, 5), mapping), fixedValues) : []),
     [parsed, mapping, fixedValues],
@@ -195,7 +201,15 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
               </div>
               {missingRequired.length
                 ? <div className="mt-2 text-xs text-wedly-red">필수 항목 미지정: {missingRequired.join(", ")}</div>
-                : <div className="mt-2 text-xs text-wedly-green">필수 항목 모두 지정됨</div>}
+                : requiredValueIssues.length
+                  ? (
+                    <div className="mt-2 text-xs text-wedly-red">
+                      필수 칸에 빈 값이 있어 진행할 수 없습니다 —{" "}
+                      {requiredValueIssues.map((it) => `${it.label} ${it.count}건(${it.exampleRows.join("·")}행${it.count > it.exampleRows.length ? " 등" : ""})`).join(", ")}
+                      . 엑셀에서 채우거나 고정값으로 지정해 주세요.
+                    </div>
+                  )
+                  : <div className="mt-2 text-xs text-wedly-green">필수 항목 모두 지정됨</div>}
 
               {/* 고정값 지정 — 모든 줄에 같은 값 (매핑된 칸과 상호배타) */}
               <div className="mt-4 rounded-xl border border-wedly-bd/60 p-3">
@@ -262,8 +276,8 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
         <div className="mt-5 flex items-center justify-between border-t border-wedly-bd pt-4">
           <button onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1} className="rounded-md px-3 py-2 text-sm text-wedly-t2 disabled:invisible">← 이전</button>
           {step < 3
-            ? <button onClick={() => setStep((s) => s + 1)} disabled={step === 1 ? !parsed : missingRequired.length > 0} className="rounded-md bg-wedly-navy px-4 py-2 text-sm font-medium text-white disabled:opacity-50">다음 →</button>
-            : <button onClick={handleImport} disabled={busy || !!result || missingRequired.length > 0} className="rounded-md bg-wedly-navy px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "등록 중…" : result ? "완료" : "등록하기"}</button>}
+            ? <button onClick={() => setStep((s) => s + 1)} disabled={step === 1 ? !parsed : requiredBlocked} className="rounded-md bg-wedly-navy px-4 py-2 text-sm font-medium text-white disabled:opacity-50">다음 →</button>
+            : <button onClick={handleImport} disabled={busy || !!result || requiredBlocked} className="rounded-md bg-wedly-navy px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{busy ? "등록 중…" : result ? "완료" : "등록하기"}</button>}
         </div>
       </div>
     </div>

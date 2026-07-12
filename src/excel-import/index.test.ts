@@ -3,6 +3,7 @@ import {
   computeHeaderSignature,
   autoMatchMapping,
   validateRequiredMapping,
+  validateRequiredValues,
   applyMapping,
   availableFixedFields,
   mappingTargetsExcludingFixed,
@@ -39,6 +40,46 @@ describe("validateRequiredMapping", () => {
   it("필수 항목 누락 시 라벨 반환", () => {
     expect(validateRequiredMapping({ "A": "상호명" }, FIELDS)).toEqual(["연락처"]);
     expect(validateRequiredMapping({ "A": "상호명", "B": "연락처" }, FIELDS)).toEqual([]);
+  });
+});
+
+describe("validateRequiredValues", () => {
+  const mapping = { "업체명": "상호명", "전화": "연락처", "메모": "" };
+  it("필수 칸 값이 빈 줄을 칸별로 집계한다 (엑셀 행 번호 = 제목줄 다음부터)", () => {
+    const rows = [
+      { "업체명": "가게A", "전화": "010-1", "메모": "x" },
+      { "업체명": "", "전화": "010-2", "메모": "" },
+      { "업체명": "  ", "전화": "", "메모": "" },
+    ];
+    expect(validateRequiredValues(rows, mapping, {}, FIELDS)).toEqual([
+      { label: "상호명", count: 2, exampleRows: [3, 4] },
+      { label: "연락처", count: 1, exampleRows: [4] },
+    ]);
+  });
+  it("모두 채워져 있으면 빈 배열", () => {
+    const rows = [{ "업체명": "가게A", "전화": "010-1" }];
+    expect(validateRequiredValues(rows, mapping, {}, FIELDS)).toEqual([]);
+  });
+  it("고정값이 채워진 필수 칸은 빈 열이어도 통과, 빈 고정값은 통과 못 함", () => {
+    const rows = [{ "업체명": "", "전화": "010-1" }];
+    expect(validateRequiredValues(rows, mapping, { "상호명": "고정상호" }, FIELDS)).toEqual([]);
+    expect(validateRequiredValues(rows, mapping, { "상호명": "  " }, FIELDS))
+      .toEqual([{ label: "상호명", count: 1, exampleRows: [2] }]);
+  });
+  it("매핑 자체가 없는 필수 칸은 여기서 다루지 않음(validateRequiredMapping 담당)", () => {
+    const rows = [{ "전화": "010-1" }];
+    expect(validateRequiredValues(rows, { "전화": "연락처" }, {}, FIELDS)).toEqual([]);
+  });
+  it("같은 필수 칸에 열 여러 개가 매핑되면 하나라도 값 있으면 통과", () => {
+    const rows = [{ "업체명": "", "상호2": "가게B", "전화": "010-1" }];
+    const m = { "업체명": "상호명", "상호2": "상호명", "전화": "연락처" };
+    expect(validateRequiredValues(rows, m, {}, FIELDS)).toEqual([]);
+  });
+  it("예시 행 번호는 최대 3개까지만 담는다", () => {
+    const rows = [1, 2, 3, 4, 5].map(() => ({ "업체명": "", "전화": "010" }));
+    expect(validateRequiredValues(rows, mapping, {}, FIELDS)).toEqual([
+      { label: "상호명", count: 5, exampleRows: [2, 3, 4] },
+    ]);
   });
 });
 

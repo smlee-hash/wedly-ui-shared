@@ -35,6 +35,29 @@ export function validateRequiredMapping(mapping: ColumnMapping, fields: TargetFi
   return fields.filter((f) => f.required && !mapped.has(f.key)).map((f) => f.label);
 }
 
+// 필수 칸의 "값"이 빈 줄 집계 — 매핑은 됐지만 셀이 빈 경우를 잡는다(매핑 누락은 validateRequiredMapping 담당).
+// exampleRows는 엑셀 파일 기준 행 번호(1=제목줄, 데이터는 2부터)로 최대 3개.
+export type RequiredValueIssue = { label: string; count: number; exampleRows: number[] };
+export function validateRequiredValues(
+  rows: Record<string, unknown>[], mapping: ColumnMapping, fixedValues: FixedValues, fields: TargetField[],
+): RequiredValueIssue[] {
+  const issues: RequiredValueIssue[] = [];
+  for (const f of fields) {
+    if (!f.required) continue;
+    const fixed = fixedValues[f.key];
+    if (fixed != null && String(fixed).trim() !== "") continue; // 고정값이 모든 줄을 채움
+    const headers = Object.entries(mapping).filter(([, tgt]) => tgt === f.key).map(([src]) => src);
+    if (headers.length === 0) continue; // 매핑 자체가 없으면 여기서 다루지 않음
+    const blankRows: number[] = [];
+    rows.forEach((r, i) => {
+      const filled = headers.some((h) => String(r[h] ?? "").trim() !== "");
+      if (!filled) blankRows.push(i + 2);
+    });
+    if (blankRows.length > 0) issues.push({ label: f.label, count: blankRows.length, exampleRows: blankRows.slice(0, 3) });
+  }
+  return issues;
+}
+
 export function applyMapping<T extends Record<string, unknown>>(
   rows: T[], mapping: ColumnMapping,
 ): Record<string, unknown>[] {
