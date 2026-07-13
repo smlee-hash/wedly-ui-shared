@@ -756,6 +756,12 @@ export function CollabTable({
     () => (adminEnabled ? sortedRows.filter((r) => checkedIds.has(String(r[rowIdKey]))) : []),
     [adminEnabled, sortedRows, checkedIds, rowIdKey],
   );
+  // 다운로드용 — 검색으로 화면에서 가려진 선택 행도 포함(체크한 건 전부 내보낸다).
+  // rows = 현재 탭 전체(검색 필터 전). checkedIds 는 rows 에 없는 id 를 자동 정리하므로 length === checkedIds.size.
+  const checkedRowsForDownload = useMemo(
+    () => (adminEnabled ? rows.filter((r) => checkedIds.has(String(r[rowIdKey]))) : []),
+    [adminEnabled, rows, checkedIds, rowIdKey],
+  );
   // 관리 도구 메뉴 — "컬럼 표시 설정" 항목의 onClick 을 표 내부 컬럼 모달로 연결(없으면 자동 추가).
   const colSettingsMenuId = adminToolbar?.columnSettingsMenuId ?? "column-toggle";
   const excelDownloadMenuId = adminToolbar?.excelDownloadMenuId ?? "excel-download";
@@ -771,8 +777,8 @@ export function CollabTable({
       // "엑셀 다운로드"는 일괄수정·삭제와 똑같이 체크한 행만 넘긴다(선택 없으면 빈 배열 → 부모가 전체로 폴백).
       // 선택이 있으면 라벨에 개수를 붙여 미리 보이게 한다("선택 N건" — 다른 표 페이지의 다운로드 버튼과 같은 취지).
       if (onBulkDownload && m.id === excelDownloadMenuId) {
-        const n = checkedIds.size;
-        return { ...m, label: n > 0 ? `${m.label} (선택 ${n}건)` : m.label, onClick: () => onBulkDownload(checkedRows) };
+        const n = checkedRowsForDownload.length;
+        return { ...m, label: n > 0 ? `${m.label} (선택 ${n}건)` : m.label, onClick: () => onBulkDownload(checkedRowsForDownload) };
       }
       return m;
     });
@@ -780,7 +786,7 @@ export function CollabTable({
       mapped.push({ id: colSettingsMenuId, label: "컬럼 표시 설정", icon: "👁️", onClick: () => setColumnModalOpen(true) });
     }
     return mapped;
-  }, [adminToolbar?.settingsBaseMenus, colSettingsMenuId, excelDownloadMenuId, onBulkDownload, checkedIds, checkedRows]);
+  }, [adminToolbar?.settingsBaseMenus, colSettingsMenuId, excelDownloadMenuId, onBulkDownload, checkedRowsForDownload]);
 
   useEffect(() => {
     setCurrentPage(1);
