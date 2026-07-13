@@ -41,7 +41,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const signature = useMemo(() => (parsed ? computeHeaderSignature(parsed.headers) : ""), [parsed]);
-  const missingRequired = useMemo(() => validateRequiredMapping(mapping, targetFields), [mapping, targetFields]);
+  const missingRequired = useMemo(() => validateRequiredMapping(mapping, targetFields, fixedValues), [mapping, targetFields, fixedValues]);
   // 필수 칸인데 값이 빈 줄 — 매핑돼 있어도 셀이 비면 다음 단계로 못 가게 막는다.
   const requiredValueIssues = useMemo(
     () => (parsed ? validateRequiredValues(parsed.rows, mapping, fixedValues, targetFields) : []),
@@ -112,7 +112,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
   }
 
   async function handleImport() {
-    if (!file || missingRequired.length) return;
+    if (!file || requiredBlocked) return; // 버튼 disabled와 같은 기준(필수 미매핑·빈 값 모두 차단)
     setBusy(true);
     try {
       const res = await onImport({ file, mapping, headerAsFirstRow, fixedValues });

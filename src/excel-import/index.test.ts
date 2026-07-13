@@ -41,6 +41,11 @@ describe("validateRequiredMapping", () => {
     expect(validateRequiredMapping({ "A": "상호명" }, FIELDS)).toEqual(["연락처"]);
     expect(validateRequiredMapping({ "A": "상호명", "B": "연락처" }, FIELDS)).toEqual([]);
   });
+  it("고정값(비어있지 않은)으로 채운 필수 칸은 충족으로 인정, 빈 고정값은 불충족", () => {
+    expect(validateRequiredMapping({ "A": "상호명" }, FIELDS, { "연락처": "010-1" })).toEqual([]);
+    expect(validateRequiredMapping({ "A": "상호명" }, FIELDS, { "연락처": "  " })).toEqual(["연락처"]);
+    expect(validateRequiredMapping({}, FIELDS, { "상호명": "가게", "연락처": "010" })).toEqual([]);
+  });
 });
 
 describe("validateRequiredValues", () => {
@@ -88,6 +93,20 @@ describe("applyMapping", () => {
     const rows = [{ "업체명": "가게", "메모": "x", "연락처": "010" }];
     expect(applyMapping(rows, { "업체명": "상호명", "메모": "", "연락처": "연락처" }))
       .toEqual([{ "상호명": "가게", "연락처": "010" }]);
+  });
+  it("같은 칸에 두 열이 매핑되면 빈 값이 채워진 값을 덮어쓰지 않는다(값 보존)", () => {
+    // 채워진 A열 + 빈 B열이 둘 다 상호명 → A열 값 보존(서버 last-wins가 빈값으로 클로버하던 버그 대칭 수정)
+    expect(applyMapping([{ "A": "가게", "B": "" }], { "A": "상호명", "B": "상호명" }))
+      .toEqual([{ "상호명": "가게" }]);
+    // 순서 반대(빈 B열이 뒤)도 동일하게 보존
+    expect(applyMapping([{ "A": "", "B": "가게" }], { "A": "상호명", "B": "상호명" }))
+      .toEqual([{ "상호명": "가게" }]);
+    // 둘 다 채워지면 뒤 열이 이김(기존 last-wins 유지)
+    expect(applyMapping([{ "A": "앞", "B": "뒤" }], { "A": "상호명", "B": "상호명" }))
+      .toEqual([{ "상호명": "뒤" }]);
+    // 둘 다 비면 빈값 유지(그래야 validateRequiredValues가 빈 줄로 잡음)
+    expect(applyMapping([{ "A": "", "B": "" }], { "A": "상호명", "B": "상호명" }))
+      .toEqual([{ "상호명": "" }]);
   });
 });
 

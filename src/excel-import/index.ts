@@ -30,9 +30,21 @@ export function autoMatchMapping(headers: string[], fields: TargetField[]): Colu
   return out;
 }
 
-export function validateRequiredMapping(mapping: ColumnMapping, fields: TargetField[]): string[] {
+// 필수 칸이 매핑됐는지 검사. 고정값(비어있지 않은)으로 채운 칸도 충족으로 인정한다
+// — 안내문의 "고정값으로 지정" 경로가 실제로 통하도록(fixedValues 무시 시 막다른 길).
+export function validateRequiredMapping(
+  mapping: ColumnMapping, fields: TargetField[], fixedValues: FixedValues = {},
+): string[] {
   const mapped = new Set(Object.values(mapping).filter(Boolean));
-  return fields.filter((f) => f.required && !mapped.has(f.key)).map((f) => f.label);
+  return fields
+    .filter((f) => {
+      if (!f.required) return false;
+      if (mapped.has(f.key)) return false;
+      const fx = fixedValues[f.key];
+      if (fx != null && String(fx).trim() !== "") return false; // 고정값으로 충족
+      return true;
+    })
+    .map((f) => f.label);
 }
 
 // 필수 칸의 "값"이 빈 줄 집계 — 매핑은 됐지만 셀이 빈 경우를 잡는다(매핑 누락은 validateRequiredMapping 담당).
@@ -64,7 +76,14 @@ export function applyMapping<T extends Record<string, unknown>>(
   const pairs = Object.entries(mapping).filter(([, tgt]) => tgt);
   return rows.map((r) => {
     const out: Record<string, unknown> = {};
-    for (const [src, tgt] of pairs) if (r[src] !== undefined) out[tgt] = r[src];
+    // 같은 칸에 여러 열이 매핑되면 빈 값이 채워진 값을 덮어쓰지 않게 한다(값 보존).
+    // 채워진 값끼리는 뒤 열이 이김. 서버 renameRowsByMapping과 동일 규칙(게이트 기준 일치).
+    for (const [src, tgt] of pairs) {
+      if (r[src] === undefined) continue;
+      const incomingBlank = String(r[src] ?? "").trim() === "";
+      const existingBlank = out[tgt] === undefined || String(out[tgt] ?? "").trim() === "";
+      if (!incomingBlank || existingBlank) out[tgt] = r[src];
+    }
     return out;
   });
 }
