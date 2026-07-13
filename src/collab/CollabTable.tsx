@@ -127,9 +127,13 @@ export type CollabTableProps = {
     onBulkEdit?: (rows: RowData[]) => void;
     onBulkDelete?: (rows: RowData[]) => void;
     onBulkAlimtalk?: (rows: RowData[]) => void;
+    /** "엑셀 다운로드"를 눌렀을 때 현재 체크한 행을 받는다(일괄수정·삭제와 동일). 없으면 다운로드는 기존대로 부모 onClick 을 그대로 실행. */
+    onBulkDownload?: (rows: RowData[]) => void;
     deleting?: boolean;
     /** "컬럼 표시 설정" 메뉴 항목 id(기본 "column-toggle"). */
     columnSettingsMenuId?: string;
+    /** "엑셀 다운로드" 메뉴 항목 id(기본 "excel-download"). onBulkDownload 와 함께 줄 때만 선택 반영. */
+    excelDownloadMenuId?: string;
   };
   /** 이 값이 바뀌면 선택(체크)을 모두 해제한다(일괄 작업 완료 후 부모가 1 증가시킴). */
   selectionResetKey?: number;
@@ -754,6 +758,8 @@ export function CollabTable({
   );
   // 관리 도구 메뉴 — "컬럼 표시 설정" 항목의 onClick 을 표 내부 컬럼 모달로 연결(없으면 자동 추가).
   const colSettingsMenuId = adminToolbar?.columnSettingsMenuId ?? "column-toggle";
+  const excelDownloadMenuId = adminToolbar?.excelDownloadMenuId ?? "excel-download";
+  const onBulkDownload = adminToolbar?.onBulkDownload;
   const wiredSettingsMenus = useMemo<SettingsMenuItem[]>(() => {
     const base = adminToolbar?.settingsBaseMenus ?? [];
     let hasColItem = false;
@@ -762,13 +768,19 @@ export function CollabTable({
         hasColItem = true;
         return { ...m, onClick: () => setColumnModalOpen(true) };
       }
+      // "엑셀 다운로드"는 일괄수정·삭제와 똑같이 체크한 행만 넘긴다(선택 없으면 빈 배열 → 부모가 전체로 폴백).
+      // 선택이 있으면 라벨에 개수를 붙여 미리 보이게 한다("선택 N건" — 다른 표 페이지의 다운로드 버튼과 같은 취지).
+      if (onBulkDownload && m.id === excelDownloadMenuId) {
+        const n = checkedIds.size;
+        return { ...m, label: n > 0 ? `${m.label} (선택 ${n}건)` : m.label, onClick: () => onBulkDownload(checkedRows) };
+      }
       return m;
     });
     if (!hasColItem) {
       mapped.push({ id: colSettingsMenuId, label: "컬럼 표시 설정", icon: "👁️", onClick: () => setColumnModalOpen(true) });
     }
     return mapped;
-  }, [adminToolbar?.settingsBaseMenus, colSettingsMenuId]);
+  }, [adminToolbar?.settingsBaseMenus, colSettingsMenuId, excelDownloadMenuId, onBulkDownload, checkedIds, checkedRows]);
 
   useEffect(() => {
     setCurrentPage(1);
