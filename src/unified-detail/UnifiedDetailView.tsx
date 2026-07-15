@@ -2077,6 +2077,7 @@ export default function UnifiedDetailView({
   row,
   onClose,
   onSaved,
+  onCreated,
   isNew = false,
   hiddenColumnKeys,
   adapter,
@@ -2087,6 +2088,9 @@ export default function UnifiedDetailView({
   row: RowData;
   onClose: () => void;
   onSaved?: () => void;
+  // 신규 등록(isNew) 성공 시 호출 — 전달하면 창을 닫지 않고 부모가 방금 만든 회사의 상세로 이어간다(도메인 탭 항상 활성화).
+  // 미전달 시 기존대로 onClose() — 다른 앱 동작 불변(앞호환).
+  onCreated?: (newRow: RowData) => void;
   isNew?: boolean;
   // 표 "컬럼 표시 설정"에서 OFF(숨김)한 칸 키 목록 — 기본정보 섹션에서 표준 칸 포함 균일 제외(NO.56).
   hiddenColumnKeys?: string[];
@@ -2222,12 +2226,14 @@ export default function UnifiedDetailView({
         }
       }
       onSaved?.();
-      onClose();
+      const newRow = { ...draft, "02상호명": name, _id: newId } as RowData;
+      if (onCreated) onCreated(newRow);
+      else onClose();
     } catch {
       setCreating(false);
       setCreateErr("등록에 실패했습니다. 다시 시도해 주세요.");
     }
-  }, [creating, draft, pendingComments, onSaved, onClose, adapter]);
+  }, [creating, draft, pendingComments, onSaved, onClose, onCreated, adapter]);
 
   // 상단 분야 탭 — 저장된 순서·이름 불러오기(adapter.api.loadTabConfig 경유)
   useEffect(() => {
