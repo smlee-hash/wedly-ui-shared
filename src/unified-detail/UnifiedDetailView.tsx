@@ -2227,6 +2227,8 @@ export default function UnifiedDetailView({
       }
       onSaved?.();
       const newRow = { ...draft, "02상호명": name, _id: newId } as RowData;
+      // onCreated 부모가 이 등록 화면을 언마운트하지 않는 경우에도 "등록 중…"으로 잠기지 않게 해제.
+      setCreating(false);
       if (onCreated) onCreated(newRow);
       else onClose();
     } catch {
