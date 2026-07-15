@@ -2088,7 +2088,7 @@ export default function UnifiedDetailView({
   // 비동기 로드는 adapter.api.loadDomainRows 경유(ERP 전용 경로 캡슐화).
   // 동기 캐시 읽기는 adapter.api.getCachedDomainRows 경유 — ERP 전용 캐시 모듈 직접 의존 제거.
   const loadDetail = useCallback((silent = false) => {
-    const key = customerKeyFromTaxRow(row);
+    const key = customerKeyFromTaxRow(row, adapter.ownDomain);
     if (!silent) {
       // 표에서 미리 받아둔 분야 현황이 있으면 즉시 표시(불러오는 중 없이), 없으면 로딩 표시.
       const cached = adapter.api.getCachedDomainRows(key);
