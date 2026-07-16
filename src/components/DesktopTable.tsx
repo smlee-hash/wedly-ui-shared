@@ -51,6 +51,9 @@ type Props = {
   setDragOverColKey: (key: string | null) => void;
   resizingRef: MutableRefObject<unknown>;
   reorderColumn: (from: string, to: string) => void;
+  // false 면 표 머리글 끌어서 순서 바꾸기를 잠근다(끌기 자체 비활성 + grab 커서 제거).
+  // 미지정(기본 true)이면 기존과 100% 동일. NO.95 저장 방식에서 "순서는 컬럼 설정 창에서만" 적용용.
+  canReorderColumns?: boolean;
 
   // 컬럼 리사이즈 (포인터 이벤트 — 마우스·터치·펜 통합, NO.76)
   onResizeStart: (e: React.PointerEvent, colKey: string) => void;
@@ -95,6 +98,7 @@ export function DesktopTable({
   setDragOverColKey,
   resizingRef,
   reorderColumn,
+  canReorderColumns = true,
   onResizeStart,
   onResizeDoubleClick,
   getColLabel,
@@ -161,7 +165,7 @@ export function DesktopTable({
                 return (
                   <th
                     key={col.key}
-                    draggable={!isRenaming}
+                    draggable={canReorderColumns && !isRenaming}
                     onDragStart={(e) => {
                       if (resizingRef.current) {
                         e.preventDefault();
@@ -196,7 +200,7 @@ export function DesktopTable({
                     style={{
                       minWidth: 40,
                       ...(isSticky ? { left: (stickyOffsets[col.key] ?? 0) + 40 } : {}),
-                      cursor: isRenaming ? undefined : "grab",
+                      cursor: isRenaming || !canReorderColumns ? undefined : "grab",
                     }}
                   >
                     <span className="inline-flex items-center gap-1 w-full">
