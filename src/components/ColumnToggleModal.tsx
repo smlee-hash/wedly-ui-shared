@@ -9,9 +9,17 @@
  * generic 타입 인자로 컬럼 형식 받음 — 양쪽 앱에서 자기 ColumnDef 그대로 사용 가능.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CustomSelect } from "@wedly/detail-modal-shared";
 import { cn } from "../lib/cn";
+import {
+  type ColumnDraft,
+  initDraft,
+  toggleInList,
+  moveVisibleInOrder,
+  reconcileDraft,
+  commitPayload,
+} from "./column-toggle-draft";
 
 // 모달이 다루는 컬럼의 최소 형식 — 호출 앱의 ColumnDef 가 이 형식을 만족하면 통과
 export type ColumnToggleColumn = {
@@ -82,6 +90,15 @@ type Props<TCol extends ColumnToggleColumn> = {
   // "새 컬럼 추가" 버튼 노출 여부(기본 true — 미지정 호출부 무손상).
   // false 면 추가 섹션 자체를 숨긴다(비관리자는 추가 권한이 없어 눌러도 무동작이므로).
   canAddColumn?: boolean;
+  // ── 저장 방식(저장 눌러야 반영) — 옵트인 (선택) ──
+  // requireSave=true 면 체크/순서 변경이 창 안 "초안"으로만 쌓이고, 하단 '저장'을 눌러야 부모에
+  // onCommit 으로 1회 반영. 취소·X·바깥클릭은 초안 폐기(원상복구). 창 안에 표시 순서 ▲▼ 목록도 뜬다.
+  // 미지정(기본 false)이면 지금처럼 체크 즉시 toggleColumn 호출(고객360 등 기존 호출부 무손상).
+  requireSave?: boolean;
+  // 현재 표시 순서(부모가 넘김 — 전체 컬럼 순서). 초안 순서의 시작값으로 스냅샷.
+  orderedKeys?: string[];
+  // 저장 클릭 시 초안(표시집합+순서)을 한 번에 넘김. visibleKeys=표시할 키(순서대로), order=전체 순서.
+  onCommit?: (next: { visibleKeys: string[]; order: string[] }) => void;
 };
 
 export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
@@ -119,8 +136,52 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   onDemoteFromCommon,
   canDemoteFromCommon,
   canAddColumn = true,
+  requireSave = false,
+  orderedKeys,
+  onCommit,
 }: Props<TCol>) {
   const [search, setSearch] = useState("");
+
+  // ── 저장 방식 초안 상태 ──
+  const [draft, setDraft] = useState<ColumnDraft>({ order: [], visible: [] });
+  const openRef = useRef(false);
+  const allKeysSig = allColumns.map((c) => c.key).join("");
+  useEffect(() => {
+    if (!requireSave) return;
+    const allKeys = allColumns.map((c) => c.key);
+    if (open && !openRef.current) {
+      // 창이 막 열림 → 현재 표시/순서를 초안으로 스냅샷.
+      setDraft(initDraft(allKeys, orderedKeys ?? [], isColumnVisible));
+    } else if (open && openRef.current) {
+      // 이미 열려 있는데 칸이 추가/삭제됨 → 초안 재동기화(진행 중 토글은 보존).
+      setDraft((prev) => reconcileDraft(prev, allKeys, isColumnVisible));
+    }
+    openRef.current = open;
+    // 스냅샷 의미상 isColumnVisible/orderedKeys 는 의존성에서 제외(열릴 때 값만 사용).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, requireSave, allKeysSig]);
+
+  const draftVisibleSet = requireSave ? new Set(draft.visible) : null;
+  // 표시 여부/토글 — 저장 방식이면 초안만, 아니면 부모 즉시 반영.
+  const columnVisible = (key: string) =>
+    requireSave ? draftVisibleSet!.has(key) : isColumnVisible(key);
+  const onToggle = (key: string) => {
+    if (requireSave) {
+      setDraft((prev) => ({ ...prev, visible: toggleInList(prev.visible, key) }));
+    } else {
+      toggleColumn(key);
+    }
+  };
+  const moveOrder = (key: string, dir: -1 | 1) => {
+    setDraft((prev) => ({ ...prev, order: moveVisibleInOrder(prev.order, prev.visible, key, dir) }));
+  };
+  const labelOfKey = (key: string) => {
+    const col = allColumns.find((c) => c.key === key);
+    return (commonLabelByKey?.[key] ?? (col ? getColLabel(col) : key)) as string;
+  };
+  // 표시 순서 목록에 보일 키 — 초안 순서 중 표시된 것만.
+  const orderChips = requireSave ? draft.order.filter((k) => draftVisibleSet!.has(k)) : [];
+
   if (!open) return null;
   const q = search.trim().toLowerCase();
   const visibleCols = q
@@ -185,17 +246,17 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
       <div key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-wedly-bg-gray/40 group">
         <input
           type="checkbox"
-          checked={isColumnVisible(col.key)}
-          onChange={() => toggleColumn(col.key)}
+          checked={columnVisible(col.key)}
+          onChange={() => onToggle(col.key)}
           className="rounded border-wedly-bd text-wedly-accent focus:ring-wedly-accent/20"
         />
         <span
           className={cn(
             "flex-1 text-[13px] inline-flex items-center gap-1.5",
-            isColumnVisible(col.key) ? (accent?.headerTint || "text-wedly-t1") : "text-wedly-muted",
+            columnVisible(col.key) ? (accent?.headerTint || "text-wedly-t1") : "text-wedly-muted",
           )}
         >
-          {accent && isColumnVisible(col.key) && (
+          {accent && columnVisible(col.key) && (
             <span
               className={cn("inline-block w-1.5 h-1.5 rounded-full flex-shrink-0", accent.dotClass)}
               aria-hidden="true"
@@ -279,7 +340,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
             </svg>
           </button>
         </div>
-        <div className="px-5 py-4 overflow-y-auto">
+        <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
           <div className="text-[11px] font-medium text-wedly-muted uppercase tracking-wider mb-2">표시할 컬럼 선택</div>
           <input
             value={search}
@@ -374,7 +435,74 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
             )}
           </div>
           )}
+
+          {/* 표시 순서 (저장 방식에서만) — 표시된 칸을 ▲▼ 로 순서 변경, × 로 숨김. 초안에만 반영, 저장 눌러야 적용. */}
+          {requireSave && orderChips.length > 0 && (
+            <div className="border-t border-wedly-bd/50 mt-3 pt-3">
+              <div className="text-[11px] font-semibold text-wedly-t2 mb-1.5">표시 순서 ({orderChips.length})</div>
+              <div className="flex flex-wrap gap-1.5">
+                {orderChips.map((k, i) => (
+                  <span
+                    key={k}
+                    className="inline-flex items-center gap-1 rounded-full border border-wedly-bd bg-white px-2 py-1 text-[11px] text-wedly-t1"
+                  >
+                    {labelOfKey(k)}
+                    <button
+                      type="button"
+                      onClick={() => moveOrder(k, -1)}
+                      disabled={i === 0}
+                      className="disabled:opacity-30 text-wedly-t2 leading-none"
+                      title="위로"
+                      aria-label="위로"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveOrder(k, 1)}
+                      disabled={i === orderChips.length - 1}
+                      className="disabled:opacity-30 text-wedly-t2 leading-none"
+                      title="아래로"
+                      aria-label="아래로"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onToggle(k)}
+                      className="text-wedly-red ml-0.5 leading-none"
+                      title="숨기기"
+                      aria-label="숨기기"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* 하단 저장/취소 (저장 방식에서만) — 스크롤 밖 고정. 저장=onCommit 후 닫기, 취소=초안 폐기(원상복구). */}
+        {requireSave && (
+          <div className="px-5 py-3 border-t border-wedly-bd/60 flex gap-2">
+            <button
+              onClick={() => {
+                onCommit?.(commitPayload(draft));
+                onClose();
+              }}
+              className="flex-1 py-2 text-[13px] font-medium text-white bg-wedly-accent rounded-lg hover:opacity-90 transition-opacity"
+            >
+              저장
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 py-2 text-[13px] text-wedly-muted border border-wedly-bd rounded-lg hover:bg-wedly-bg-gray transition-colors"
+            >
+              취소
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
