@@ -226,7 +226,9 @@ export type CollabTableProps = {
   onToggleColumnVisibility?: (key: string, nextVisible: boolean) => void;
   // ── 저장 방식(저장 눌러야 반영) — 옵트인 (선택) ──
   // requireSave=true 면 컬럼 설정 창이 "저장 눌러야 반영"으로 동작한다(체크/순서 초안 → 저장 1회 커밋,
-  // 취소/닫기 시 원복). 창 안에 표시 순서 ▲▼ 목록이 뜨고, 표 머리글 드래그 순서변경은 잠긴다.
+  // 취소/닫기 시 원복). 창 안에 표시 순서 ▲▼ 목록이 뜬다.
+  // 표 머리글 드래그 순서변경은 별개로 계속 동작한다(드래그=즉시 저장, 창=저장 버튼 — 2026-07-16 사장님 결정).
+  //   충돌 없음: 창이 화면 전체를 덮어(백드롭) 열린 동안 머리글 드래그가 불가능 → 초안이 낡아질 틈이 없다.
   // 미지정(기본 false)이면 기존과 100% 동일(체크 즉시 반영).
   requireSave?: boolean;
   // 저장 방식 커밋 콜백(서버 모드). 저장 클릭 시 { visibleKeys(표시·순서대로), order(전체 순서) }를 1회 원자 저장.
@@ -1240,7 +1242,7 @@ export function CollabTable({
         setDragOverColKey={setDragOverColKey}
         resizingRef={resizingRef}
         reorderColumn={reorderColumn}
-        canReorderColumns={!(onColumnOrderChange && !isAdmin) && !requireSave}
+        canReorderColumns={!(onColumnOrderChange && !isAdmin)}
         canHideColumn={canEditColumnVisibility}
         onResizeStart={onResizeStart}
         onResizeDoubleClick={onResizeDoubleClick}
