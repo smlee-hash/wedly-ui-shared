@@ -224,6 +224,15 @@ export type CollabTableProps = {
   hiddenColumns?: string[] | null;
   /** 컬럼 설정 모달/헤더에서 칸을 켜고 끌 때 호출(서버 모드). nextVisible=이제 보일지 여부. 소비 앱이 서버 저장+상태 갱신. */
   onToggleColumnVisibility?: (key: string, nextVisible: boolean) => void;
+  // ── 저장 방식(저장 눌러야 반영) — 옵트인 (선택) ──
+  // requireSave=true 면 컬럼 설정 창이 "저장 눌러야 반영"으로 동작한다(체크/순서 초안 → 저장 1회 커밋,
+  // 취소/닫기 시 원복). 창 안에 표시 순서 ▲▼ 목록이 뜨고, 표 머리글 드래그 순서변경은 잠긴다.
+  // 미지정(기본 false)이면 기존과 100% 동일(체크 즉시 반영).
+  requireSave?: boolean;
+  // 저장 방식 커밋 콜백(서버 모드). 저장 클릭 시 { visibleKeys(표시·순서대로), order(전체 순서) }를 1회 원자 저장.
+  // 서버 모드(hiddenColumns 제공)에서 저장 방식을 쓰려면 반드시 제공(앱이 자기 저장 모델로 원자 커밋).
+  // 로컬 모드(hiddenColumns 미제공)면 미제공 시 CollabTable 이 localStorage 로 배치 저장한다.
+  onCommitColumns?: (next: { visibleKeys: string[]; order: string[] }) => void;
 };
 
 function loadJson<T>(key: string, fallback: T): T {
@@ -581,6 +590,8 @@ export function CollabTable({
   onSortChange,
   hiddenColumns,
   onToggleColumnVisibility,
+  requireSave = false,
+  onCommitColumns,
 }: CollabTableProps) {
   // 서버 사용자 설정 모드 — hiddenColumns 가 주어지면(=undefined 아님) 켜진다.
   // 보일 컬럼 = columns(관리자 ON) − hiddenColumns. 새 컬럼 기본표시·한번 숨기면 계속 숨김(sticky).
@@ -883,6 +894,21 @@ export function CollabTable({
     // 서버 순서 모드면 부모에게 통지 → 부모가 관리자 전용으로 서버 저장(모든 사용자에게 전파).
     onColumnOrderChange?.(next);
   }, [colOrder, columns, COL_ORDER_KEY, onColumnOrderChange, isAdmin]);
+
+  // 저장 방식(requireSave) 커밋 — 창에서 '저장' 클릭 시 표시집합+순서를 1회 반영.
+  const handleModalCommit = useCallback((next: { visibleKeys: string[]; order: string[] }) => {
+    if (serverColMode) {
+      // 서버 모드: 앱이 자기 저장 모델로 원자 커밋(순서·숨김 서버 저장 + 낙관적 상태 갱신).
+      onCommitColumns?.(next);
+      return;
+    }
+    // 로컬 모드: localStorage 배치 저장(순서 + 표시집합 한 번에).
+    setColOrder(next.order);
+    try { localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next.order)); } catch {}
+    const vis = new Set(next.visibleKeys);
+    setVisibleColumns(vis);
+    persistVisible(vis);
+  }, [serverColMode, onCommitColumns, COL_ORDER_KEY, persistVisible]);
 
   const setColWidthsAndStore = useCallback((updater: (p: Record<string, number>) => Record<string, number>) => {
     setColWidths((p) => {
@@ -1214,7 +1240,7 @@ export function CollabTable({
         setDragOverColKey={setDragOverColKey}
         resizingRef={resizingRef}
         reorderColumn={reorderColumn}
-        canReorderColumns={!(onColumnOrderChange && !isAdmin)}
+        canReorderColumns={!(onColumnOrderChange && !isAdmin) && !requireSave}
         canHideColumn={canEditColumnVisibility}
         onResizeStart={onResizeStart}
         onResizeDoubleClick={onResizeDoubleClick}
@@ -1233,6 +1259,9 @@ export function CollabTable({
         allColumns={columns}
         isColumnVisible={isColumnVisible}
         toggleColumn={toggleColumn}
+        requireSave={requireSave}
+        orderedKeys={orderedColumns.map((c) => c.key)}
+        onCommit={handleModalCommit}
         getColLabel={getColLabel}
         getColAccent={getColAccent}
         editingCol={columnAdmin?.editingCol ?? null}
