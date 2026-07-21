@@ -40,6 +40,8 @@ export interface FieldDef {
   //   options: 고를 수 있는 보기 값 목록(순서 보존). optionColors: 보기별 색칩(선택, 미지정 시 기본 회색).
   options?: string[];
   optionColors?: Record<string, { bg: string; text: string }>;
+  // ── ERP 전용 — 이 차수 칸을 경정청구 등 도메인 "표"에 차수별 줄로 노출할지. 하이브·일루아는 무시. ──
+  tableExposed?: boolean;
 }
 
 /** 조건 비교 대상(오른쪽): 직접 입력 글자 또는 다른 칸. */
