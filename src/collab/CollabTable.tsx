@@ -96,6 +96,13 @@ export type CollabTableProps = {
    */
   onColumnOrderChange?: (order: string[]) => void;
   /**
+   * 관리자가 정한 "공용 칸 너비"(NO.128). 이 값이 도착하면 개인 브라우저 값 대신 이 값이 정본이 된다.
+   * onColWidthsChange 를 함께 넘길 때만 공용 너비 모드가 켜진다(미지정 = 기존과 100% 동일).
+   */
+  serverColWidths?: Record<string, number>;
+  /** 관리자가 너비를 바꿨을 때 앱이 공용 보관함에 저장하도록 알린다(관리자일 때만 호출된다). */
+  onColWidthsChange?: (widths: Record<string, number>) => void;
+  /**
    * true면 칸 배치(순서·보임/숨김)를 "공용·관리자 전용 + 탭별 독립"으로 취급한다.
    * - 보임/숨김: 비관리자에겐 '컬럼 설정' 버튼·머리 '컬럼 숨기기'를 숨긴다(관리자만 변경).
    * - 순서: 개인(브라우저) 순서를 무시한다 — 탭마다 serverColumnOrder(없으면 앱 기본)만 따른다(탭 간 누수 방지).
@@ -581,6 +588,8 @@ export function CollabTable({
   defaultColumnOrder,
   serverColumnOrder,
   onColumnOrderChange,
+  serverColWidths,
+  onColWidthsChange,
   columnArrangeShared,
   onCellEdit,
   editConfig,
@@ -636,6 +645,13 @@ export function CollabTable({
   const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
     const defaults: Record<string, number> = {};
     columns.forEach((c) => (defaults[c.key] = c.width || 120));
+    // 공용 너비 모드(NO.128): 관리자가 정한 너비가 정본. 아직 도착 전이면 지난번 받아둔 값을 잠깐 쓴다(깜빡임 방지).
+    if (onColWidthsChange) {
+      const cached = serverColWidths && Object.keys(serverColWidths).length
+        ? serverColWidths
+        : loadJson<Record<string, number>>(COL_WIDTHS_KEY, {});
+      return { ...defaults, ...cached };
+    }
     return { ...defaults, ...loadJson<Record<string, number>>(COL_WIDTHS_KEY, {}) };
   });
   const [colOrder, setColOrder] = useState<string[]>(() => {
@@ -664,6 +680,21 @@ export function CollabTable({
     );
     try { localStorage.setItem(COL_ORDER_KEY, JSON.stringify(serverColumnOrder)); } catch {}
   }, [serverColumnOrder, COL_ORDER_KEY]);
+
+  // 관리자가 정한 공용 너비가 도착/변경되면 그 너비로 맞춘다 (NO.128).
+  // 값이 같으면 그대로 두어 불필요한 다시 그리기를 막는다. 빈 값이면(관리자 미설정) 건드리지 않는다.
+  useEffect(() => {
+    if (!onColWidthsChange) return;
+    if (!serverColWidths || Object.keys(serverColWidths).length === 0) return;
+    setColWidths((prev) => {
+      let same = true;
+      for (const [k, v] of Object.entries(serverColWidths)) {
+        if (prev[k] !== v) { same = false; break; }
+      }
+      return same ? prev : { ...prev, ...serverColWidths };
+    });
+    try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(serverColWidths)); } catch { /* ignore */ }
+  }, [serverColWidths, onColWidthsChange, COL_WIDTHS_KEY]);
 
   // 새로 추가한 칸을 표에 바로 보이게 — 부모가 ensureVisibleKeys 로 알려준 키만 보임 처리(기존 숨김 설정은 건드리지 않음).
   useEffect(() => {
@@ -915,10 +946,14 @@ export function CollabTable({
   const setColWidthsAndStore = useCallback((updater: (p: Record<string, number>) => Record<string, number>) => {
     setColWidths((p) => {
       const next = updater(p);
+      // 공용 너비 모드(NO.128): 관리자가 바꾼 값만 저장해 전 직원 기준이 된다.
+      // 일반 사용자는 화면에만 남는다 — 새로고침·재접속하면 관리자 너비로 돌아온다.
+      if (onColWidthsChange && !isAdmin) return next;
       try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(next)); } catch {}
+      onColWidthsChange?.(next);
       return next;
     });
-  }, [COL_WIDTHS_KEY]);
+  }, [COL_WIDTHS_KEY, onColWidthsChange, isAdmin]);
   // 가이드선 방식(공용 부품) — 드래그 중 화면 재렌더 0, 손 뗄 때 너비 1회 확정.
   // resizingRef는 드래그 중 칸 순서 끌기를 막는 용도(참/거짓만 본다).
   const onResizeStart = useCallback((e: React.PointerEvent, colKey: string) => {
