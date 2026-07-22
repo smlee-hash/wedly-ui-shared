@@ -88,7 +88,8 @@ export function MobileCardList({
           const cfClass = getConditionalFormatClass(row);
           return (
             <div
-              key={String(row._id || idx)}
+              // 차수별로 펼친 줄은 _id 를 공유하므로 줄마다 다른 _rowKey 를 먼저 쓴다(카드 자리 섞임 방지).
+              key={String(row._rowKey ?? row._id ?? idx)}
               className={cn(
                 "rounded-xl border border-wedly-bd p-3.5 shadow-sm cursor-pointer active:bg-wedly-bg-gray transition-colors",
                 cfClass ? cfClass : "bg-white",
