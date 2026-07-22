@@ -767,16 +767,32 @@ export function CollabTable({
     return DEFAULT_EDITABLE_TYPES.has(col.type);
   }, [onCellEdit, editConfig, DEFAULT_EDITABLE_TYPES]);
 
+  // 차수별로 펼친 줄은 같은 회사(_id)가 여러 줄이므로, 일괄 작업·다운로드 대상은 회사당 하나만 남긴다.
+  // (안 펼친 표는 _id 가 원래 하나뿐이라 아무 영향 없음.)
+  const pickCheckedOnce = useCallback(
+    (src: RowData[]) => {
+      const seen = new Set<string>();
+      const out: RowData[] = [];
+      for (const r of src) {
+        const rid = String(r[rowIdKey] ?? "");
+        if (!checkedIds.has(rid) || seen.has(rid)) continue;
+        seen.add(rid);
+        out.push(r);
+      }
+      return out;
+    },
+    [checkedIds, rowIdKey],
+  );
   // 선택된 행들(관리자 일괄 작업 콜백에 넘김)
   const checkedRows = useMemo(
-    () => (adminEnabled ? sortedRows.filter((r) => checkedIds.has(String(r[rowIdKey]))) : []),
-    [adminEnabled, sortedRows, checkedIds, rowIdKey],
+    () => (adminEnabled ? pickCheckedOnce(sortedRows) : []),
+    [adminEnabled, sortedRows, pickCheckedOnce],
   );
   // 다운로드용 — 검색으로 화면에서 가려진 선택 행도 포함(체크한 건 전부 내보낸다).
   // rows = 현재 탭 전체(검색 필터 전). checkedIds 는 rows 에 없는 id 를 자동 정리하므로 length === checkedIds.size.
   const checkedRowsForDownload = useMemo(
-    () => (adminEnabled ? rows.filter((r) => checkedIds.has(String(r[rowIdKey]))) : []),
-    [adminEnabled, rows, checkedIds, rowIdKey],
+    () => (adminEnabled ? pickCheckedOnce(rows) : []),
+    [adminEnabled, rows, pickCheckedOnce],
   );
   // 관리 도구 메뉴 — "컬럼 표시 설정" 항목의 onClick 을 표 내부 컬럼 모달로 연결(없으면 자동 추가).
   const colSettingsMenuId = adminToolbar?.columnSettingsMenuId ?? "column-toggle";
