@@ -71,6 +71,18 @@ type Props<TCol extends ColumnToggleColumn> = {
   // ── 공통/그외 구분 (선택) ──
   // 주어지면 목록을 "공통 칸(상세창 기본정보)" / "그 외 칸" 두 섹션으로 나눠 렌더.
   // 미지정 시 기존 평면 목록(하이브·일루아 무손상).
+  // ── 차수 칸 "표 노출" 위계 목록 (선택) ──
+  // 주어질 때만 "차수 칸" 묶음을 영역 → 카드 → 칸 3단 위계로 그린다.
+  // 미지정 시 기존 화면 그대로(하이브·일루아 무손상).
+  tierExpose?: {
+    groups: {
+      areaKey: string;
+      areaLabel: string;
+      kinds: { kind: string; fields: { fieldKey: string; label: string; exposed: boolean }[] }[];
+    }[];
+    onToggle: (areaKey: string, kind: string, fieldKey: string, next: boolean) => void;
+    busyKey?: string | null;
+  };
   commonColumnKeys?: string[];
   // 공통 칸의 정식 표시 이름(키→라벨). 주어지면 "공통 칸" 섹션에서 표 원본 라벨 대신 이 이름을 보인다.
   // (상세창 기본정보와 이름 일치 — 예: 검토보고서→"리포트"). 미지정 시 기존 라벨 그대로.
@@ -127,6 +139,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   canEditColumn,
   canChangeType,
   typeOptions,
+  tierExpose,
   commonColumnKeys,
   commonLabelByKey,
   onPromoteToCommon,
@@ -141,6 +154,8 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
   onCommit,
 }: Props<TCol>) {
   const [search, setSearch] = useState("");
+  // 차수 칸 위계에서 펼쳐 둔 영역 키 모음(기본은 모두 접힘 — 영역 5 × 카드 3 이라 한눈에 안 들어옴).
+  const [openTierAreas, setOpenTierAreas] = useState<string[]>([]);
 
   // ── 저장 방식 초안 상태 ──
   const [draft, setDraft] = useState<ColumnDraft>({ order: [], visible: [] });
@@ -374,6 +389,77 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
               )}
               {visibleCols.map((col) => renderColRow(col, false))}
             </>
+          )}
+
+          {/* 차수 칸 표 노출 — 영역 → 카드 → 칸 3단 위계 (넘겨줄 때만) */}
+          {tierExpose && tierExpose.groups.length > 0 && (
+            <div className="border-t border-wedly-bd/50 mt-3 pt-3">
+              <div className="text-[11px] font-semibold text-wedly-t2 mb-1.5">차수 칸 (표에 노출)</div>
+              <div className="text-[11px] text-wedly-muted mb-2 leading-relaxed">
+                켜면 그 칸이 표에 생기고, 해당 분야 줄이 차수별로 나뉘어 보입니다.
+              </div>
+              {tierExpose.groups.map((g) => {
+                const open = openTierAreas.includes(g.areaKey);
+                const onCount = g.kinds.reduce((n, k) => n + k.fields.filter((f) => f.exposed).length, 0);
+                return (
+                  <div key={g.areaKey} className="mb-1.5 rounded-xl border border-wedly-bd/60 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenTierAreas((prev) =>
+                          prev.includes(g.areaKey) ? prev.filter((k) => k !== g.areaKey) : [...prev, g.areaKey],
+                        )
+                      }
+                      className="w-full flex items-center justify-between px-3 py-2 text-[12px] font-semibold text-wedly-t1 bg-wedly-bg-gray hover:bg-wedly-bg-gray/70 transition-colors"
+                      aria-expanded={open}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span className={cn("inline-block transition-transform", open && "rotate-90")}>›</span>
+                        {g.areaLabel}
+                      </span>
+                      <span className="text-[11px] font-medium text-wedly-muted tabular-nums">
+                        {onCount > 0 ? `${onCount}개 켜짐` : "꺼짐"}
+                      </span>
+                    </button>
+                    {open && (
+                      <div className="px-3 py-2 bg-white">
+                        {g.kinds.every((k) => k.fields.length === 0) && (
+                          <div className="py-1.5 text-[12px] text-wedly-muted">이 분야엔 차수 칸이 없습니다.</div>
+                        )}
+                        {g.kinds.map((k) =>
+                          k.fields.length === 0 ? null : (
+                            <div key={k.kind} className="mb-2 last:mb-0">
+                              <div className="text-[11px] font-semibold text-wedly-t2 mb-1">{k.kind}</div>
+                              {k.fields.map((f) => {
+                                const busy = tierExpose.busyKey === `${g.areaKey}:${k.kind}:${f.fieldKey}`;
+                                return (
+                                  <label
+                                    key={f.fieldKey}
+                                    className={cn(
+                                      "flex items-center gap-2 px-2 py-1.5 rounded-lg text-[13px] text-wedly-t1",
+                                      busy ? "opacity-50 cursor-wait" : "hover:bg-wedly-bg-gray cursor-pointer",
+                                    )}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={f.exposed}
+                                      disabled={busy}
+                                      onChange={() => tierExpose.onToggle(g.areaKey, k.kind, f.fieldKey, !f.exposed)}
+                                      className="w-3.5 h-3.5 accent-wedly-accent"
+                                    />
+                                    <span className="truncate">{f.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
 
           {/* 삭제된 칸 복원 */}

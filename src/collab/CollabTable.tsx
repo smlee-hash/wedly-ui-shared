@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../lib/cn";
 import { DesktopTable } from "../components/DesktopTable";
@@ -177,6 +177,8 @@ export type CollabTableProps = {
     // 칸 표시 토글 시 호출(소비 앱이 상세창 공용설정 등과 연동할 때 사용). 미지정 시 무동작.
     onToggleColumn?: (key: string, nextVisible: boolean) => void;
   };
+  /** 차수 칸 "표 노출" 위계 목록 — 넘길 때만 컬럼 설정 창에 나온다(ERP 통합 DB 관리 전용). */
+  tierExpose?: ComponentProps<typeof ColumnToggleModal>["tierExpose"];
   /**
    * 칸 관리(추가/제목·타입 수정/삭제)를 소비 앱이 제공할 때 주는 묶음. 컬럼 설정 모달로 전달된다.
    * 생략 시 컬럼 설정 모달은 보기/검색만(기존과 100% 동일). 제공 시 편집 기능이 켜진다.
@@ -586,6 +588,7 @@ export function CollabTable({
   editConfig,
   columnAdmin,
   columnGrouping,
+  tierExpose,
   ensureVisibleKeys,
   headerSlot,
   sort: sortProp,
@@ -854,7 +857,10 @@ export function CollabTable({
   }, [VISIBLE_COLS_KEY]);
 
   const toggleAllChecks = useCallback(() => {
-    setCheckedIds((prev) => (prev.size === pagedData.length ? new Set() : new Set(pagedData.map((r) => String(r[rowIdKey])))));
+    // 차수별로 펼친 줄은 같은 회사(_id)를 공유하므로 "전체 선택된 상태"의 기준을 줄 수가 아니라
+    // 서로 다른 회사 수로 잰다(안 그러면 전체선택 해제가 안 눌린다).
+    const idsOnPage = new Set(pagedData.map((r) => String(r[rowIdKey] ?? "")));
+    setCheckedIds((prev) => (prev.size === idsOnPage.size ? new Set() : idsOnPage));
   }, [pagedData, rowIdKey]);
   const toggleCheck = useCallback((id: string) => {
     setCheckedIds((prev) => {
@@ -980,10 +986,13 @@ export function CollabTable({
   // 제목 칸 = 밑줄 링크 + ↗아이콘 + 댓글수 버튼, 편집 가능 칸은 클릭 시 인라인 편집기 열림.
   const renderRow = useCallback((row: RowData, virtualIndex: number) => {
     const id = String(row[rowIdKey] ?? "");
+    // 그리기·편집중 판정용 키 — 차수별로 펼친 줄은 _id 를 공유하므로 _rowKey 가 있으면 그것을 쓴다.
+    // (없으면 지금과 동일하게 _id. 선택·체크박스는 회사 단위 유지가 맞으므로 계속 id 를 쓴다.)
+    const renderKey = String((row as Record<string, unknown>)._rowKey ?? id ?? virtualIndex);
     const commentCount = typeof row._commentCount === "number" ? (row._commentCount as number) : 0;
     return (
       <tr
-        key={id || virtualIndex}
+        key={renderKey || virtualIndex}
         onMouseEnter={onRowHover ? () => onRowHover(row) : undefined}
         className={composeRowClassName(
           "border-t border-wedly-bd/60 hover:bg-wedly-bg-blue/30",
@@ -1004,7 +1013,7 @@ export function CollabTable({
           const isSticky = col.sticky;
           const v = (row[col.key] ?? null) as CellValue;
           const editable = isCellEditable(col);
-          const isEditingThis = editingCell?.id === id && editingCell?.key === col.key;
+          const isEditingThis = editingCell?.id === renderKey && editingCell?.key === col.key;
           return (
             <td
               key={col.key}
@@ -1017,7 +1026,7 @@ export function CollabTable({
               )}
               style={{ minWidth: 40, ...(isSticky ? { left: (stickyOffsets[col.key] ?? 0) + 40 } : {}) }}
               onClick={editable && col.type !== "checkbox" && !isEditingThis
-                ? () => setEditingCell({ id, key: col.key })
+                ? () => setEditingCell({ id: renderKey, key: col.key })
                 : undefined}
             >
               {col.type === "title" ? (
@@ -1045,7 +1054,7 @@ export function CollabTable({
                   {editable && (
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); setEditingCell({ id, key: col.key }); }}
+                      onClick={(e) => { e.stopPropagation(); setEditingCell({ id: renderKey, key: col.key }); }}
                       className="inline-flex items-center px-1.5 py-0.5 rounded text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue transition-colors"
                       title="상호명 수정"
                     >
@@ -1315,6 +1324,7 @@ export function CollabTable({
         deletedColumns={columnGrouping?.deletedColumns}
         onRestoreColumn={columnGrouping?.onRestoreColumn}
         isDeletable={columnGrouping?.isDeletable}
+        tierExpose={tierExpose}
       />
     </div>
   );
