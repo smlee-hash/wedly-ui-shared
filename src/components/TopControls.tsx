@@ -23,7 +23,8 @@ type Props = {
 
   // 1줄
   onCreateNew: () => void;
-  // 관리 도구 (어드민만)
+  // 관리 도구 — 기본은 어드민만. showSettings 를 true 로 넘기면 비어드민에게도 뜬다(전 직원용 축약 메뉴, 2026-07-23).
+  showSettings?: boolean;
   settingsBaseMenus: SettingsMenuItem[];
   cfActiveCount: number;
   settingsMenuOrder: string[];
@@ -81,6 +82,7 @@ export function TopControls({
   isAdmin,
   canCreate = false,
   onCreateNew,
+  showSettings,
   settingsBaseMenus,
   cfActiveCount,
   settingsMenuOrder,
@@ -114,13 +116,17 @@ export function TopControls({
   showPageBox,
   trailingControls,
 }: Props) {
+  // 관리 도구 노출 — 기본은 어드민만, showSettings 를 넘긴 화면은 비어드민에게도(전 직원용 축약 메뉴).
+  const settingsVisible = showSettings ?? isAdmin;
+  const createVisible = isAdmin || canCreate;
   return (
     <>
       {/* 페이지 최상단 — 3줄 구조 (PC·모바일 동일). PC 컨테이너 폭 820px */}
       <div className="flex flex-col gap-2 md:max-w-[820px]">
-        {/* 1줄 — 새 업체(어드민 또는 생성 권한자) + 관리 도구(어드민만) */}
-        {(isAdmin || canCreate) && (
-          <div className={isAdmin ? "grid grid-cols-2 gap-2" : "flex"}>
+        {/* 1줄 — 새 업체(어드민 또는 생성 권한자) + 관리 도구(어드민, 또는 전 직원 축약 메뉴가 있는 화면) */}
+        {(createVisible || settingsVisible) && (
+          <div className={createVisible && settingsVisible ? "grid grid-cols-2 gap-2" : "flex"}>
+            {createVisible && (
             <button
               onClick={onCreateNew}
               className="w-full inline-flex items-center justify-center gap-1.5 h-[44px] md:h-[36px] px-3 text-[13px] font-semibold text-white bg-wedly-accent rounded-lg hover:bg-wedly-accent/90 transition-colors shadow-sm whitespace-nowrap"
@@ -130,9 +136,11 @@ export function TopControls({
               </svg>
               새 업체
             </button>
-            {isAdmin && (
+            )}
+            {settingsVisible && (
             <SettingsDropdown
               baseMenus={settingsBaseMenus}
+              editable={isAdmin}
               cfActiveCount={cfActiveCount}
               settingsMenuOrder={settingsMenuOrder}
               persistSettingsMenuOrder={persistSettingsMenuOrder}

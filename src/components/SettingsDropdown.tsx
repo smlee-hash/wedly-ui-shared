@@ -4,7 +4,8 @@
  * 관리 도구 드롭다운 — 톱니 버튼 + 펼침 메뉴
  * (SubsidyClient.tsx 모듈화 D 2단계, 2026-05-25)
  *
- * 어드민 전용. 7개 기본 메뉴 + 사용자 추가 항목.
+ * 기본은 어드민용(7개 기본 메뉴 + 사용자 추가 항목).
+ * 2026-07-23부터 부모가 전 직원용 축약 메뉴(menusForAll)를 넘기면 비어드민에게도 뜬다 — 그때는 editable=false 로 꾸미기 없이 목록만.
  * 편집 모드에서: 끌어서 순서 이동 / 제목 수정 / 숨김·복원 / 사용자 추가 항목 삭제 / 새 항목 추가
  */
 
@@ -42,6 +43,9 @@ type Props = {
   isSafeMenuUrl: (url: string) => boolean;
   // 안내 토스트
   onToast: (msg: { message: string; type: "success" | "error" }) => void;
+  // 메뉴 꾸미기(순서·이름·숨김·항목 추가) 허용 여부. 기본 true(어드민).
+  // 전 직원에게 여는 축약 메뉴에서는 false — 저장 통로가 없어 편집이 헛도는 것을 막는다.
+  editable?: boolean;
 };
 
 export function SettingsDropdown({
@@ -57,6 +61,7 @@ export function SettingsDropdown({
   persistSettingsMenuCustom,
   isSafeMenuUrl,
   onToast,
+  editable = true,
 }: Props) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -158,6 +163,7 @@ export function SettingsDropdown({
       </button>
       {open && (
         <div className="absolute left-0 md:left-auto md:right-0 top-full mt-1 z-50 bg-white border border-wedly-bd rounded-lg shadow-lg min-w-[260px] py-1">
+          {editable && (
           <div className="px-3 py-1.5 border-b border-wedly-bd/60 flex items-center justify-end">
             <button
               type="button"
@@ -175,6 +181,7 @@ export function SettingsDropdown({
               {editingMode ? "완료" : "편집"}
             </button>
           </div>
+          )}
           {visible.map((m) => {
             const isDragging = draggingId === m.id;
             const isDragOver = dragOverId === m.id && draggingId && draggingId !== m.id;

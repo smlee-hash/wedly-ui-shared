@@ -57,6 +57,12 @@ export type CollabTableProps = {
   canCreate?: boolean;
   /** 새 업체 생성 핸들러(비관리자 경로). 관리자는 adminToolbar.onCreateNew 를 쓴다. */
   onCreateNew?: () => void;
+  /**
+   * 전 직원용 '관리 도구' 축약 메뉴(2026-07-23) — 비관리자에게도 열어줄 항목만 담는다.
+   * 넘기면 비관리자 화면에도 관리 도구 버튼이 뜨고 이 항목들만 보인다(꾸미기 없음).
+   * 관리자는 기존대로 adminToolbar.settingsBaseMenus 전체를 보므로, 같은 항목을 양쪽에 넣어도 중복 표시되지 않는다.
+   */
+  menusForAll?: SettingsMenuItem[];
   /** 모바일 카드 표시 설정 */
   mobile?: {
     titleKey?: string;
@@ -581,6 +587,7 @@ export function CollabTable({
   onRefresh,
   canCreate = false,
   onCreateNew: onCreateNewProp,
+  menusForAll,
   mobile,
   renderFieldValue,
   getRowColorClass,
@@ -786,6 +793,9 @@ export function CollabTable({
 
   // 관리자 도구모음 활성 여부 — isAdmin 이고 adminToolbar 가 주어질 때만.
   const adminEnabled = isAdmin && !!adminToolbar;
+  // 전 직원용 축약 메뉴 — 관리자가 아닐 때만 쓴다(관리자는 전체 메뉴에 이미 같은 항목이 들어 있음).
+  const publicMenus = useMemo(() => (adminEnabled ? [] : (menusForAll ?? [])), [adminEnabled, menusForAll]);
+  const settingsVisible = adminEnabled || publicMenus.length > 0;
 
   // 편집 가능 종류(기본) — formula·last_edited_time·last_edited_by·auto_increment_id·file·person 은 편집 안 함.
   const DEFAULT_EDITABLE_TYPES = useMemo(() => new Set<ColumnDef["type"]>([
@@ -1206,7 +1216,8 @@ export function CollabTable({
         isAdmin={adminEnabled}
         canCreate={canCreate}
         onCreateNew={adminToolbar?.onCreateNew ?? onCreateNewProp ?? (() => {})}
-        settingsBaseMenus={adminEnabled ? wiredSettingsMenus : []}
+        showSettings={settingsVisible}
+        settingsBaseMenus={adminEnabled ? wiredSettingsMenus : publicMenus}
         cfActiveCount={adminToolbar?.cfActiveCount ?? 0}
         settingsMenuOrder={adminToolbar?.settingsMenuOrder ?? []}
         persistSettingsMenuOrder={adminToolbar?.persistSettingsMenuOrder ?? (() => {})}
