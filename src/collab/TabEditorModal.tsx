@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CustomSelect } from "@wedly/detail-modal-shared";
 import { buildTabFromDraft, EMPTY_OPTION_VALUE } from "./collab-filters";
-import type { ViewTab, FilterCondition, FilterOperator } from "./collab-filters";
+import type { ViewTab, FilterCondition, FilterOperator, TabFilterMatch } from "./collab-filters";
 
 type FieldDef = { key: string; label: string; type: string };
 /** 표시 형식 선택지(예: 표/캘린더). */
@@ -46,6 +46,12 @@ const OPERATOR_LABELS: Record<FilterOperator, string> = {
 
 const NO_VALUE_OPS: FilterOperator[] = ["is_empty", "is_not_empty"];
 
+/** 조건 적용 방식 고르기 — 라벨은 비개발자 기준(그리고/또는). */
+const MATCH_CHOICES: { value: TabFilterMatch; label: string }[] = [
+  { value: "all", label: "모든 조건 만족 (그리고)" },
+  { value: "any", label: "하나라도 만족 (또는)" },
+];
+
 /** 항목 종류에 맞는 연산 후보. '다중 선택(포함/제외)'은 select·status·multi_select 에서만 제공
  *  (날짜·숫자·자유 텍스트엔 의미가 약해 의도적으로 뺌). 단 matchesFilter 는 어느 항목이든 not_in 을 처리한다. */
 function operatorsForType(type: string | undefined): OperatorChoice[] {
@@ -68,7 +74,7 @@ function operatorsForType(type: string | undefined): OperatorChoice[] {
 }
 
 /**
- * 통합협업 표 위 필터 탭 편집창(공용) — 이름 + 표시 형식(표/캘린더) + 거르기 조건(여러 개 AND).
+ * 통합협업 표 위 필터 탭 편집창(공용) — 이름 + 표시 형식(표/캘린더) + 거르기 조건(그리고/또는 선택).
  * 하이브 편집창과 같은 방식. viewModes 를 주면 표/캘린더 전환 토글이 나온다.
  */
 export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes, onSave, onDelete, onClose }: Props) {
@@ -78,6 +84,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
   }));
 
   const currentMode = draft.viewMode || viewModes?.[0]?.value || "table";
+  const filterMatch: TabFilterMatch = draft.filterMatch === "any" ? "any" : "all";
 
   const setLabel = (label: string) => setDraft((d) => ({ ...d, label }));
 
@@ -120,7 +127,12 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
     // 항목 안 고른 빈 조건만 제외. '전체' 탭도 조건을 가질 수 있다.
     // buildTabFromDraft 로 통째 보존(columns/isPreset/viewMode 등 숨은 필드 유지).
     const cleaned = draft.filters.filter((f) => f.field);
-    onSave(buildTabFromDraft(draft, draft.label.trim(), cleaned));
+    // 조건 적용 방식은 '또는'일 때만 저장하고, '그리고'(기본)면 칸 자체를 지운다 →
+    // 되돌렸을 때 옛 값이 남아 끄기가 안 먹히는 일이 없다.
+    const base = buildTabFromDraft(draft, draft.label.trim(), cleaned);
+    if (filterMatch === "any") base.filterMatch = "any";
+    else delete base.filterMatch;
+    onSave(base);
   };
 
   const modeHint = viewModes?.find((vm) => vm.value === currentMode)?.hint;
@@ -182,8 +194,34 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
         {/* 거르기 조건 — '전체' 탭 포함 모든 탭에서 표시. 조건이 없으면 전체를 보여준다. */}
         <div className="mb-2 flex items-center justify-between">
           <span className="text-sm font-medium text-wedly-t2">거르기 조건</span>
-          <span className="text-[12px] text-wedly-muted">모든 조건을 동시에 만족하는 항목만 표시</span>
         </div>
+
+        {/* 조건 적용 방식 — 조건 여러 개를 '그리고'로 묶을지 '또는'으로 묶을지(NO.127). 기본 '그리고'. */}
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          {MATCH_CHOICES.map((c) => {
+            const active = filterMatch === c.value;
+            return (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setDraft((d) => ({ ...d, filterMatch: c.value }))}
+                className={
+                  "flex min-h-[40px] items-center justify-center rounded-lg border px-2 py-2 text-[13px] font-medium transition-colors sm:min-h-[34px] sm:text-[12px] " +
+                  (active
+                    ? "border-wedly-accent bg-wedly-bg-blue text-wedly-accent"
+                    : "border-wedly-bd bg-white text-wedly-t2 hover:bg-wedly-bg-gray")
+                }
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mb-2 text-[12px] text-wedly-muted">
+          {filterMatch === "any"
+            ? "조건 중 하나라도 만족하는 항목을 보여줍니다."
+            : "모든 조건을 동시에 만족하는 항목만 보여줍니다."}
+        </p>
 
         <div className="space-y-2">
           {draft.filters.length === 0 && (

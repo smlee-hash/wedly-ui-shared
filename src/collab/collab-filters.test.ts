@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchesFilter, matchesTab, filterRowsByTab, buildTabFromDraft, EMPTY_OPTION_VALUE, resolveDateWindow, filterRowsByConditions, isConditionComplete, type ViewTab } from "./collab-filters";
+import { matchesFilter, matchesTab, filterRowsByTab, buildTabFromDraft, EMPTY_OPTION_VALUE, resolveDateWindow, filterRowsByConditions, isConditionComplete, passesTabFilters, isTabConditionActive, type ViewTab } from "./collab-filters";
 import type { RowData } from "./collab-table-core";
 
 describe("matchesFilter", () => {
@@ -49,6 +49,84 @@ describe("matchesTab", () => {
     ] };
     expect(matchesTab(row, ok)).toBe(true);
     expect(matchesTab(row, no)).toBe(false);
+  });
+
+  // NO.127 — 조건 적용 방식(그리고/또는)
+  it("filterMatch 를 안 적으면 예전과 똑같이 AND", () => {
+    const t: ViewTab = { id: "t", label: "t", filters: [
+      { field: "status", operator: "equals", value: "계약완료" },
+      { field: "type", operator: "equals", value: "개인" },
+    ] };
+    expect(matchesTab(row, t)).toBe(false);
+    expect(matchesTab(row, { ...t, filterMatch: "all" })).toBe(false);
+  });
+  it("filterMatch=any 면 하나만 맞아도 통과(OR)", () => {
+    const t: ViewTab = { id: "t", label: "t", filterMatch: "any", filters: [
+      { field: "status", operator: "equals", value: "계약완료" },
+      { field: "type", operator: "equals", value: "개인" },
+    ] };
+    expect(matchesTab(row, t)).toBe(true);
+    expect(matchesTab(row, { ...t, filters: [
+      { field: "status", operator: "equals", value: "인용완료" },
+      { field: "type", operator: "equals", value: "개인" },
+    ] })).toBe(false);
+  });
+  it("요청 예시 — 제외 조건 둘을 OR 로 묶으면 '둘 다 해당하는 줄'만 빠진다", () => {
+    // 환급금여부 X 를 빼고 / 진행상태 방문거절 을 빼고 → OR 로 묶으면 둘 다인 줄만 제외
+    const tab: ViewTab = { id: "t", label: "t", filterMatch: "any", filters: [
+      { field: "환급금여부", operator: "not_in", value: ["X"] },
+      { field: "진행상태", operator: "not_in", value: ["방문거절"] },
+    ] };
+    expect(matchesTab({ 환급금여부: "X", 진행상태: "방문거절" }, tab)).toBe(false); // 둘 다 → 제외
+    expect(matchesTab({ 환급금여부: "X", 진행상태: "가망" }, tab)).toBe(true);      // 하나만 → 남음
+    expect(matchesTab({ 환급금여부: "O", 진행상태: "방문거절" }, tab)).toBe(true);  // 하나만 → 남음
+    expect(matchesTab({ 환급금여부: "O", 진행상태: "가망" }, tab)).toBe(true);
+  });
+  it("조건 0개면 any 여도 전체 통과(전체 탭이 0건 되지 않게)", () => {
+    expect(matchesTab(row, { id: "all", label: "전체", filters: [], filterMatch: "any" })).toBe(true);
+  });
+  it("any 에서는 값이 안 채워진 조건을 무시(그 하나 때문에 전체가 다 보이지 않게)", () => {
+    const tab: ViewTab = { id: "t", label: "t", filterMatch: "any", filters: [
+      { field: "status", operator: "equals", value: "인용완료" }, // 이 행과 안 맞음
+      { field: "type", operator: "not_in", value: [] },           // 값 비어 있음 = 무시 대상
+    ] };
+    expect(matchesTab(row, tab)).toBe(false);
+    // 반대로 '그리고'에서는 예전 그대로(빈 not_in 은 전부 통과) — 기존 동작 보존 확인
+    expect(matchesTab(row, { ...tab, filterMatch: "all", filters: [
+      { field: "status", operator: "equals", value: "계약완료" },
+      { field: "type", operator: "not_in", value: [] },
+    ] })).toBe(true);
+  });
+  it("any 인데 채워진 조건이 하나도 없으면 전체 통과", () => {
+    expect(matchesTab(row, { id: "t", label: "t", filterMatch: "any", filters: [
+      { field: "status", operator: "equals", value: "" },
+      { field: "type", operator: "in", value: [] },
+    ] })).toBe(true);
+  });
+});
+
+describe("isTabConditionActive / passesTabFilters", () => {
+  it("값이 필요한 연산자는 값이 있어야 '걸린 조건'", () => {
+    expect(isTabConditionActive({ field: "a", operator: "equals", value: "X" })).toBe(true);
+    expect(isTabConditionActive({ field: "a", operator: "equals", value: "  " })).toBe(false);
+    expect(isTabConditionActive({ field: "a", operator: "in", value: ["X"] })).toBe(true);
+    expect(isTabConditionActive({ field: "a", operator: "in", value: [] })).toBe(false);
+    expect(isTabConditionActive({ field: "", operator: "equals", value: "X" })).toBe(false);
+  });
+  it("값 없이 성립하는 연산자는 값이 없어도 '걸린 조건'", () => {
+    expect(isTabConditionActive({ field: "a", operator: "is_empty" })).toBe(true);
+    expect(isTabConditionActive({ field: "a", operator: "date_this_month" })).toBe(true);
+  });
+  it("판정기를 밖에서 받아 그리고/또는을 묶는다", () => {
+    const conds = [
+      { field: "a", operator: "equals" as const, value: "1" },
+      { field: "b", operator: "equals" as const, value: "2" },
+    ];
+    const onlyA = (c: { field: string }) => c.field === "a";
+    expect(passesTabFilters(conds, "all", onlyA)).toBe(false);
+    expect(passesTabFilters(conds, "any", onlyA)).toBe(true);
+    expect(passesTabFilters([], "any", onlyA)).toBe(true);
+    expect(passesTabFilters(undefined, "any", onlyA)).toBe(true);
   });
 });
 
