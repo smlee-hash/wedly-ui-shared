@@ -120,7 +120,7 @@ export type { StartColumnResizeOptions } from "./collab/column-resize";
 
 // 상태별 필터 탭 — 순수 로직 + 표시 부품
 export { matchesFilter, matchesTab, filterRowsByTab, passesTabFilters, isTabConditionActive } from "./collab/collab-filters";
-export type { FilterOperator, FilterCondition, ViewTab, TabFilterMatch } from "./collab/collab-filters";
+export type { FilterOperator, FilterCondition, ViewTab, TabFilterMatch, TabConditionLike } from "./collab/collab-filters";
 export { FilterTabs } from "./collab/FilterTabs";
 export type { FilterTabsProps, FilterTabsAdmin } from "./collab/FilterTabs";
 // 노션식 다조건 필터 — 순수 엔진 + 필터 바 부품 + 항목 헬퍼
