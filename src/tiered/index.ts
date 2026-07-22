@@ -496,14 +496,23 @@ export function evalFormulaForTier(
   return result.v;
 }
 
+// 코드리뷰 Finding 3(Minor): 값을 "읽는" 자리(evalFormulaForTier operand, scaled !== 0 가드)는
+// 저장값 자체가 0일 때만 -0 을 막는다. 항 사슬(evalTermChain)의 곱셈은 그 가드를 지나 -0 을 다시
+// 만들 수 있다 — 예: 뒤집힌(음수) 기준금액 × 빈(0%) 요율 = -0. 발생지가 여러 곳이라 값 쪽에서
+// 전부 막기보다, 화면에 찍히는 이 표시 헬퍼 한 곳에서 -0 을 0 으로 정규화해 모든 발생지를 커버한다.
+function normalizeNegativeZero(n: number): number {
+  return n === 0 ? 0 : n; // -0 === 0 은 true 라 이 비교로 -0 도 걸러져 +0 이 된다
+}
+
 // 수식 계산 결과를 표시 문자열로. number → "1,234,567원", percent → "12.5%".
 export function formatFormulaResult(value: number | null, resultFormat?: FormulaResultFormat): string {
   if (value === null || !Number.isFinite(value)) return "";
   if (resultFormat === "percent") {
-    const pct = Math.round(value * 100 * 100) / 100; // 비율 → %, 소수점 최대 2자리
+    const pct = normalizeNegativeZero(Math.round(value * 100 * 100) / 100); // 비율 → %, 소수점 최대 2자리
     return `${pct.toLocaleString("ko-KR")}%`;
   }
-  return `${Math.round(value).toLocaleString("ko-KR")}원`;
+  const rounded = normalizeNegativeZero(Math.round(value));
+  return `${rounded.toLocaleString("ko-KR")}원`;
 }
 
 // ── 날짜 수식 (결과 형식 "date") ──
