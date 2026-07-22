@@ -100,8 +100,11 @@ export type CollabTableProps = {
    * onColWidthsChange 를 함께 넘길 때만 공용 너비 모드가 켜진다(미지정 = 기존과 100% 동일).
    */
   serverColWidths?: Record<string, number>;
-  /** 관리자가 너비를 바꿨을 때 앱이 공용 보관함에 저장하도록 알린다(관리자일 때만 호출된다). */
-  onColWidthsChange?: (widths: Record<string, number>) => void;
+  /**
+   * 관리자가 너비를 바꿨을 때 앱이 공용 보관함에 저장하도록 알린다(관리자일 때만 호출된다).
+   * 넘어오는 값은 **방금 바뀐 칸만** 담긴 묶음이다 — 낡은 화면이 다른 칸을 옛 값으로 되돌리지 않게.
+   */
+  onColWidthsChange?: (changedWidths: Record<string, number>) => void;
   /**
    * true면 칸 배치(순서·보임/숨김)를 "공용·관리자 전용 + 탭별 독립"으로 취급한다.
    * - 보임/숨김: 비관리자에겐 '컬럼 설정' 버튼·머리 '컬럼 숨기기'를 숨긴다(관리자만 변경).
@@ -943,14 +946,14 @@ export function CollabTable({
     persistVisible(vis);
   }, [serverColMode, onCommitColumns, COL_ORDER_KEY, persistVisible]);
 
-  const setColWidthsAndStore = useCallback((updater: (p: Record<string, number>) => Record<string, number>) => {
+  const setColWidthsAndStore = useCallback((updater: (p: Record<string, number>) => Record<string, number>, changedKey?: string) => {
     setColWidths((p) => {
       const next = updater(p);
       // 공용 너비 모드(NO.128): 관리자가 바꾼 값만 저장해 전 직원 기준이 된다.
       // 일반 사용자는 화면에만 남는다 — 새로고침·재접속하면 관리자 너비로 돌아온다.
       if (onColWidthsChange && !isAdmin) return next;
       try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(next)); } catch {}
-      onColWidthsChange?.(next);
+      onColWidthsChange?.(changedKey ? { [changedKey]: next[changedKey] } : next);
       return next;
     });
   }, [COL_WIDTHS_KEY, onColWidthsChange, isAdmin]);
@@ -967,7 +970,7 @@ export function CollabTable({
       startWidth,
       onCommit: (finalW) => {
         resizingRef.current = null;
-        setColWidthsAndStore((p) => ({ ...p, [colKey]: finalW }));
+        setColWidthsAndStore((p) => ({ ...p, [colKey]: finalW }), colKey);
       },
     });
   }, [colWidths, setColWidthsAndStore]);
@@ -976,7 +979,7 @@ export function CollabTable({
     const cells = document.querySelectorAll(`[data-col="${colKey}"]`);
     let maxW = 60;
     cells.forEach((c) => { const w = (c as HTMLElement).scrollWidth + 32; if (w > maxW) maxW = w; });
-    setColWidthsAndStore((p) => ({ ...p, [colKey]: Math.min(maxW, 500) }));
+    setColWidthsAndStore((p) => ({ ...p, [colKey]: Math.min(maxW, 500) }), colKey);
   }, [setColWidthsAndStore]);
 
   // 모바일 카드 설정
