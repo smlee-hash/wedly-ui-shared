@@ -40,6 +40,12 @@ export interface FieldDef {
   //   options: 고를 수 있는 보기 값 목록(순서 보존). optionColors: 보기별 색칩(선택, 미지정 시 기본 회색).
   options?: string[];
   optionColors?: Record<string, { bg: string; text: string }>;
+  // ── 환불 차수카드 "계약 수식 따라가기" 전용 표시 (서버가 GET 때 붙임 — 저장하지 않는다) ──
+  //   negateOnRead: 이 칸의 저장값을 수식에서 읽을 때 부호를 뒤집는다(환불 기준금액칸).
+  //                 화면 표시·조건 판정은 저장값 그대로 — 계산에서만 음수.
+  //   derivedFromContract: 이 칸의 계산식이 계약 카드의 어느 칸에서 왔는지(원본 칸 키).
+  negateOnRead?: boolean;
+  derivedFromContract?: string;
 }
 
 /** 조건 비교 대상(오른쪽): 직접 입력 글자 또는 다른 칸. */
@@ -477,7 +483,9 @@ export function evalFormulaForTier(
     if (raw === null || raw === undefined || raw === "") return { v: 0, has: false };
     const num = typeof raw === "number" ? raw : Number(raw);
     if (!Number.isFinite(num)) return { v: 0, has: false };
-    return { v: ref.type === "percent" ? num / 100 : num, has: true };
+    const scaled = ref.type === "percent" ? num / 100 : num;
+    // 환불 차수카드: 기준금액칸에 negateOnRead 가 붙으면 계산할 때만 음수로 읽는다(저장값·화면은 그대로).
+    return { v: ref.negateOnRead ? -scaled : scaled, has: true };
   };
 
   const result = evalTermChain(terms, operand);
