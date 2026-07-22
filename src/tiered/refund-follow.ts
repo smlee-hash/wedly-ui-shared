@@ -88,6 +88,29 @@ function collectColumnKeys(terms: FormulaTerm[], out: Set<string>): void {
   }
 }
 
+// 코드리뷰 Finding 2(Important): "환불 카드에 없는 칸" 검사가 지금까지 식(formula) 안의 컬럼
+// 참조만 봤다 — 조건(conditional) 의 기준 칸은 안 봤다. 계약 카드에만 있는 칸(예: select 칸)을
+// 조건 기준으로 삼은 계약 수식은 환불 카드에 그 칸이 없어 조건이 절대 매칭되지 않고 기본(그 외)
+// 식으로 조용히 빠진다 — 계약과 다른 요율이 적용돼도 경고가 없다. 그래서 치환 전(원본 계약 칸
+// 기준) 조건 키를 모아 별도로 검사한다. (평면 기본정보 칸은 계약 카드 필드가 아니므로 여기서
+// 걸러지지 않고 그대로 통과 — 서울·경기·인천 조건이 그 예.)
+function collectConditionKeys(cond: FieldDef["conditional"], out: Set<string>): void {
+  if (!cond || !Array.isArray(cond.rules)) return;
+  if (cond.conditionFieldKey) out.add(cond.conditionFieldKey);
+  for (const r of cond.rules) {
+    if (!r) continue;
+    if (r.leftKey) out.add(r.leftKey);
+    if (r.right && r.right.kind === "field") out.add(r.right.key);
+    if (Array.isArray(r.clauses)) {
+      for (const c of r.clauses) {
+        if (!c) continue;
+        if (c.leftKey) out.add(c.leftKey);
+        if (c.right && c.right.kind === "field") out.add(c.right.key);
+      }
+    }
+  }
+}
+
 /**
  * 계약 카드 수식을 환불 카드 칸에 옮겨 싣는다.
  * 설정이 꺼져 있거나 기준금액 짝이 잘못됐으면 원본 배열을 그대로 돌려준다(동작 무변경).
@@ -126,14 +149,45 @@ export function deriveRefundFields(
     };
   }
 
-  const map = new Map<string, string>([[base.contract, base.refund]]);
+  // 코드리뷰 Finding 1(Important): 짝(pairs) 목록을 그대로 맵으로 만들면(마지막 쓰기 우선) refund
+  // 키 중복을 못 잡는다. 두 짝의 refund 키가 같으면, 치환 후 그 칸이 자기 자신을 참조하는 수식이
+  // 된다 — 부호검사는 자기 키가 unitKeys 에 있어 1차로 셈해 통과하고, 계산기의 순환참조 가드가
+  // 조용히 0으로 읽어 그럴듯하지만 틀린 금액이 나온다(경고도 없음). refund 키가 기준금액칸
+  // (baseAmount.refund) 과 같으면 기준금액칸 자체가 자기참조 수식이 되어 negateOnRead 를 못
+  // 붙이고 모든 파생 수수료가 0이 된다(원래 형식 가드는 원본 기준칸의 type만 보므로 이 경우를
+  // 놓친다). 그래서 파생 전에 refund 키가 injective(1:1) 가 되도록 먼저 걸러낸다(첫 짝이 우선,
+  // 나중 중복 짝은 버려짐).
+  const seenRefundTargets = new Set<string>();
+  const pairs: RefundFollowPair[] = [];
   for (const p of follow.pairs ?? []) {
+    if (p?.refund) {
+      if (p.refund === base.refund) {
+        warnings.push({
+          refundKey: p.refund,
+          reason: `계약 칸 '${p.contract}' 짝의 환불 키가 기준 금액 칸('${p.refund}')과 같아 기준 금액 칸이 자기참조 수식이 되므로 이 짝은 적용하지 않았습니다`,
+        });
+        continue;
+      }
+      if (seenRefundTargets.has(p.refund)) {
+        warnings.push({
+          refundKey: p.refund,
+          reason: `계약 칸 '${p.contract}' 짝이 다른 짝과 같은 환불 칸('${p.refund}')을 가리켜 자기참조 수식이 되므로 이 짝은 적용하지 않았습니다`,
+        });
+        continue;
+      }
+      seenRefundTargets.add(p.refund);
+    }
+    pairs.push(p);
+  }
+
+  const map = new Map<string, string>([[base.contract, base.refund]]);
+  for (const p of pairs) {
     if (p?.contract && p?.refund) map.set(p.contract, p.refund);
   }
 
   // ── 1단계: 짝마다 식을 옮기고 참조 가능 여부 확인 ──
   const candidates: FieldDef[] = [];
-  for (const p of follow.pairs ?? []) {
+  for (const p of pairs) {
     const cf = p?.contract ? cByKey.get(p.contract) : undefined;
     const rf = p?.refund ? rByKey.get(p.refund) : undefined;
     if (!cf) {
@@ -161,8 +215,29 @@ export function deriveRefundFields(
       continue;
     }
 
+    // Finding 2: 조건 기준 칸(치환 전, 원본 계약 칸 기준)이 "계약 카드 칸"인데 치환된(또는 그대로의)
+    // 키가 환불 카드에 없으면, 환불 카드에서 그 조건은 절대 매칭될 수 없다 — 조용히 기본식으로
+    // 빠져 계약과 다른 요율이 적용된다. 평면 기본정보 칸(계약 카드 필드가 아닌 키)은 대상 아님.
+    const condKeys = new Set<string>();
+    collectConditionKeys(cf.conditional, condKeys);
+    let missingCondKey: string | undefined;
+    for (const k of condKeys) {
+      if (!cByKey.has(k)) continue; // 계약 카드 칸이 아니면(=평면 기본정보 칸) 통과
+      const mapped = map.get(k) ?? k;
+      if (!rByKey.has(mapped)) { missingCondKey = k; break; }
+    }
+    if (missingCondKey) {
+      warnings.push({
+        refundKey: p.refund,
+        reason: `조건이 계약 카드에만 있는 칸('${missingCondKey}')을 기준으로 삼아 환불 카드에서는 판정할 수 없어 적용하지 않았습니다`,
+      });
+      continue;
+    }
+
+    // Finding 4: tableExposed 는 계약 칸에서 "복사하지 않는다"가 원칙이지 환불 칸 자체 값을
+    // 지우는 게 아니다. next 는 rf(환불 칸 원본)를 스프레드해 만들므로 애초에 계약 값이 섞이지
+    // 않는다 — 여기서 delete 하지 않는 것만으로 환불 칸이 원래 갖고 있던 값이 그대로 유지된다.
     const next: FieldDef = { ...rf, type: "formula", derivedFromContract: cf.key };
-    delete next.tableExposed;   // 표 노출은 파생하지 않는다(설계서 §2 비목표)
     delete next.formula;
     delete next.conditional;
     delete next.formulaResult;
