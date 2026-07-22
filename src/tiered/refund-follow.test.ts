@@ -172,6 +172,111 @@ describe("deriveRefundFields", () => {
   });
 });
 
+// 코드리뷰 Finding 1(Important): 짝(pairs) 목록의 refund 키가 중복되거나 기준금액칸과 겹치면,
+// 치환 후 그 칸이 자기 자신을 참조하는 수식이 된다. 부호검사는 자기 키가 unitKeys 에 있어 1차로
+// 셈해 통과하고, 계산기의 순환참조 가드(evalFormulaForTier 의 seen)가 조용히 0으로 읽어 그럴듯하지만
+// 틀린 금액이 나온다 — 경고도 없다. 파생 전에 refund 키를 injective(1:1) 로 미리 걸러야 한다.
+describe("Finding1 — 짝(pairs) 의 환불 키 중복/기준금액 겹침 방지", () => {
+  it("(A) 같은 환불 칸을 가리키는 짝이 두 개면 나중 짝은 버려지고(자기참조 방지) 경고를 남긴다", () => {
+    const follow: RefundFollowConfig = {
+      enabled: true,
+      baseAmount: { contract: "계약금", refund: "환불금액" },
+      pairs: [
+        { refund: "환불파트너사수수료", contract: "[컨설턴트]_수수료" }, // 먼저 온 짝 → 살아남음
+        { refund: "환불파트너사수수료", contract: "[위들리]_수수료" },   // 같은 refund 키 → 버려짐
+      ],
+    };
+    const r = deriveRefundFields(CONTRACT, REFUND, follow);
+    const f = byKey(r.fields).get("환불파트너사수수료")!;
+    expect(f.derivedFromContract).toBe("[컨설턴트]_수수료");
+    // 자기참조로 조용히 0이 되는 게 아니라, 진짜 값(−300,000)이 나와야 한다.
+    const 환불차수: TierData = { id: "r", label: "1차 정산", 환불금액: 1_000_000 };
+    expect(evalFormulaForTier(f, 환불차수, r.fields, new Set(), {})).toBe(-300_000);
+    expect(
+      r.warnings.some((w) => w.refundKey === "환불파트너사수수료" && w.reason.includes("[위들리]_수수료")),
+    ).toBe(true);
+  });
+
+  it("(B) 짝의 환불 키가 기준금액칸과 같으면 기준금액칸이 자기참조 수식이 되지 않도록 그 짝을 버린다", () => {
+    const follow: RefundFollowConfig = {
+      enabled: true,
+      baseAmount: { contract: "계약금", refund: "환불금액" },
+      pairs: [
+        { refund: "환불금액", contract: "[위들리]_수수료" },            // 기준금액칸과 겹침 → 버려져야 함
+        { refund: "환불파트너사수수료", contract: "[컨설턴트]_수수료" }, // 정상 짝(살아남음, 계약금만 참조)
+      ],
+    };
+    const r = deriveRefundFields(CONTRACT, REFUND, follow);
+    const base = byKey(r.fields).get("환불금액")!;
+    // 기준금액칸은 원래 타입(number)을 유지 — 수식칸(자기참조)으로 바뀌지 않는다.
+    expect(base.type).toBe("number");
+    // 살아남은 다른 짝 덕에 negateOnRead 표시는 여전히 붙는다.
+    expect(base.negateOnRead).toBe(true);
+    expect(r.warnings.some((w) => w.refundKey === "환불금액")).toBe(true);
+    // 살아남은 짝은 정상 적용된다.
+    expect(byKey(r.fields).get("환불파트너사수수료")!.type).toBe("formula");
+  });
+});
+
+// 코드리뷰 Finding 2(Important): "환불 카드에 없는 칸" 검사는 지금까지 식(formula) 안의 컬럼 참조만
+// 봤다 — 조건(conditional) 의 기준 칸(leftKey/right.field/clauses/conditionFieldKey)은 안 봤다.
+// 계약 카드에만 있는 칸(예: select 칸)을 조건 기준으로 삼은 계약 수식은, 환불 카드엔 그 칸이 없어
+// 조건이 절대 매칭되지 않고 기본(그 외) 식으로 조용히 빠진다 — 계약과 다른 요율이 적용돼도 경고가 없다.
+describe("Finding2 — 조건이 계약 카드 전용 칸을 참조하면 그 짝을 건너뛴다", () => {
+  const contract: FieldDef[] = [
+    { key: "계약금", label: "계약금", type: "number" },
+    { key: "계약유형", label: "계약유형", type: "select", options: ["일반", "특별"] },
+    {
+      key: "수수료", label: "수수료", type: "formula",
+      formula: [col("계약금"), pct(30)],
+      conditional: {
+        rules: [{
+          leftKey: "계약유형", right: { kind: "text", value: "특별" }, op: "eq",
+          formula: [col("계약금"), pct(40)],
+        }],
+      },
+    },
+  ];
+  const refund: FieldDef[] = [
+    { key: "환불금액", label: "환불 금액", type: "number" },
+    { key: "환불수수료", label: "환불 수수료", type: "number" },
+  ];
+  const follow: RefundFollowConfig = {
+    enabled: true,
+    baseAmount: { contract: "계약금", refund: "환불금액" },
+    pairs: [{ refund: "환불수수료", contract: "수수료" }],
+  };
+
+  it("조건 기준 칸(계약유형)이 환불 카드에 없으면 그 짝은 적용하지 않고 사유에 칸 이름을 남긴다", () => {
+    const r = deriveRefundFields(contract, refund, follow);
+    expect(byKey(r.fields).get("환불수수료")!.type).toBe("number");
+    expect(
+      r.warnings.some((w) => w.refundKey === "환불수수료" && w.reason.includes("계약유형")),
+    ).toBe(true);
+  });
+
+  it("서울·경기·인천 같은 평면 기본정보 조건(계약 카드 칸 아님)은 그대로 통과한다 (회귀 방지 고정)", () => {
+    const r = deriveRefundFields(CONTRACT, REFUND, FOLLOW);
+    const f = byKey(r.fields).get("환불파트너사수수료")!;
+    expect(f.conditional!.rules[0].leftKey).toBe("52사업장주소지");
+    expect(f.type).toBe("formula");
+  });
+});
+
+// 코드리뷰 Finding 4(Minor): 파생 로직이 결과 칸의 tableExposed 를 무조건 delete 했다. 설계 규칙은
+// "계약 칸에서 복사하지 않는다"이지 "환불 칸 자체 값을 지운다"가 아니다 — 관리자가 환불 칸에 직접
+// 표 노출을 켜둔 경우까지 지워지면, 이 기능을 켜는 순간 그 칸이 도메인 표에서 조용히 사라진다.
+describe("Finding4 — tableExposed 는 계약에서 복사하지 않되, 환불 칸 자체 값은 지우지 않는다", () => {
+  it("환불 칸 자체에 이미 설정된 tableExposed(true) 는 파생 후에도 그대로 유지된다", () => {
+    const refund = REFUND.map((f) =>
+      f.key === "환불파트너사수수료" ? { ...f, tableExposed: true } : f,
+    );
+    const r = deriveRefundFields(CONTRACT, refund, FOLLOW);
+    // 계약 [컨설턴트]_수수료 에는 tableExposed 가 없다 — 그래도 환불 칸 자체 값(true)은 지워지지 않는다.
+    expect(byKey(r.fields).get("환불파트너사수수료")!.tableExposed).toBe(true);
+  });
+});
+
 describe("검산 — 계약과 환불이 부호만 반대", () => {
   const derived = deriveRefundFields(CONTRACT, REFUND, FOLLOW).fields;
   const 평면 = { "52사업장주소지": "부산광역시 해운대구" };
