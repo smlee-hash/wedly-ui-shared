@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evalFormulaForTier, type FieldDef, type TierData } from "./index";
+import { evalFormulaForTier, formatFormulaResult, type FieldDef, type TierData } from "./index";
 
 describe("negateOnRead — 계산할 때만 부호 뒤집기", () => {
   const 기준: FieldDef = { key: "환불금액", label: "환불 금액", type: "number", negateOnRead: true };
@@ -57,5 +57,35 @@ describe("negateOnRead — 계산할 때만 부호 뒤집기", () => {
     // tier.환불금액 원시 저장값은 양수 1,000,000 — 조건 판정이 뒤집힌(음수) 값을 쓰면 "1000000" 과 매칭 실패해
     // 기본식(999999)으로 빠진다. 매칭이 원시값 그대로 이뤄져야 아래 조건식이 골라지고, 계산만 음수로 나온다.
     expect(evalFormulaForTier(조건부수수료, tier, [기준, 조건부수수료])).toBe(-300_000);
+  });
+});
+
+// 코드리뷰 Finding 3(Minor): index.ts 는 값을 "읽는" 자리(scaled !== 0 가드)에서만 -0 을 막는다.
+// 항 사슬(evalTermChain)의 곱셈이 -0 을 다시 만들어낼 수 있다 — 예: 뒤집힌(음수) 기준금액 ×
+// 빈(0%) 요율 = 음수 × 0 = -0. 이 -0 이 화면 표시 직전까지 그대로 흘러가면 formatFormulaResult
+// 가 "-0원"을 찍는다. 그래서 모든 발생지를 한 번에 막도록 표시 헬퍼 자체에서 방어해야 한다.
+describe("formatFormulaResult — 곱셈으로 재생성되는 -0 표시 방지", () => {
+  it("음수 기준값 × 빈(0%) 요율로 -0 이 만들어져도 화면엔 '0원'(마이너스 없이) 으로 찍는다", () => {
+    const 기준: FieldDef = { key: "환불금액", label: "환불 금액", type: "number", negateOnRead: true };
+    const 수수료: FieldDef = {
+      key: "수수료", label: "수수료", type: "formula",
+      formula: [
+        { op: "+", unit: "column", columnKey: "환불금액" },
+        { op: "*", unit: "percent", value: 0 },
+      ],
+    };
+    const tier: TierData = { id: "t", label: "1차 정산", 환불금액: 1_000_000, 수수료: null };
+    const value = evalFormulaForTier(수수료, tier, [기준, 수수료]);
+    // 계산기 자체는 -0 을 그대로 돌려준다(항 사슬 곱셈에서 재생성) — 읽기 가드는 이 케이스를 안 막는다.
+    expect(Object.is(value, -0)).toBe(true);
+    expect(formatFormulaResult(value, undefined)).toBe("0원");
+  });
+
+  it("진짜 마이너스 값은 그대로 마이너스로 표시한다 (회귀 방지)", () => {
+    expect(formatFormulaResult(-300_000, undefined)).toBe("-300,000원");
+  });
+
+  it("퍼센트 결과 형식에서도 -0 은 마이너스 없이 표시한다", () => {
+    expect(formatFormulaResult(-0, "percent")).toBe("0%");
   });
 });
