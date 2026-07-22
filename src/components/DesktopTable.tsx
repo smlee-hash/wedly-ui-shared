@@ -144,8 +144,10 @@ export function DesktopTable({
                 <input
                   type="checkbox"
                   checked={
+                    // 차수별로 펼친 줄은 같은 회사(_id)가 여러 줄이므로 "줄 수"가 아니라 "회사 수"로 견준다.
+                    // (줄 수로 견주면 전체선택을 눌러도 머리글만 계속 꺼져 보이고, 다시 누르면 선택이 통째로 풀린다.)
                     checkedIds.size > 0 &&
-                    checkedIds.size === pagedData.length &&
+                    checkedIds.size === new Set(pagedData.map((r) => String(r._id ?? ""))).size &&
                     pagedData.every((r) => checkedIds.has(String(r._id)))
                   }
                   onChange={toggleAllChecks}
