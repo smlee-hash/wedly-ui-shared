@@ -117,7 +117,7 @@ export type { RowData, CellValue, SortConfig, SortRule } from "./collab/collab-t
 
 // 상태별 필터 탭 — 순수 로직 + 표시 부품
 export { matchesFilter, matchesTab, filterRowsByTab, passesTabFilters, isTabConditionActive } from "./collab/collab-filters";
-export type { FilterOperator, FilterCondition, ViewTab, TabFilterMatch } from "./collab/collab-filters";
+export type { FilterOperator, FilterCondition, ViewTab, TabFilterMatch, TabConditionLike } from "./collab/collab-filters";
 export { FilterTabs } from "./collab/FilterTabs";
 export type { FilterTabsProps, FilterTabsAdmin } from "./collab/FilterTabs";
 

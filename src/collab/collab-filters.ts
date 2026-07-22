@@ -30,6 +30,13 @@ export type FilterCondition = {
 /** 탭의 거르기 조건을 묶는 방식 — "all"=모든 조건 만족(그리고), "any"=하나라도 만족(또는). */
 export type TabFilterMatch = "all" | "any";
 
+/**
+ * 조건 하나의 최소 모양. 3앱이 각자 좁은 연산자 목록으로 자기 FilterCondition 을 따로 선언해 두었기에
+ * (예: 하이브는 not_equals 가 없음) 공용 판정 도우미는 이 구조만 요구한다 — 타입이 서로 안 맞아
+ * 앱 쪽 판정기를 못 넘기는 일이 없게.
+ */
+export type TabConditionLike = { field: string; operator: string; value?: string | string[] };
+
 export type ViewTab = {
   id: string;
   label: string;
@@ -132,9 +139,9 @@ export function matchesFilter(row: RowData, filter: FilterCondition, todayISO?: 
  * 전체가 다 보이게 된다 → '또는' 판정에서만 이런 조건을 빼기 위한 판별기.
  * (필터바 전용 isConditionComplete 와 의도적으로 분리 — 그쪽 규칙을 바꾸면 다른 기능이 흔들린다.)
  */
-export function isTabConditionActive(cond: FilterCondition): boolean {
+export function isTabConditionActive(cond: TabConditionLike): boolean {
   if (!cond.field) return false;
-  if (NO_VALUE_OPERATORS.has(cond.operator)) return true;
+  if (NO_VALUE_OPERATORS.has(cond.operator as FilterOperator)) return true;
   if (Array.isArray(cond.value)) return cond.value.length > 0;
   return typeof cond.value === "string" && cond.value.trim() !== "";
 }
@@ -145,10 +152,10 @@ export function isTabConditionActive(cond: FilterCondition): boolean {
  * · "all"(기본) → 예전 그대로 every. 이 경로는 손대지 않아 기존 동작이 완전히 보존된다.
  * · "any"      → 값이 채워진 조건만 골라 some. 채워진 게 없으면 통과(전체 표시).
  */
-export function passesTabFilters(
-  filters: FilterCondition[] | undefined | null,
+export function passesTabFilters<C extends TabConditionLike>(
+  filters: C[] | undefined | null,
   filterMatch: TabFilterMatch | undefined,
-  test: (cond: FilterCondition) => boolean,
+  test: (cond: C) => boolean,
 ): boolean {
   const list = filters || [];
   if (list.length === 0) return true;
