@@ -487,7 +487,8 @@ export function evalFormulaForTier(
     if (!Number.isFinite(num)) return { v: 0, has: false };
     const scaled = ref.type === "percent" ? num / 100 : num;
     // 환불 차수카드: 기준금액칸에 negateOnRead 가 붙으면 계산할 때만 음수로 읽는다(저장값·화면은 그대로).
-    return { v: ref.negateOnRead ? -scaled : scaled, has: true };
+    // scaled !== 0 가드: 저장값이 0이면 뒤집어도 -0 이 되어 "-0원"으로 보이는 표시 버그 방지.
+    return { v: ref.negateOnRead && scaled !== 0 ? -scaled : scaled, has: true };
   };
 
   const result = evalTermChain(terms, operand);
@@ -522,3 +523,6 @@ export type {
   Weekday,
   YMD,
 } from "./date-formula";
+
+// ── 환불 차수카드 "계약 수식 따라가기" ──
+export * from "./sign-safety";
