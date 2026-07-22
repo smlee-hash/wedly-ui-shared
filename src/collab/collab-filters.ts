@@ -27,12 +27,17 @@ export type FilterCondition = {
   value?: string | string[];
 };
 
+/** 탭의 거르기 조건을 묶는 방식 — "all"=모든 조건 만족(그리고), "any"=하나라도 만족(또는). */
+export type TabFilterMatch = "all" | "any";
+
 export type ViewTab = {
   id: string;
   label: string;
   filters: FilterCondition[];
   /** 표시 형식(예: "table" | "calendar"). 생략 시 표 보기. 캘린더 탭 지원용(거르기 로직은 사용 안 함). */
   viewMode?: string;
+  /** 조건 결합 방식. 생략 = "all"(그리고) — 기존 탭은 전부 예전과 똑같이 동작한다. */
+  filterMatch?: TabFilterMatch;
 };
 
 /**
@@ -41,6 +46,12 @@ export type ViewTab = {
  * 표시용 토큰 — 실제 상태값과 충돌할 가능성이 사실상 없는 라벨을 쓴다.
  */
 export const EMPTY_OPTION_VALUE = "(미입력)";
+
+/** 값 없이도 성립하는 연산자(비어 있음·오늘·이번 달 등). 조건이 "채워졌는지" 판정에 쓴다. */
+const NO_VALUE_OPERATORS = new Set<FilterOperator>([
+  "is_empty", "is_not_empty",
+  "date_today", "date_yesterday", "date_this_week", "date_this_month", "date_last_month",
+]);
 
 /** 한 행이 한 조건에 맞는지 판정(하이브와 동일). 상대 날짜 연산자는 todayISO(기준일) 필요. */
 export function matchesFilter(row: RowData, filter: FilterCondition, todayISO?: string): boolean {
@@ -115,9 +126,41 @@ export function matchesFilter(row: RowData, filter: FilterCondition, todayISO?: 
   }
 }
 
-/** 한 행이 한 탭(조건 여러 개의 AND)에 맞는지. 조건 없으면 true = 전체. */
+/**
+ * 탭 조건 하나가 "실제로 걸려 있는지"(값이 채워졌는지). 항목만 고르고 값을 안 채운 조건은
+ * 연산자에 따라 모든 행을 통과시키므로(예: not_in 빈 목록), '또는'에서 그 하나 때문에
+ * 전체가 다 보이게 된다 → '또는' 판정에서만 이런 조건을 빼기 위한 판별기.
+ * (필터바 전용 isConditionComplete 와 의도적으로 분리 — 그쪽 규칙을 바꾸면 다른 기능이 흔들린다.)
+ */
+export function isTabConditionActive(cond: FilterCondition): boolean {
+  if (!cond.field) return false;
+  if (NO_VALUE_OPERATORS.has(cond.operator)) return true;
+  if (Array.isArray(cond.value)) return cond.value.length > 0;
+  return typeof cond.value === "string" && cond.value.trim() !== "";
+}
+
+/**
+ * 탭 조건 묶음 판정(공용 규칙) — 앱마다 자기 matchesFilter 를 쓰므로 판정기는 test 로 받는다.
+ * · 조건 0개  → 통과(전체 표시). '또는'으로 바꿔도 「전체」 탭이 0건이 되지 않게 하는 가드.
+ * · "all"(기본) → 예전 그대로 every. 이 경로는 손대지 않아 기존 동작이 완전히 보존된다.
+ * · "any"      → 값이 채워진 조건만 골라 some. 채워진 게 없으면 통과(전체 표시).
+ */
+export function passesTabFilters(
+  filters: FilterCondition[] | undefined | null,
+  filterMatch: TabFilterMatch | undefined,
+  test: (cond: FilterCondition) => boolean,
+): boolean {
+  const list = filters || [];
+  if (list.length === 0) return true;
+  if (filterMatch !== "any") return list.every(test);
+  const active = list.filter(isTabConditionActive);
+  if (active.length === 0) return true;
+  return active.some(test);
+}
+
+/** 한 행이 한 탭(조건 여러 개)에 맞는지. 조건 없으면 true = 전체. 묶는 방식은 tab.filterMatch. */
 export function matchesTab(row: RowData, tab: ViewTab): boolean {
-  return tab.filters.every((f) => matchesFilter(row, f));
+  return passesTabFilters(tab.filters, tab.filterMatch, (f) => matchesFilter(row, f));
 }
 
 /** 탭으로 행 거르기. tab 이 null 이면 전체 반환. */
@@ -196,10 +239,6 @@ export function resolveDateWindow(
 }
 
 // ── 다조건 필터(노션식 필터 바) ─────────────────────────────────
-const NO_VALUE_OPERATORS = new Set<FilterOperator>([
-  "is_empty", "is_not_empty",
-  "date_today", "date_yesterday", "date_this_week", "date_this_month", "date_last_month",
-]);
 
 /** 조건이 필터로 적용 가능한 상태인지(값이 필요한 연산자는 값이 채워졌는지). */
 export function isConditionComplete(cond: FilterCondition): boolean {
