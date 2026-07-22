@@ -54,6 +54,9 @@ type Props = {
   // false 면 표 머리글 끌어서 순서 바꾸기를 잠근다(끌기 자체 비활성 + grab 커서 제거).
   // 미지정(기본 true)이면 기존과 100% 동일. NO.95 저장 방식에서 "순서는 컬럼 설정 창에서만" 적용용.
   canReorderColumns?: boolean;
+  // false 면 머리글 메뉴에서 "이름 수정"·"컬럼 숨기기"를 감춘다(정렬은 그대로 — 본인 화면 정렬은 누구나).
+  // 미지정(기본 true)이면 기존과 100% 동일. NO.128 "칸 구성은 관리자만" 용.
+  canEditColumns?: boolean;
 
   // 컬럼 리사이즈 (포인터 이벤트 — 마우스·터치·펜 통합, NO.76)
   onResizeStart: (e: React.PointerEvent, colKey: string) => void;
@@ -99,6 +102,7 @@ export function DesktopTable({
   resizingRef,
   reorderColumn,
   canReorderColumns = true,
+  canEditColumns = true,
   onResizeStart,
   onResizeDoubleClick,
   getColLabel,
@@ -265,6 +269,7 @@ export function DesktopTable({
                         ref={colMenuRef}
                         className="absolute top-full left-0 mt-1 bg-white border border-wedly-bd rounded-lg shadow-lg z-50 py-1 min-w-[140px]"
                       >
+                        {canEditColumns && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -279,6 +284,7 @@ export function DesktopTable({
                           </svg>
                           이름 수정
                         </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -292,6 +298,7 @@ export function DesktopTable({
                           </svg>
                           정렬
                         </button>
+                        {canEditColumns && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -305,6 +312,7 @@ export function DesktopTable({
                           </svg>
                           컬럼 숨기기
                         </button>
+                        )}
                       </div>
                     )}
                     <div
