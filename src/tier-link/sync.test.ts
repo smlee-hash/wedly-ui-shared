@@ -17,6 +17,33 @@ describe("computeLinkedValue", () => {
   });
 });
 
+describe("computeLinkedValue — latest 빈 차수 폴백 (RC-3, NO.120)", () => {
+  // 마지막 차수의 값이 비어 있어도 값 있는 최신 차수를 골라야 한다.
+  // (계약일을 1차에 넣고 2차를 빈칸으로 추가하면 표 계약일 칸이 빈칸으로 나던 버그)
+  const numLink: ColumnTierLink = { columnKey: "c", section: OWN, area: "settlement", tierFieldKey: "성공보수", mode: "latest" };
+  const dateLink: ColumnTierLink = { columnKey: "표계약일", section: OWN, area: "contract", tierFieldKey: "계약일", mode: "latest" };
+
+  it("마지막 차수가 빈값이면 값 있는 최신 차수 값(숫자)", () => {
+    expect(computeLinkedValue([{ 성공보수: 7 }, { 성공보수: "" }], numLink)).toBe(7);
+    expect(computeLinkedValue([{ 성공보수: 7 }, {}], numLink)).toBe(7);
+    expect(computeLinkedValue([{ 성공보수: 3 }, { 성공보수: "" }, { 성공보수: null }], numLink)).toBe(3);
+  });
+  it("계약일(문자 날짜): 마지막 빈 차수면 값 있는 최신 차수 날짜", () => {
+    expect(computeLinkedValue([{ 계약일: "2026-01-05" }, { 계약일: "" }], dateLink)).toBe("2026-01-05");
+    expect(computeLinkedValue([{ 계약일: "2026-01-05" }, {}], dateLink)).toBe("2026-01-05");
+    expect(computeLinkedValue([{ 계약일: "2026-03-01" }], dateLink)).toBe("2026-03-01");
+  });
+  it("마지막 차수에 값이 있으면 그대로 (기존 동작 유지)", () => {
+    expect(computeLinkedValue([{ 성공보수: 1 }, { 성공보수: 9 }], numLink)).toBe(9);
+    expect(computeLinkedValue([{ 계약일: "2026-01-05" }, { 계약일: "2026-02-10" }], dateLink)).toBe("2026-02-10");
+  });
+  it("모든 차수가 빈값이면 여전히 null", () => {
+    expect(computeLinkedValue([{ 성공보수: "" }, {}], numLink)).toBeNull();
+    expect(computeLinkedValue([{ 계약일: "" }, { 계약일: null }], dateLink)).toBeNull();
+    expect(computeLinkedValue([], dateLink)).toBeNull();
+  });
+});
+
 describe("recomputeFlatForContainer (섹션 인식)", () => {
   const links: ColumnTierLink[] = [
     { columnKey: "경정합계", section: OWN, area: "settlement", tierFieldKey: "성공보수", mode: "sum" },
