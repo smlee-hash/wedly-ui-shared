@@ -12,6 +12,7 @@ import { timeAgo as defaultTimeAgo } from "../lib/utils";
 import {
   parseCommentBody,
   appendImageLines,
+  historyThumbnailUrl,
   canEditOrDelete as coreCanEditOrDelete,
   type UnifiedComment,
 } from "../unified/history-core";
@@ -831,7 +832,7 @@ export function HistoryPanel({
                       part.type === "image" ? (
                         <a key={pi} href={part.url} target="_blank" rel="noopener noreferrer" className="block my-1">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={part.url} alt="첨부 이미지" className="max-w-full max-h-60 rounded-lg border border-wedly-bd hover:opacity-90 transition-opacity cursor-pointer" />
+                          <img src={historyThumbnailUrl(part.url)} alt="첨부 이미지" className="max-w-full max-h-60 rounded-lg border border-wedly-bd hover:opacity-90 transition-opacity cursor-pointer" />
                         </a>
                       ) : (
                         <span key={pi}>{part.value}{pi < bodyParts.length - 1 ? "\n" : ""}</span>

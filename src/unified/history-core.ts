@@ -69,6 +69,19 @@ export function appendImageLines(text: string, urls: string[]): string {
   return [text.trim(), ...imageLines].filter(Boolean).join("\n");
 }
 
+/**
+ * 히스토리 인라인 이미지용 썸네일 URL — 우리 파일 서빙 URL(`/api/upload/{id}`)에만 `?w=` 를 붙여
+ * 서버가 즉석 축소한 webp 를 받게 한다. 그 외 URL(외부 이미지 등)·이미 w= 있는 URL·빈값은 그대로.
+ * 원본 링크(<a href>)는 이 값을 쓰지 않고 원본 URL 을 유지한다(클릭 시 원본 새 탭).
+ */
+export function historyThumbnailUrl(url: string, width = 480): string {
+  if (!url) return url;
+  const path = url.split("?")[0];
+  if (!/\/api\/upload\/[^/?#]+$/.test(path)) return url; // 우리 서빙 URL 아님 → 그대로
+  if (/[?&]w=/.test(url)) return url;                     // 이미 부착됨 → 중복 방지
+  return `${url}${url.includes("?") ? "&" : "?"}w=${width}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 편집·삭제 권한 — 다른 앱에서 쓴 글은 관리자만, 내 앱 글은 본인 또는 관리자.
 // ─────────────────────────────────────────────────────────────────────────────
