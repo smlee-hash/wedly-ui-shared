@@ -24,10 +24,12 @@ import {
   resolveInitialColumnOrder,
   defaultFormatCellValue,
   composeRowClassName,
+  arrangeGroupedRows,
   type RowData,
   type CellValue,
   type SortConfig,
   type SortRule,
+  type GroupedArrangement,
 } from "./collab-table-core";
 import { startColumnResize } from "./column-resize";
 import { filterRowsByTab, type ViewTab } from "./collab-filters";
@@ -253,7 +255,13 @@ export type CollabTableProps = {
   // 서버 모드(hiddenColumns 제공)에서 저장 방식을 쓰려면 반드시 제공(앱이 자기 저장 모델로 원자 커밋).
   // 로컬 모드(hiddenColumns 미제공)면 미제공 시 CollabTable 이 localStorage 로 배치 저장한다.
   onCommitColumns?: (next: { visibleKeys: string[]; order: string[] }) => void;
+  /** 주면 "묶음 모드": 이 키(예 "_id")로 줄을 회사로 묶어 건수·페이지·정렬을 회사 단위로 한다. 미지정=현행 동일. */
+  rowGroupKey?: string;
+  /** 묶음 모드에서 회사의 2번째 이후 줄에 화면상 비울 칸 키들(상호명·대표 등). 미지정이면 안 비움. */
+  groupSharedKeys?: string[];
 };
+
+const EMPTY_CONTINUATION: Set<string> = new Set();
 
 function loadJson<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -616,6 +624,8 @@ export function CollabTable({
   onToggleColumnVisibility,
   requireSave = false,
   onCommitColumns,
+  rowGroupKey,
+  groupSharedKeys,
 }: CollabTableProps) {
   // 서버 사용자 설정 모드 — hiddenColumns 가 주어지면(=undefined 아님) 켜진다.
   // 보일 컬럼 = columns(관리자 ON) − hiddenColumns. 새 컬럼 기본표시·한번 숨기면 계속 숨김(sticky).
@@ -791,6 +801,18 @@ export function CollabTable({
   const totalPages = useMemo(() => totalPageCount(sortedRows.length, pageSize), [sortedRows.length, pageSize]);
   const pagedData = useMemo(() => paginate(sortedRows, currentPage, pageSize), [sortedRows, currentPage, pageSize]);
 
+  // 묶음 모드: rowGroupKey 가 오면 회사 단위로 정렬·페이지·건수·연속줄키를 계산(순수 함수). 미전달=현행 동일.
+  const grouped = useMemo<GroupedArrangement | null>(
+    () => (rowGroupKey
+      ? arrangeGroupedRows(searchedRows, { groupKey: rowGroupKey, sortConfig, currentPage, pageSize })
+      : null),
+    [rowGroupKey, searchedRows, sortConfig, currentPage, pageSize],
+  );
+  const effTotalPages = grouped ? grouped.totalPages : totalPages;
+  const effPagedData = grouped ? grouped.pagedRows : pagedData;
+  const effTotalRows = grouped ? grouped.totalUnits : sortedRows.length;
+  const continuationKeys = grouped ? grouped.continuationKeys : EMPTY_CONTINUATION;
+
   // 관리자 도구모음 활성 여부 — isAdmin 이고 adminToolbar 가 주어질 때만.
   const adminEnabled = isAdmin && !!adminToolbar;
   // 전 직원용 축약 메뉴 — 관리자가 아닐 때만 쓴다(관리자는 전체 메뉴에 이미 같은 항목이 들어 있음).
@@ -919,9 +941,9 @@ export function CollabTable({
   const toggleAllChecks = useCallback(() => {
     // 차수별로 펼친 줄은 같은 회사(_id)를 공유하므로 "전체 선택된 상태"의 기준을 줄 수가 아니라
     // 서로 다른 회사 수로 잰다(안 그러면 전체선택 해제가 안 눌린다).
-    const idsOnPage = new Set(pagedData.map((r) => String(r[rowIdKey] ?? "")));
+    const idsOnPage = new Set(effPagedData.map((r) => String(r[rowIdKey] ?? "")));
     setCheckedIds((prev) => (prev.size === idsOnPage.size ? new Set() : idsOnPage));
-  }, [pagedData, rowIdKey]);
+  }, [effPagedData, rowIdKey]);
   const toggleCheck = useCallback((id: string) => {
     setCheckedIds((prev) => {
       const n = new Set(prev);
@@ -1075,7 +1097,12 @@ export function CollabTable({
         </td>
         {activeColumns.map((col) => {
           const isSticky = col.sticky;
-          const v = (row[col.key] ?? null) as CellValue;
+          // 묶음 모드: 회사의 2번째 이후 줄(연속줄)에서 식별칸(상호명·대표 등)은 화면상 비운다.
+          const blankShared =
+            groupSharedKeys != null &&
+            continuationKeys.has(renderKey) &&
+            groupSharedKeys.includes(col.key);
+          const v = (blankShared ? null : (row[col.key] ?? null)) as CellValue;
           const editable = isCellEditable(col);
           const isEditingThis = editingCell?.id === renderKey && editingCell?.key === col.key;
           return (
@@ -1202,7 +1229,7 @@ export function CollabTable({
         })}
       </tr>
     );
-  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, onRowHover, renderFieldValue, getRowColorClass, editingCell, isCellEditable, onCellEdit, editConfig]);
+  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, onRowHover, renderFieldValue, getRowColorClass, editingCell, isCellEditable, onCellEdit, editConfig, continuationKeys, groupSharedKeys]);
 
   return (
     <div className={maximized ? "fixed inset-0 z-[70] bg-white overflow-y-auto p-3 sm:p-4" : undefined}>
@@ -1245,8 +1272,8 @@ export function CollabTable({
         setPageSizeAndStore={setPageSize}
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
-        totalPages={totalPages}
-        totalRows={sortedRows.length}
+        totalPages={effTotalPages}
+        totalRows={effTotalRows}
         showPageBox={true}
         trailingControls={
           <>
@@ -1292,7 +1319,7 @@ export function CollabTable({
       <div className="mt-2">
       <MobileCardList
         mobileViewMode={mobileViewMode}
-        pagedData={pagedData}
+        pagedData={effPagedData}
         sortedDataLength={sortedRows.length}
         mobileCardFields={mobile?.cardFields ?? []}
         allColumns={columns}
@@ -1311,7 +1338,7 @@ export function CollabTable({
 
       <DesktopTable
         mobileViewMode={mobileViewMode}
-        pagedData={pagedData}
+        pagedData={effPagedData}
         sortedDataLength={sortedRows.length}
         activeColumns={activeColumns}
         colWidths={colWidths}
