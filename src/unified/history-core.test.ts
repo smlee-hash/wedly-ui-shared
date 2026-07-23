@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseCommentBody,
   appendImageLines,
+  historyThumbnailUrl,
   canEditOrDelete,
   sortCommentsAsc,
   buildEffectiveTabs,
@@ -154,5 +155,29 @@ describe("knownCategoryIds / computeCategoryCounts / filterByCategory", () => {
   });
   it("filterByCategory: 특정 분류 → 일치만", () => {
     expect(filterByCategory(comments, "policy", known).map((x) => x.id)).toEqual(["1", "2"]);
+  });
+});
+
+describe("historyThumbnailUrl — 우리 서빙 URL 에만 ?w 부착", () => {
+  it("/api/upload/{id} 절대주소에 ?w=480 부착", () => {
+    expect(historyThumbnailUrl("https://erp.wedly.kr/api/upload/abc123")).toBe(
+      "https://erp.wedly.kr/api/upload/abc123?w=480",
+    );
+  });
+  it("너비 인자 지정 가능", () => {
+    expect(historyThumbnailUrl("https://h.wedly.kr/api/upload/x", 960)).toBe(
+      "https://h.wedly.kr/api/upload/x?w=960",
+    );
+  });
+  it("이미 w= 가 있으면 중복 부착 안 함", () => {
+    const u = "https://erp.wedly.kr/api/upload/abc?w=480";
+    expect(historyThumbnailUrl(u)).toBe(u);
+  });
+  it("우리 서빙 URL 이 아니면(외부 이미지 등) 원본 그대로", () => {
+    const ext = "https://example.com/photo.png";
+    expect(historyThumbnailUrl(ext)).toBe(ext);
+  });
+  it("빈 문자열은 그대로", () => {
+    expect(historyThumbnailUrl("")).toBe("");
   });
 });
