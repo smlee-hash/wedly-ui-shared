@@ -259,6 +259,8 @@ export type CollabTableProps = {
   rowGroupKey?: string;
   /** 묶음 모드에서 회사의 2번째 이후 줄에 화면상 비울 칸 키들(상호명·대표 등). 미지정이면 안 비움. */
   groupSharedKeys?: string[];
+  /** 주면 제목(title) 칸의 이름 뒤에 row[titleSuffixKey] 값이 있으면 " | 값"을 흐리게 덧붙인다(예 "_tierLabel" → "한수정밀 | 1차"). 미지정=현행 동일. */
+  titleSuffixKey?: string;
 };
 
 const EMPTY_CONTINUATION: Set<string> = new Set();
@@ -626,6 +628,7 @@ export function CollabTable({
   onCommitColumns,
   rowGroupKey,
   groupSharedKeys,
+  titleSuffixKey,
 }: CollabTableProps) {
   // 서버 사용자 설정 모드 — hiddenColumns 가 주어지면(=undefined 아님) 켜진다.
   // 보일 컬럼 = columns(관리자 ON) − hiddenColumns. 새 컬럼 기본표시·한번 숨기면 계속 숨김(sticky).
@@ -1143,6 +1146,12 @@ export function CollabTable({
                     title={editable ? "글자=상세 열기 · 빈곳=이름 수정" : undefined}
                   >
                     {v != null && v !== "" ? String(v) : "-"}
+                    {titleSuffixKey && (row as Record<string, unknown>)[titleSuffixKey] != null
+                      && String((row as Record<string, unknown>)[titleSuffixKey]).trim() !== "" ? (
+                      <span className="text-wedly-muted font-normal no-underline">
+                        {" | "}{String((row as Record<string, unknown>)[titleSuffixKey])}
+                      </span>
+                    ) : null}
                     <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className="opacity-40">
                       <path d="M4.5 2.5h5v5M9.5 2.5L3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -1234,7 +1243,7 @@ export function CollabTable({
         })}
       </tr>
     );
-  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, onRowHover, renderFieldValue, getRowColorClass, editingCell, isCellEditable, onCellEdit, editConfig, continuationKeys, groupSharedKeys]);
+  }, [activeColumns, checkedIds, toggleCheck, stickyOffsets, rowIdKey, onOpenRow, onRowHover, renderFieldValue, getRowColorClass, editingCell, isCellEditable, onCellEdit, editConfig, continuationKeys, groupSharedKeys, titleSuffixKey]);
 
   return (
     <div className={maximized ? "fixed inset-0 z-[70] bg-white overflow-y-auto p-3 sm:p-4" : undefined}>
