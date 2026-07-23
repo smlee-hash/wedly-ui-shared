@@ -890,6 +890,11 @@ export function CollabTable({
     setCurrentPage(1);
   }, [debouncedSearch, pageSize, activeTabId]);
 
+  // 페이지 수가 줄어(묶음 모드 전환·필터 등) 현재 페이지가 범위를 벗어나면 마지막 페이지로 당긴다(빈 페이지 방지).
+  useEffect(() => {
+    if (currentPage > effTotalPages) setCurrentPage(effTotalPages);
+  }, [effTotalPages, currentPage]);
+
   // 행 목록이 바뀌면 사라진 행(예: 삭제됨)의 선택을 자동 해제 — 유령 선택·유령 개수 방지.
   useEffect(() => {
     setCheckedIds((prev) => {
