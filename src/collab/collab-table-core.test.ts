@@ -13,6 +13,7 @@ import {
   resolveInitialColumnOrder,
   defaultFormatCellValue,
   composeRowClassName,
+  arrangeGroupedRows,
   type RowData,
   type SortRule,
 } from "./collab-table-core";
@@ -309,5 +310,39 @@ describe("composeRowClassName (줄 색칠 우선순위)", () => {
     // ERP는 getRowColorClass를 안 넘기므로 conditionalClass는 항상 빈값 → 기존 cn() 결과와 같아야 한다.
     expect(composeRowClassName(base, false, checked, undefined)).toBe("border-t hover");
     expect(composeRowClassName(base, true, checked, undefined)).toBe("border-t hover bg-blue");
+  });
+});
+
+describe("arrangeGroupedRows — 회사 묶음 정렬·페이지(1단계)", () => {
+  const rows: RowData[] = [
+    { _id: "A", _rowKey: "A::0", 상호명: "가", 계약일: "2024-01-01", 차수: "1차" },
+    { _id: "A", _rowKey: "A::1", 상호명: "가", 계약일: "2026-01-01", 차수: "2차" },
+    { _id: "B", _rowKey: "B::0", 상호명: "나", 계약일: "2025-06-01", 차수: "1차" },
+  ];
+
+  it("건수는 회사 수(그룹 수)로 센다", () => {
+    const r = arrangeGroupedRows(rows, { groupKey: "_id", sortConfig: null, currentPage: 1, pageSize: 100 });
+    expect(r.totalUnits).toBe(2);
+    expect(r.pagedRows).toHaveLength(3);
+  });
+
+  it("연속 줄(2번째 이후) 키를 모은다", () => {
+    const r = arrangeGroupedRows(rows, { groupKey: "_id", sortConfig: null, currentPage: 1, pageSize: 100 });
+    expect(r.continuationKeys.has("A::1")).toBe(true);
+    expect(r.continuationKeys.has("A::0")).toBe(false);
+    expect(r.continuationKeys.has("B::0")).toBe(false);
+  });
+
+  it("정렬은 회사 단위(대표=첫 줄)로 하고 차수 줄은 붙여 둔다", () => {
+    const r = arrangeGroupedRows(rows, {
+      groupKey: "_id", sortConfig: [{ key: "계약일", direction: "asc" }], currentPage: 1, pageSize: 100,
+    });
+    expect(r.pagedRows.map((x) => x._rowKey)).toEqual(["A::0", "A::1", "B::0"]);
+  });
+
+  it("페이지는 회사 단위로 나눈다(pageSize=회사 수)", () => {
+    const r = arrangeGroupedRows(rows, { groupKey: "_id", sortConfig: null, currentPage: 1, pageSize: 1 });
+    expect(r.totalPages).toBe(2);
+    expect(r.pagedRows.map((x) => x._id)).toEqual(["A", "A"]);
   });
 });

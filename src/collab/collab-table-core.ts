@@ -190,3 +190,47 @@ export function composeRowClassName(
     .filter(Boolean)
     .join(" ");
 }
+
+export interface GroupedArrangement {
+  pagedRows: RowData[];
+  totalUnits: number;
+  totalPages: number;
+  continuationKeys: Set<string>;
+}
+
+/** 펼친 줄을 groupKey(회사)로 묶어 회사 단위 정렬·페이지·건수·연속줄키를 낸다. 순수.
+ *  - 정렬은 각 회사의 대표(첫 줄)로 sortRows 를 돌려 회사를 재배열(차수 줄은 붙여 둔다).
+ *  - 페이지·건수는 회사(그룹) 단위. continuationKeys = 각 회사의 2번째 이후 줄 _rowKey. */
+export function arrangeGroupedRows(
+  rows: RowData[],
+  opts: { groupKey: string; sortConfig: SortConfig; currentPage: number; pageSize: number; rowKeyField?: string },
+): GroupedArrangement {
+  const { groupKey, sortConfig, currentPage, pageSize, rowKeyField = "_rowKey" } = opts;
+  const map = new Map<string, RowData[]>();
+  const order: string[] = [];
+  for (const r of rows) {
+    const k = String((r as Record<string, unknown>)[groupKey] ?? "");
+    let g = map.get(k);
+    if (!g) { g = []; map.set(k, g); order.push(k); }
+    g.push(r);
+  }
+  let groups = order.map((k) => map.get(k)!);
+  const rules = normalizeSort(sortConfig);
+  if (rules.length) {
+    const reps = groups.map((g, i) => ({ ...(g[0] as Record<string, unknown>), __gidx: i }) as RowData);
+    const sortedReps = sortRows(reps, rules);
+    groups = sortedReps.map((r) => groups[(r as Record<string, unknown>).__gidx as number]);
+  }
+  const totalUnits = groups.length;
+  const totalPages = totalPageCount(totalUnits, pageSize);
+  const pageGroups = paginate(groups, currentPage, pageSize);
+  const pagedRows: RowData[] = [];
+  const continuationKeys = new Set<string>();
+  for (const g of pageGroups) {
+    g.forEach((r, idx) => {
+      pagedRows.push(r);
+      if (idx > 0) continuationKeys.add(String((r as Record<string, unknown>)[rowKeyField] ?? ""));
+    });
+  }
+  return { pagedRows, totalUnits, totalPages, continuationKeys };
+}
