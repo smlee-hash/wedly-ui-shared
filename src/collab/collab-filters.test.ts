@@ -71,16 +71,67 @@ describe("matchesTab", () => {
       { field: "type", operator: "equals", value: "개인" },
     ] })).toBe(false);
   });
-  it("요청 예시 — 제외 조건 둘을 OR 로 묶으면 '둘 다 해당하는 줄'만 빠진다", () => {
-    // 환급금여부 X 를 빼고 / 진행상태 방문거절 을 빼고 → OR 로 묶으면 둘 다인 줄만 제외
+  it("제외 조건 둘 + 그리고 — 모든 제외 기준에 다 걸린 줄만 빠진다(NO.127 재작업)", () => {
+    // 환급금여부 X 제외 + 진행상태 방문거절 제외 → 그리고 = 둘 다 해당하는 줄만 제외(교집합)
+    const tab: ViewTab = { id: "t", label: "t", filters: [
+      { field: "환급금여부", operator: "not_in", value: ["X"] },
+      { field: "진행상태", operator: "not_in", value: ["방문거절"] },
+    ] };
+    for (const t of [tab, { ...tab, filterMatch: "all" as const }]) {
+      expect(matchesTab({ 환급금여부: "X", 진행상태: "방문거절" }, t)).toBe(false); // 둘 다 → 제외
+      expect(matchesTab({ 환급금여부: "X", 진행상태: "가망" }, t)).toBe(true);      // 하나만 → 남음
+      expect(matchesTab({ 환급금여부: "O", 진행상태: "방문거절" }, t)).toBe(true);  // 하나만 → 남음
+      expect(matchesTab({ 환급금여부: "O", 진행상태: "가망" }, t)).toBe(true);
+    }
+  });
+  it("제외 조건 둘 + 또는 — 하나라도 걸리면 빠진다(합집합, NO.127 재작업)", () => {
     const tab: ViewTab = { id: "t", label: "t", filterMatch: "any", filters: [
       { field: "환급금여부", operator: "not_in", value: ["X"] },
       { field: "진행상태", operator: "not_in", value: ["방문거절"] },
     ] };
-    expect(matchesTab({ 환급금여부: "X", 진행상태: "방문거절" }, tab)).toBe(false); // 둘 다 → 제외
-    expect(matchesTab({ 환급금여부: "X", 진행상태: "가망" }, tab)).toBe(true);      // 하나만 → 남음
-    expect(matchesTab({ 환급금여부: "O", 진행상태: "방문거절" }, tab)).toBe(true);  // 하나만 → 남음
+    expect(matchesTab({ 환급금여부: "X", 진행상태: "방문거절" }, tab)).toBe(false);
+    expect(matchesTab({ 환급금여부: "X", 진행상태: "가망" }, tab)).toBe(false);
+    expect(matchesTab({ 환급금여부: "O", 진행상태: "방문거절" }, tab)).toBe(false);
     expect(matchesTab({ 환급금여부: "O", 진행상태: "가망" }, tab)).toBe(true);
+  });
+  it("제외 조건이 하나뿐이면 그리고/또는 어느 쪽이든 예전과 동일", () => {
+    const filters = [{ field: "환급금여부", operator: "not_in" as const, value: ["X"] }];
+    const variants: ViewTab[] = [
+      { id: "t", label: "t", filters },
+      { id: "t", label: "t", filters, filterMatch: "all" },
+      { id: "t", label: "t", filters, filterMatch: "any" },
+    ];
+    for (const t of variants) {
+      expect(matchesTab({ 환급금여부: "X" }, t)).toBe(false);
+      expect(matchesTab({ 환급금여부: "O" }, t)).toBe(true);
+    }
+  });
+  it("값 비운 제외 조건은 채워진 제외를 중화하지 않는다(그리고)", () => {
+    const t: ViewTab = { id: "t", label: "t", filters: [
+      { field: "환급금여부", operator: "not_in", value: ["X"] },
+      { field: "진행상태", operator: "not_in", value: [] }, // 미완성 조건
+    ] };
+    expect(matchesTab({ 환급금여부: "X", 진행상태: "가망" }, t)).toBe(false); // 채워진 제외는 그대로 작동
+    expect(matchesTab({ 환급금여부: "O", 진행상태: "가망" }, t)).toBe(true);
+  });
+  it("포함 조건과 섞이면 — 포함은 포함대로, 제외 기준끼리만 그리고로 묶인다", () => {
+    const t: ViewTab = { id: "t", label: "t", filters: [
+      { field: "유형", operator: "equals", value: "법인" },
+      { field: "환급금여부", operator: "not_in", value: ["X"] },
+      { field: "진행상태", operator: "not_in", value: ["방문거절"] },
+    ] };
+    expect(matchesTab({ 유형: "법인", 환급금여부: "X", 진행상태: "방문거절" }, t)).toBe(false); // 제외 둘 다 걸림
+    expect(matchesTab({ 유형: "법인", 환급금여부: "X", 진행상태: "가망" }, t)).toBe(true);      // 제외 하나만 → 남음
+    expect(matchesTab({ 유형: "개인", 환급금여부: "O", 진행상태: "가망" }, t)).toBe(false);     // 포함 불충족
+  });
+  it("(미입력) 제외 기준도 그리고/또는 묶기에 똑같이 들어간다", () => {
+    const tab: ViewTab = { id: "t", label: "t", filters: [
+      { field: "환급금여부", operator: "not_in", value: [EMPTY_OPTION_VALUE] },
+      { field: "진행상태", operator: "not_in", value: ["방문거절"] },
+    ] };
+    expect(matchesTab({ 진행상태: "방문거절" }, tab)).toBe(false);          // 환급금 빈 값 + 방문거절 → 둘 다 걸림
+    expect(matchesTab({ 진행상태: "가망" }, tab)).toBe(true);               // 환급금 기준만 걸림 → 남음
+    expect(matchesTab({ 환급금여부: "O", 진행상태: "방문거절" }, tab)).toBe(true); // 방문거절 기준만 걸림 → 남음
   });
   it("조건 0개면 any 여도 전체 통과(전체 탭이 0건 되지 않게)", () => {
     expect(matchesTab(row, { id: "all", label: "전체", filters: [], filterMatch: "any" })).toBe(true);
