@@ -70,10 +70,15 @@ export function computeLinkedValue(tiers: Tier[], link: ColumnTierLink, ctx?: Co
   const last = tiers[tiers.length - 1];
   if (isDateFml) return evalDateFormulaForTier(field as FieldDef, last as unknown as TierData, fields, undefined, cond);
   if (isFormula) return evalFormulaForTier(field as FieldDef, last as unknown as TierData, fields, undefined, cond);
-  const v = last[link.tierFieldKey];
-  if (v === null || v === undefined || v === "") return null;
-  const n = toNum(v);
-  return n !== null ? n : (typeof v === "string" ? v : null);
+  // 플레인 값: 마지막 차수가 비어 있으면 값 있는 최신 차수로 폴백(RC-3, NO.120).
+  // (계약일을 1차에 넣고 2차를 빈칸으로 추가해도 표 칸이 값 있는 최신 차수를 보이게 — 빈값으로 덮지 않음)
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    const v = tiers[i][link.tierFieldKey];
+    if (v === null || v === undefined || v === "") continue;
+    const n = toNum(v);
+    return n !== null ? n : (typeof v === "string" ? v : null);
+  }
+  return null;
 }
 
 export function applyLatestEdit(tiers: Tier[], link: ColumnTierLink, value: unknown): Tier[] {
