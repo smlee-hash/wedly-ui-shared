@@ -219,8 +219,8 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
         </div>
         <p className="mb-2 text-[12px] text-wedly-muted">
           {filterMatch === "any"
-            ? "조건 중 하나라도 만족하는 항목을 보여줍니다."
-            : "모든 조건을 동시에 만족하는 항목만 보여줍니다."}
+            ? "조건 중 하나라도 만족하는 항목을 보여줍니다. 다중 선택(제외)는 하나라도 해당하면 뺍니다."
+            : "모든 조건을 동시에 만족하는 항목만 보여줍니다. 다중 선택(제외)는 모두 해당할 때만 뺍니다."}
         </p>
 
         <div className="space-y-2">
