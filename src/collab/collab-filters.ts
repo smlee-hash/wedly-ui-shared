@@ -147,10 +147,22 @@ export function isTabConditionActive(cond: TabConditionLike): boolean {
 }
 
 /**
+ * '다중 선택 (제외)' 조건인가 — 값이 채워진 것만(빈 제외 조건은 어느 묶음의 계산에도 안 들어간다).
+ * 그리고/또는을 '무엇을 뺄 것인가'(기준) 단위로 묶기 위한 판별(NO.127 재작업).
+ */
+export function isExcludeTabCondition(cond: TabConditionLike): boolean {
+  return !!cond.field && cond.operator === "not_in" && Array.isArray(cond.value) && cond.value.length > 0;
+}
+
+/**
  * 탭 조건 묶음 판정(공용 규칙) — 앱마다 자기 matchesFilter 를 쓰므로 판정기는 test 로 받는다.
  * · 조건 0개  → 통과(전체 표시). '또는'으로 바꿔도 「전체」 탭이 0건이 되지 않게 하는 가드.
- * · "all"(기본) → 예전 그대로 every. 이 경로는 손대지 않아 기존 동작이 완전히 보존된다.
- * · "any"      → 값이 채워진 조건만 골라 some. 채워진 게 없으면 통과(전체 표시).
+ * · 제외형('다중 선택 (제외)') 조건은 '뺄 기준' 단위로 묶는다(NO.127 재작업) — test 는
+ *   '행이 살아남는가'라서 그대로 every/some 하면 그리고/또는이 사용자 기대와 정확히 뒤집힌다(드모르간).
+ *   그리고 = 모든 제외 기준에 다 걸린 행만 뺌(교집합) / 또는 = 하나라도 걸리면 뺌(합집합).
+ *   제외 조건이 1개뿐인 탭은 어느 쪽이든 예전과 동일(회귀 없음).
+ * · 포함형(나머지)은 예전 그대로 — "all"(기본)=every(전 조건), "any"=값이 채워진 조건만 some.
+ * · 두 묶음은 항상 '그리고'로 잇는다(포함 충족 + 제외 안 걸림).
  */
 export function passesTabFilters<C extends TabConditionLike>(
   filters: C[] | undefined | null,
@@ -159,8 +171,16 @@ export function passesTabFilters<C extends TabConditionLike>(
 ): boolean {
   const list = filters || [];
   if (list.length === 0) return true;
-  if (filterMatch !== "any") return list.every(test);
-  const active = list.filter(isTabConditionActive);
+  const any = filterMatch === "any";
+  const excludes: C[] = [];
+  const others: C[] = [];
+  for (const c of list) (isExcludeTabCondition(c) ? excludes : others).push(c);
+  if (excludes.length > 0) {
+    const hit = (c: C) => !test(c); // 제외 기준에 걸렸는가(= 살아남지 못함)
+    if (any ? excludes.some(hit) : excludes.every(hit)) return false;
+  }
+  if (!any) return others.every(test);
+  const active = others.filter(isTabConditionActive);
   if (active.length === 0) return true;
   return active.some(test);
 }
