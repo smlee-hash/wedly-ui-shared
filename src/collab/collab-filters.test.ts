@@ -124,6 +124,25 @@ describe("matchesTab", () => {
     expect(matchesTab({ 유형: "법인", 환급금여부: "X", 진행상태: "가망" }, t)).toBe(true);      // 제외 하나만 → 남음
     expect(matchesTab({ 유형: "개인", 환급금여부: "O", 진행상태: "가망" }, t)).toBe(false);     // 포함 불충족
   });
+  it("또는 + 포함·제외 혼합 — 제외는 '하나라도 걸리면 뺌'이 항상 우선한다(거부권)", () => {
+    // 리뷰 I1: 또는 모드에서도 두 묶음은 그리고로 이어진다 — 포함 중 하나 충족 + 제외에 안 걸림.
+    const t: ViewTab = { id: "t", label: "t", filterMatch: "any", filters: [
+      { field: "유형", operator: "equals", value: "법인" },
+      { field: "진행상태", operator: "not_in", value: ["방문거절"] },
+    ] };
+    expect(matchesTab({ 유형: "법인", 진행상태: "가망" }, t)).toBe(true);       // 포함 충족 + 제외 안 걸림
+    expect(matchesTab({ 유형: "법인", 진행상태: "방문거절" }, t)).toBe(false);  // 포함 충족해도 제외 걸리면 뺌
+    expect(matchesTab({ 유형: "개인", 진행상태: "가망" }, t)).toBe(false);      // 포함 불충족
+  });
+  it("문자열 값이 든 not_in(비정상 저장)은 예전처럼 아무 영향이 없다", () => {
+    // 리뷰 S1: 배열이 아닌 값의 not_in 은 제외 묶음에 안 들어가고 판정도 전부 통과(구동작 보존).
+    const t: ViewTab = { id: "t", label: "t", filters: [
+      { field: "환급금여부", operator: "not_in", value: ["X"] },
+      { field: "진행상태", operator: "not_in", value: "방문거절" },
+    ] };
+    expect(matchesTab({ 환급금여부: "X", 진행상태: "가망" }, t)).toBe(false); // 배열 제외만 작동
+    expect(matchesTab({ 환급금여부: "O", 진행상태: "방문거절" }, t)).toBe(true); // 문자열 not_in 무력(구동작)
+  });
   it("(미입력) 제외 기준도 그리고/또는 묶기에 똑같이 들어간다", () => {
     const tab: ViewTab = { id: "t", label: "t", filters: [
       { field: "환급금여부", operator: "not_in", value: [EMPTY_OPTION_VALUE] },
