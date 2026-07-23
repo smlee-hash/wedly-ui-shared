@@ -1786,6 +1786,7 @@ function GroupDomainPanel({
   historyApi,
   ownTieredFieldsPath,
   sectionSettlementBase,
+  allRows,
   adapter,
 }: {
   group: DomainGroup;
@@ -1804,6 +1805,9 @@ function GroupDomainPanel({
   historyApi: HistoryPanelApi;
   ownTieredFieldsPath: (kind: "contract" | "refund") => string;
   sectionSettlementBase: string;
+  // NO.125 반려 재작업: 회사 전체 도메인 행(그룹 필터 전) — 커스텀 섹션 패널의 수식 평가 문맥용.
+  // 카드 조건 기준 칸(DB분류·영업담당·주소지)은 경정청구 행에만 있어, 그룹 행만 주면 조건이 영영 미발동.
+  allRows?: DomainRowLite[];
   adapter: UnifiedDetailAdapter;
 }) {
   // 어댑터가 이 분야 그룹용 커스텀 패널을 제공하면 자기영역 여부와 무관하게 그것을 최우선 렌더.
@@ -1813,7 +1817,9 @@ function GroupDomainPanel({
     return (
       <CustomSectionPanel
         key={group.key}
-        rows={rows}
+        // 회사 전체 도메인 행을 넘긴다(NO.125 반려 재작업) — 패널은 스스로 자기 도메인을 거른다
+        // (filterPolicyRows 등). 경정청구 행이 있어야 카드 수수료 조건이 전체 탭과 같이 평가된다.
+        rows={allRows && allRows.length > 0 ? allRows : rows}
         primaryRow={primaryRow as Record<string, unknown>}
         isAdmin={isAdmin}
         onSaved={onSaved}
@@ -2709,6 +2715,7 @@ export default function UnifiedDetailView({
                   <GroupDomainPanel
                     group={currentGroup}
                     rows={currentRows}
+                    allRows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : []}
                     primaryRow={row}
                     subTab={subTab}
                     onSubTabChange={setSubTab}
