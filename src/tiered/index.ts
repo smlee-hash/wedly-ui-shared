@@ -412,30 +412,35 @@ function evalTermChain(
   terms: FormulaTerm[],
   operand: (t: FormulaTerm) => { v: number; has: boolean },
 ): { v: number; has: boolean } {
+  // 곱셈·나눗셈에 빈칸이 끼면 그 구간은 '계산 불가'. NO.132: 옛 경정청구 업체는 수수료율 칸
+  // 자체가 없어(옛 노션 DB에 없던 항목) 환급액 × 빈칸 = 0 이 되어 "수수료 0원"이라는 틀린
+  // 사실이 보였다. 빈칸은 '아직 안 정해짐'이지 '0'이 아니므로 null(화면 '-')이 맞다.
+  //
+  // ★계산 불가는 '사슬 전체'가 아니라 '그 구간'까지만이다(코드리뷰 F1·F2).
+  //   `금액×빈비율 + 7` 처럼 뒤에 실제 값이 오면 더하기 앞의 죽은 구간만 버리고 7 을 살린다 —
+  //   "합계는 있는 것만 더한다"는 기존 원칙과 맞추기 위함. 그래야 묶음으로 쓴 `(금액×빈칸)+7`
+  //   과 평면으로 쓴 `금액×빈칸+7` 이 같은 값을 낸다(종전엔 7 vs '-' 로 갈렸다).
   let cur = 0;
-  let anyInput = false;
-  // 여기까지 쌓인 값이 '실제 입력'에 근거하는가 — 곱셈·나눗셈 상대가 될 자격.
-  let curHas = false;
-  // 곱셈·나눗셈에 빈칸이 끼면 '계산 불가'. NO.132: 옛 경정청구 업체는 수수료율 칸 자체가 없어
-  // (옛 노션 DB에 없던 항목) 환급액 × 빈칸 = 0 이 되어 "수수료 0원"이라는 틀린 사실이 보였다.
-  // 빈칸은 '아직 안 정해짐'이지 '0'이 아니므로 null(화면 '-')이 맞다. 더하기·빼기의 빈칸은
-  // 종전대로 0 취급(합계는 있는 것만 더한다). 0 을 실제로 입력한 경우는 has=true 라 진짜 0원.
-  let blocked = false;
+  let curHas = false;  // 지금 살아있는 누적값이 '실제 입력'에 근거하는가
+  let dead = false;    // 지금 구간이 계산 불가인가 (다음 더하기·빼기에서 버려진다)
   for (let i = 0; i < terms.length; i++) {
     const { v, has } = operand(terms[i]);
-    if (has) anyInput = true;
     if (i === 0) { cur = v; curHas = has; continue; }
     const op = terms[i].op;
-    if (op === "+") { cur += v; curHas = curHas || has; }
-    else if (op === "-") { cur -= v; curHas = curHas || has; }
-    else if (op === "*") { if (!has || !curHas) blocked = true; cur *= v; curHas = true; }
-    else if (op === "/") {
-      if (!has || !curHas) blocked = true;
+    if (op === "+" || op === "-") {
+      const signed = op === "+" ? v : -v;
+      if (dead) { cur = signed; curHas = has; dead = false; } // 죽은 구간 버리고 새로 시작
+      else { cur += signed; curHas = curHas || has; }
+    } else if (op === "*") {
+      if (!has || !curHas) dead = true;
+      cur *= v; curHas = true;
+    } else if (op === "/") {
+      if (!has || !curHas) dead = true;
       cur = v === 0 ? cur : cur / v; // 0 으로 나누기 안전 처리
       curHas = true;
     }
   }
-  return { v: cur, has: anyInput && !blocked };
+  return { v: cur, has: curHas && !dead };
 }
 
 // 한 차수(tier)에서 수식 컬럼(field)의 값을 계산한다.
