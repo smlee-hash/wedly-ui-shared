@@ -51,3 +51,46 @@ describe("빈칸 곱셈 = 계산 불가(NO.132)", () => {
     expect(evalFormulaForTier(F("곱"), {}, fields)).toBeNull();
   });
 });
+
+// 코드리뷰 F1·F2 — 계산 불가는 '사슬 전체'가 아니라 '그 구간'까지만.
+describe("죽은 구간만 버린다(F1·F2)", () => {
+  const f2: FieldDef[] = [
+    { key: "금액", label: "금액", type: "number" },
+    { key: "비율", label: "비율", type: "percent" },
+    { key: "부가", label: "부가", type: "number" },
+    // 평면: 금액 × 비율 + 부가
+    { key: "평면", label: "평면", type: "formula", formula: [
+      { op: "+", unit: "column", value: 0, columnKey: "금액" },
+      { op: "*", unit: "column", value: 0, columnKey: "비율" },
+      { op: "+", unit: "column", value: 0, columnKey: "부가" },
+    ] },
+    // 묶음: (금액 × 비율) + 부가 — 평면과 같은 값이어야 한다
+    { key: "묶음", label: "묶음", type: "formula", formula: [
+      { op: "+", unit: "group", terms: [
+        { op: "+", unit: "column", value: 0, columnKey: "금액" },
+        { op: "*", unit: "column", value: 0, columnKey: "비율" },
+      ] },
+      { op: "+", unit: "column", value: 0, columnKey: "부가" },
+    ] },
+  ];
+  const G = (k: string) => f2.find((f) => f.key === k)!;
+
+  it("비율이 비어도 뒤에 붙은 실제 값은 살린다 — 합계에서 사라지면 안 된다", () => {
+    expect(evalFormulaForTier(G("평면"), { 금액: 100, 부가: 7 }, f2)).toBe(7);
+  });
+
+  it("평면식과 묶음식이 같은 값을 낸다 (종전엔 '-' 와 7 로 갈렸다)", () => {
+    const tier = { 금액: 100, 부가: 7 };
+    expect(evalFormulaForTier(G("묶음"), tier, f2)).toBe(evalFormulaForTier(G("평면"), tier, f2));
+  });
+
+  it("뒤에 붙은 값도 비면 여전히 null", () => {
+    expect(evalFormulaForTier(G("평면"), { 금액: 100 }, f2)).toBeNull();
+    expect(evalFormulaForTier(G("묶음"), { 금액: 100 }, f2)).toBeNull();
+  });
+
+  it("전부 있으면 종전대로 계산", () => {
+    expect(evalFormulaForTier(G("평면"), { 금액: 100, 비율: 20, 부가: 7 }, f2)).toBe(27);
+    expect(evalFormulaForTier(G("묶음"), { 금액: 100, 비율: 20, 부가: 7 }, f2)).toBe(27);
+  });
+});
