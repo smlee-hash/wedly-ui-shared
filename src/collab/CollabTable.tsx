@@ -1024,7 +1024,7 @@ export function CollabTable({
                 "py-2 px-4 text-[13px] whitespace-nowrap text-ellipsis overflow-hidden",
                 isSticky && "sticky z-10 bg-white",
                 col.type === "title" && "font-medium text-wedly-navy",
-                editable && col.type !== "checkbox" && !isEditingThis && "cursor-pointer hover:bg-wedly-bg-gray/40",
+                editable && col.type !== "checkbox" && !isEditingThis && "cursor-pointer hover:bg-wedly-bg-gray",
               )}
               style={{ minWidth: 40, ...(isSticky ? { left: (stickyOffsets[col.key] ?? 0) + 40 } : {}) }}
               onClick={editable && col.type !== "checkbox" && !isEditingThis
