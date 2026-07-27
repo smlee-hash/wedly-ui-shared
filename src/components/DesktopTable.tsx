@@ -200,7 +200,11 @@ export function DesktopTable({
                     }}
                     className={cn(
                       "py-2.5 px-4 text-left text-[11px] font-semibold text-wedly-muted uppercase tracking-wider whitespace-nowrap select-none relative group",
-                      isSticky && "sticky z-10 bg-wedly-bg-gray",
+                      isSticky && "sticky z-10",
+                      // 고정 칸 배경은 항상 불투명이어야 아래로 지나가는 칸이 비치지 않는다.
+                      // 끌어놓기 대상일 때는 아래 파란 배경이 대신 들어간다 —
+                      // 두 배경 클래스를 같이 붙이면 CSS 순서상 회색이 이겨 끌어놓기 표시가 사라진다.
+                      isSticky && !(dragOverColKey === col.key && dragColKey !== col.key) && "bg-wedly-bg-gray",
                       dragOverColKey === col.key && dragColKey !== col.key && "bg-wedly-bg-blue border-l-2 border-l-wedly-accent",
                     )}
                     style={{
