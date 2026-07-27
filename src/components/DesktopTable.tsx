@@ -146,9 +146,9 @@ export function DesktopTable({
             ))}
           </colgroup>
           <thead className="sticky top-0 z-20">
-            <tr className="bg-wedly-bg-gray/80">
+            <tr className="bg-wedly-bg-gray">
               {/* Checkbox header */}
-              <th className="py-2.5 px-3 w-10 text-center sticky left-0 z-30 bg-wedly-bg-gray/80">
+              <th className="py-2.5 px-3 w-10 text-center sticky left-0 z-30 bg-wedly-bg-gray">
                 <input
                   type="checkbox"
                   checked={
@@ -200,8 +200,8 @@ export function DesktopTable({
                     }}
                     className={cn(
                       "py-2.5 px-4 text-left text-[11px] font-semibold text-wedly-muted uppercase tracking-wider whitespace-nowrap select-none relative group",
-                      isSticky && "sticky z-10 bg-wedly-bg-gray/80",
-                      dragOverColKey === col.key && dragColKey !== col.key && "bg-wedly-accent/10 border-l-2 border-l-wedly-accent",
+                      isSticky && "sticky z-10 bg-wedly-bg-gray",
+                      dragOverColKey === col.key && dragColKey !== col.key && "bg-wedly-bg-blue border-l-2 border-l-wedly-accent",
                     )}
                     style={{
                       minWidth: 40,
