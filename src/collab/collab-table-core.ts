@@ -105,6 +105,24 @@ export function computeStickyOffsets(activeColumns: ColumnDef[], colWidths: Reco
   return m;
 }
 
+/**
+ * 공용(관리자) 칸 너비 묶음의 "내용 지문" (NO.139).
+ *
+ * 왜 필요한가: 화면은 관리자가 정한 공용 너비를 받아 칸 폭에 적용하는데,
+ * 이 적용을 화면이 다시 그려질 때마다 반복하면 사용자가 방금 끌어서 넓힌 칸이
+ * 곧바로 옛 너비로 되돌아간다(NO.139 신고 증상). 그래서 "받은 내용이 정말
+ * 달라졌을 때만" 적용하도록, 묶음을 비교 가능한 문자열 하나로 줄인다.
+ *
+ * 키 순서에 좌우되지 않고(정렬), 값이 하나라도 다르거나 칸이 늘고 줄면 달라진다.
+ * 빈 묶음·없음은 빈 문자열 — "아직 관리자 값이 없음"과 같은 뜻으로 쓴다.
+ */
+export function colWidthsSignature(widths?: Record<string, number> | null): string {
+  if (!widths) return "";
+  const keys = Object.keys(widths).sort();
+  if (keys.length === 0) return "";
+  return keys.map((k) => `${k}:${widths[k]}`).join("|");
+}
+
 export function paginate<T>(rows: T[], currentPage: number, pageSize: number): T[] {
   // "전체"(pageSize=Infinity)·비정상값이면 모든 행 반환.
   // 가드 없으면 (currentPage-1)*Infinity = 0*Infinity = NaN → slice(NaN,NaN) = [] (빈 표 버그).

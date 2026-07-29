@@ -25,6 +25,7 @@ import {
   defaultFormatCellValue,
   composeRowClassName,
   resolveInjectedCellEditor,
+  colWidthsSignature,
   type RowData,
   type CellValue,
   type SortConfig,
@@ -685,19 +686,31 @@ export function CollabTable({
   }, [serverColumnOrder, COL_ORDER_KEY]);
 
   // 관리자가 정한 공용 너비가 도착/변경되면 그 너비로 맞춘다 (NO.128).
-  // 값이 같으면 그대로 두어 불필요한 다시 그리기를 막는다. 빈 값이면(관리자 미설정) 건드리지 않는다.
+  //
+  // ★NO.139 — "받아온 너비 내용이 정말 달라졌을 때만" 맞춘다.
+  //   예전에는 의존성에 onColWidthsChange 가 들어 있었는데, 이 함수는 화면을 쓰는 쪽에서
+  //   매번 새로 만들어 넘기므로 "화면이 다시 그려질 때마다" 이 맞추기가 되풀이됐다.
+  //   그 결과 방금 손으로 넓힌 칸이 화면을 처음 열 때 받아둔 옛 너비로 곧 되돌아갔다
+  //   (신고 증상: "넓혀도 잠시 뒤 다시 좁아짐"). 이제는 내용 지문이 바뀐 순간에만 맞추므로
+  //   끌어놓은 폭이 그대로 유지된다. 관리자 저장·전 직원 적용·새로고침 시 복원은 그대로다.
+  const sharedColWidthMode = !!onColWidthsChange;
+  const serverColWidthsSig = colWidthsSignature(serverColWidths);
+  const appliedColWidthsSigRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!onColWidthsChange) return;
-    if (!serverColWidths || Object.keys(serverColWidths).length === 0) return;
+    if (!sharedColWidthMode) return;
+    if (!serverColWidthsSig) return; // 관리자 미설정(빈 값) — 건드리지 않는다
+    if (appliedColWidthsSigRef.current === serverColWidthsSig) return; // 내용 그대로 — 되돌리지 않는다
+    appliedColWidthsSigRef.current = serverColWidthsSig;
+    const incoming = serverColWidths ?? {};
     setColWidths((prev) => {
       let same = true;
-      for (const [k, v] of Object.entries(serverColWidths)) {
+      for (const [k, v] of Object.entries(incoming)) {
         if (prev[k] !== v) { same = false; break; }
       }
-      return same ? prev : { ...prev, ...serverColWidths };
+      return same ? prev : { ...prev, ...incoming };
     });
-    try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(serverColWidths)); } catch { /* ignore */ }
-  }, [serverColWidths, onColWidthsChange, COL_WIDTHS_KEY]);
+    try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(incoming)); } catch { /* ignore */ }
+  }, [serverColWidths, serverColWidthsSig, sharedColWidthMode, COL_WIDTHS_KEY]);
 
   // 새로 추가한 칸을 표에 바로 보이게 — 부모가 ensureVisibleKeys 로 알려준 키만 보임 처리(기존 숨김 설정은 건드리지 않음).
   useEffect(() => {
@@ -946,16 +959,21 @@ export function CollabTable({
     persistVisible(vis);
   }, [serverColMode, onCommitColumns, COL_ORDER_KEY, persistVisible]);
 
+  // 지금 화면의 칸 폭을 항상 최신으로 들고 있는 참조.
+  // 저장·알림 같은 바깥일을 "상태 바꾸는 함수 안"에서 하지 않기 위해 둔다 (NO.139).
+  // 안에서 하면 화면을 쓰는 쪽에 알릴 때 경고가 나고, 개발 모드에선 저장이 두 번 나갈 수 있다.
+  const colWidthsRef = useRef(colWidths);
+  useEffect(() => { colWidthsRef.current = colWidths; }, [colWidths]);
+
   const setColWidthsAndStore = useCallback((updater: (p: Record<string, number>) => Record<string, number>, changedKey?: string) => {
-    setColWidths((p) => {
-      const next = updater(p);
-      // 공용 너비 모드(NO.128): 관리자가 바꾼 값만 저장해 전 직원 기준이 된다.
-      // 일반 사용자는 화면에만 남는다 — 새로고침·재접속하면 관리자 너비로 돌아온다.
-      if (onColWidthsChange && !isAdmin) return next;
-      try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(next)); } catch {}
-      onColWidthsChange?.(changedKey ? { [changedKey]: next[changedKey] } : next);
-      return next;
-    });
+    const next = updater(colWidthsRef.current);
+    colWidthsRef.current = next;
+    setColWidths(next);
+    // 공용 너비 모드(NO.128): 관리자가 바꾼 값만 저장해 전 직원 기준이 된다.
+    // 일반 사용자는 화면에만 남는다 — 새로고침·재접속하면 관리자 너비로 돌아온다.
+    if (onColWidthsChange && !isAdmin) return;
+    try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(next)); } catch {}
+    onColWidthsChange?.(changedKey ? { [changedKey]: next[changedKey] } : next);
   }, [COL_WIDTHS_KEY, onColWidthsChange, isAdmin]);
   // 가이드선 방식(공용 부품) — 드래그 중 화면 재렌더 0, 손 뗄 때 너비 1회 확정.
   // resizingRef는 드래그 중 칸 순서 끌기를 막는 용도(참/거짓만 본다).
