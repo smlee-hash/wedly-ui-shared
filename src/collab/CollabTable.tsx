@@ -658,6 +658,11 @@ export function CollabTable({
     }
     return { ...defaults, ...loadJson<Record<string, number>>(COL_WIDTHS_KEY, {}) };
   });
+  // 지금 화면의 칸 폭을 항상 최신으로 들고 있는 참조 (NO.139).
+  // 폭을 바꾸는 곳이 두 군데(관리자 공용 너비 반영 · 손으로 끌어 확정)뿐이라,
+  // 그 두 곳에서 이 참조도 함께 갱신한다. 따로 맞추는 절차를 두면 순서가 어긋나
+  // 한쪽이 방금 반영한 폭을 다른 쪽이 되돌릴 수 있다.
+  const colWidthsRef = useRef(colWidths);
   const [colOrder, setColOrder] = useState<string[]>(() => {
     const saved = loadJson<string[]>(COL_ORDER_KEY, []);
     // 공용(탭별) 모드: 개인 localStorage 순서 무시 — 탭마다 serverColumnOrder(없으면 앱 기본)만 따른다(탭 간 누수 방지).
@@ -698,18 +703,23 @@ export function CollabTable({
   const appliedColWidthsSigRef = useRef<string | null>(null);
   useEffect(() => {
     if (!sharedColWidthMode) return;
-    if (!serverColWidthsSig) return; // 관리자 미설정(빈 값) — 건드리지 않는다
+    // 관리자 미설정(빈 값)이면 폭은 건드리지 않되, "빈 값을 봤다"는 것만 기록한다.
+    // 이렇게 해 두어야 나중에 같은 값이 다시 도착했을 때 정상적으로 반영된다.
+    if (!serverColWidthsSig) { appliedColWidthsSigRef.current = ""; return; }
     if (appliedColWidthsSigRef.current === serverColWidthsSig) return; // 내용 그대로 — 되돌리지 않는다
     appliedColWidthsSigRef.current = serverColWidthsSig;
     const incoming = serverColWidths ?? {};
-    setColWidths((prev) => {
-      let same = true;
-      for (const [k, v] of Object.entries(incoming)) {
-        if (prev[k] !== v) { same = false; break; }
-      }
-      return same ? prev : { ...prev, ...incoming };
-    });
-    try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(incoming)); } catch { /* ignore */ }
+    const prev = colWidthsRef.current;
+    let same = true;
+    for (const [k, v] of Object.entries(incoming)) {
+      if (prev[k] !== v) { same = false; break; }
+    }
+    if (!same) {
+      const merged = { ...prev, ...incoming };
+      colWidthsRef.current = merged;
+      setColWidths(merged);
+    }
+    try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify({ ...colWidthsRef.current, ...incoming })); } catch { /* ignore */ }
   }, [serverColWidths, serverColWidthsSig, sharedColWidthMode, COL_WIDTHS_KEY]);
 
   // 새로 추가한 칸을 표에 바로 보이게 — 부모가 ensureVisibleKeys 로 알려준 키만 보임 처리(기존 숨김 설정은 건드리지 않음).
@@ -959,12 +969,8 @@ export function CollabTable({
     persistVisible(vis);
   }, [serverColMode, onCommitColumns, COL_ORDER_KEY, persistVisible]);
 
-  // 지금 화면의 칸 폭을 항상 최신으로 들고 있는 참조.
-  // 저장·알림 같은 바깥일을 "상태 바꾸는 함수 안"에서 하지 않기 위해 둔다 (NO.139).
+  // 저장·알림 같은 바깥일은 "상태 바꾸는 함수 안"에서 하지 않는다 (NO.139).
   // 안에서 하면 화면을 쓰는 쪽에 알릴 때 경고가 나고, 개발 모드에선 저장이 두 번 나갈 수 있다.
-  const colWidthsRef = useRef(colWidths);
-  useEffect(() => { colWidthsRef.current = colWidths; }, [colWidths]);
-
   const setColWidthsAndStore = useCallback((updater: (p: Record<string, number>) => Record<string, number>, changedKey?: string) => {
     const next = updater(colWidthsRef.current);
     colWidthsRef.current = next;
