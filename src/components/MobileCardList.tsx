@@ -44,6 +44,9 @@ type Props = {
   // (선택) 셀 값 렌더러 — 앱이 표 셀과 동일한 형식·색으로 그려 넘기면 카드도 100% 같게 표시.
   // 없으면 기존 텍스트 방식으로 표시(렌더러를 안 넘기는 다른 앱 호환).
   renderFieldValue?: (col: ColumnDef, value: string | number | boolean | null, row: RowData) => ReactNode;
+  // (선택) 부제목 왼쪽 칸 렌더러 — 저장값이 비어 앱이 따로 채워 그리는 칸(일루아 대표자명 = 회사별 공용
+  // 이름, NO.130)을 표와 똑같이 보이게 한다. 안 넘기면 종전대로 저장값 글자 표시(다른 앱 무영향).
+  renderSubtitleLeft?: (row: RowData) => ReactNode;
 };
 
 export function MobileCardList({
@@ -63,6 +66,7 @@ export function MobileCardList({
   error,
   searchQuery,
   renderFieldValue,
+  renderSubtitleLeft,
 }: Props) {
   return (
     <div
@@ -124,7 +128,13 @@ export function MobileCardList({
                 )}
               </div>
               <div className="flex items-center justify-between text-xs text-wedly-muted">
-                <span>{typeof row[subtitleLeftKey] === "string" ? (row[subtitleLeftKey] as string) : "-"}</span>
+                <span>
+                  {renderSubtitleLeft
+                    ? renderSubtitleLeft(row)
+                    : typeof row[subtitleLeftKey] === "string"
+                      ? (row[subtitleLeftKey] as string)
+                      : "-"}
+                </span>
                 <span className="text-wedly-t2">
                   {typeof row[subtitleRightKey] === "string" ? (row[subtitleRightKey] as string) : "-"}
                 </span>

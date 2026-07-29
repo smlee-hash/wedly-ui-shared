@@ -68,6 +68,12 @@ export type CollabTableProps = {
     statusKey?: string;
     getStatusClass?: (status: string) => string;
     cardFields?: string[];
+    /**
+     * 카드 부제목 왼쪽 칸을 앱이 직접 그리게 하는 통로(선택). 생략하면 종전대로 저장값을 글자로 표시.
+     * 저장값이 비어 앱이 따로 채워 그리는 칸(일루아 대표자명 = 회사별 공용 이름, NO.130)이
+     * 표에선 보이는데 카드에선 "-"로 비던 것을 맞추기 위한 통로다.
+     */
+    renderSubtitleLeft?: (row: RowData) => ReactNode;
   };
   /** 셀 값 렌더러(생략 시 종류별 기본 표시) */
   renderFieldValue?: (col: ColumnDef, value: CellValue, row: RowData) => ReactNode;
@@ -1298,6 +1304,7 @@ export function CollabTable({
         titleKey={mobileTitleKey}
         subtitleLeftKey={mobile?.subtitleLeftKey ?? ""}
         subtitleRightKey={mobile?.subtitleRightKey ?? ""}
+        renderSubtitleLeft={mobile?.renderSubtitleLeft}
         error={error}
         searchQuery={debouncedSearch}
         renderFieldValue={renderFieldValue}
