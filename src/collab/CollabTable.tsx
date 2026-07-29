@@ -78,6 +78,13 @@ export type CollabTableProps = {
   /** 셀 값 렌더러(생략 시 종류별 기본 표시) */
   renderFieldValue?: (col: ColumnDef, value: CellValue, row: RowData) => ReactNode;
   /**
+   * 검색에 함께 태울 '화면에만 보이는 값'. 생략하면 종전과 100% 동일(다른 앱 무영향).
+   * 저장값이 비어 앱이 따로 채워 그리는 칸(일루아 대표자명 = 회사별 공용 이름, NO.130)을 위한 통로 —
+   * 이게 없으면 "화면엔 이름이 보이는데 그 이름으로 찾으면 0건"이 된다.
+   * 표시 전용이라 원본 행·셀 편집·저장·엑셀은 그대로다(행 사본 주입 금지).
+   */
+  searchExtraText?: (row: RowData) => string;
+  /**
    * 줄 전체 색칠(조건부 서식). 그 줄의 데이터로 색 클래스(예: "bg-wedly-bg-red text-wedly-red")를 돌려주면
    * 그 줄에 칠한다. 생략하거나 null을 돌려주면 색 없음 — 기존과 100% 동일(ERP 무영향).
    * 체크된 줄은 파란 강조가 이겨 이 색은 빠진다(하이브·일루아와 동일 규칙).
@@ -606,6 +613,7 @@ export function CollabTable({
   menusForAll,
   mobile,
   renderFieldValue,
+  searchExtraText,
   getRowColorClass,
   getColAccent: getColAccentProp,
   tabs,
@@ -827,7 +835,10 @@ export function CollabTable({
     [tabs, activeTabId],
   );
   const tabbedRows = useMemo(() => filterRowsByTab(rows, activeTab), [rows, activeTab]);
-  const searchedRows = useMemo(() => filterRowsBySearch(tabbedRows, debouncedSearch), [tabbedRows, debouncedSearch]);
+  const searchedRows = useMemo(
+    () => filterRowsBySearch(tabbedRows, debouncedSearch, searchExtraText),
+    [tabbedRows, debouncedSearch, searchExtraText],
+  );
   const sortedRows = useMemo(() => sortRows(searchedRows, sortConfig), [searchedRows, sortConfig]);
   const totalPages = useMemo(() => totalPageCount(sortedRows.length, pageSize), [sortedRows.length, pageSize]);
   const pagedData = useMemo(() => paginate(sortedRows, currentPage, pageSize), [sortedRows, currentPage, pageSize]);

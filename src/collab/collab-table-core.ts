@@ -21,8 +21,17 @@ export function normalizeSort(s: SortConfig): SortRule[] {
  *  7자리 문턱: 짧은 숫자(2~6자리)로 금액('12,340,000')·퍼센트('3.5%')·날짜 칸이 딸려오는 오탐 방지.
  *  6자리 이하 숫자는 종전 글자검색으로만 판정(원래 동작) — 하이픈 한 그룹 안의 4자리 등은 글자로 이미 잡힘.
  *  덧붙이기(additive) 방식: 기존 글자 부분일치는 그대로 먼저 판정(OR)하므로, 지금 잡히던
- *  결과가 사라지지 않고(비회귀), 숫자 매칭은 번호형 검색어에서만 켜져 글자 검색엔 영향 없음. */
-export function filterRowsBySearch(rows: RowData[], query: string): RowData[] {
+ *  결과가 사라지지 않고(비회귀), 숫자 매칭은 번호형 검색어에서만 켜져 글자 검색엔 영향 없음.
+ *
+ *  extraSearchText — '화면에만 보이는 값'을 검색에 함께 태우는 통로(생략하면 종전과 100% 동일).
+ *  저장값이 비어 다른 곳에서 채워 그리는 칸(일루아 대표자명 = 회사별 공용 이름, NO.130)은
+ *  저장값만 훑으면 "화면엔 이름이 보이는데 그 이름으로 찾으면 0건"이 된다(2026-07-29 배포본 실측).
+ *  원본 행은 절대 건드리지 않는다 — 셀 편집·저장은 종전 저장값 그대로여야 하므로 사본 주입은 쓰지 않는다. */
+export function filterRowsBySearch(
+  rows: RowData[],
+  query: string,
+  extraSearchText?: (row: RowData) => string,
+): RowData[] {
   const q = query.trim().toLowerCase();
   if (!q) return rows;
   // 번호형(숫자 7자리+) 검색어일 때만 '숫자만' 비교를 준비(전화/사업자번호 하이픈 무시). 그 외엔 종전과 동일.
@@ -31,14 +40,17 @@ export function filterRowsBySearch(rows: RowData[], query: string): RowData[] {
   return rows.filter((row) => {
     const parts: string[] = [];
     let digitHit = false;
-    for (const k in row) {
-      if (k.startsWith("_")) continue;
-      const v = row[k];
-      if (v == null || v === "") continue;
+    const add = (v: unknown) => {
+      if (v == null || v === "") return;
       const sv = String(v).toLowerCase();
       parts.push(sv);
       if (useDigits && !digitHit && sv.replace(/\D/g, "").includes(qDigits)) digitHit = true;
+    };
+    for (const k in row) {
+      if (k.startsWith("_")) continue;
+      add(row[k]);
     }
+    if (extraSearchText) add(extraSearchText(row));
     return parts.join(" ").includes(q) || digitHit;
   });
 }
