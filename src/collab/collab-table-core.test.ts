@@ -14,6 +14,7 @@ import {
   defaultFormatCellValue,
   composeRowClassName,
   arrangeGroupedRows,
+  colWidthsSignature,
   type RowData,
   type SortRule,
 } from "./collab-table-core";
@@ -344,5 +345,36 @@ describe("arrangeGroupedRows — 회사 묶음 정렬·페이지(1단계)", () =
     const r = arrangeGroupedRows(rows, { groupKey: "_id", sortConfig: null, currentPage: 1, pageSize: 1 });
     expect(r.totalPages).toBe(2);
     expect(r.pagedRows.map((x) => x._id)).toEqual(["A", "A"]);
+  });
+});
+
+// ── 공용(관리자) 칸 너비 지문 — NO.139 ──────────────────────────────
+// 화면을 다시 그릴 때마다 관리자 너비를 다시 덮어써서, 방금 끌어놓은 칸 폭이
+// 옛 값으로 되돌아가던 문제(NO.139)를 막기 위한 "내용이 정말 달라졌는가" 판정.
+describe("colWidthsSignature (NO.139 — 끌어놓은 칸 폭이 되돌아가지 않게)", () => {
+  it("빈 묶음·없음은 빈 문자열", () => {
+    expect(colWidthsSignature(undefined)).toBe("");
+    expect(colWidthsSignature(null)).toBe("");
+    expect(colWidthsSignature({})).toBe("");
+  });
+
+  it("키 순서가 달라도 내용이 같으면 같은 지문", () => {
+    expect(colWidthsSignature({ a: 100, b: 200 })).toBe(colWidthsSignature({ b: 200, a: 100 }));
+  });
+
+  it("값이 하나라도 다르면 지문이 달라진다", () => {
+    expect(colWidthsSignature({ "22인용확인일": 144 })).not.toBe(colWidthsSignature({ "22인용확인일": 264 }));
+  });
+
+  it("칸이 늘거나 줄어도 지문이 달라진다", () => {
+    expect(colWidthsSignature({ a: 100 })).not.toBe(colWidthsSignature({ a: 100, b: 100 }));
+  });
+
+  it("서버 값이 그대로면 지문도 그대로 — 다시 덮어쓸 이유가 없다", () => {
+    const server = { "22인용확인일": 144, "02상호명": 276 };
+    const before = colWidthsSignature(server);
+    // 부모가 화면을 다시 그려 같은 내용의 새 묶음을 넘겨도(참조만 다름) 지문은 동일해야 한다.
+    const afterRerender = colWidthsSignature({ ...server });
+    expect(afterRerender).toBe(before);
   });
 });
