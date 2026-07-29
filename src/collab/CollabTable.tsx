@@ -104,8 +104,13 @@ export type CollabTableProps = {
   /**
    * 관리자가 너비를 바꿨을 때 앱이 공용 보관함에 저장하도록 알린다(관리자일 때만 호출된다).
    * 넘어오는 값은 **방금 바뀐 칸만** 담긴 묶음이다 — 낡은 화면이 다른 칸을 옛 값으로 되돌리지 않게.
+   * 둘째 값(previousWidths)은 **바꾸기 직전 그 칸의 폭**이다 — 저장이 실패했을 때
+   * 앱이 그대로 되돌릴 수 있게 함께 준다. 아직 공용 보관함에 없던 칸도 되돌릴 수 있다 (NO.139).
    */
-  onColWidthsChange?: (changedWidths: Record<string, number>) => void;
+  onColWidthsChange?: (
+    changedWidths: Record<string, number>,
+    previousWidths?: Record<string, number>,
+  ) => void;
   /**
    * true면 칸 배치(순서·보임/숨김)를 "공용·관리자 전용 + 탭별 독립"으로 취급한다.
    * - 보임/숨김: 비관리자에겐 '컬럼 설정' 버튼·머리 '컬럼 숨기기'를 숨긴다(관리자만 변경).
@@ -972,14 +977,23 @@ export function CollabTable({
   // 저장·알림 같은 바깥일은 "상태 바꾸는 함수 안"에서 하지 않는다 (NO.139).
   // 안에서 하면 화면을 쓰는 쪽에 알릴 때 경고가 나고, 개발 모드에선 저장이 두 번 나갈 수 있다.
   const setColWidthsAndStore = useCallback((updater: (p: Record<string, number>) => Record<string, number>, changedKey?: string) => {
-    const next = updater(colWidthsRef.current);
+    const before = colWidthsRef.current; // 바꾸기 직전 폭 — 저장 실패 시 되돌릴 값 (NO.139)
+    const next = updater(before);
     colWidthsRef.current = next;
     setColWidths(next);
     // 공용 너비 모드(NO.128): 관리자가 바꾼 값만 저장해 전 직원 기준이 된다.
     // 일반 사용자는 화면에만 남는다 — 새로고침·재접속하면 관리자 너비로 돌아온다.
     if (onColWidthsChange && !isAdmin) return;
     try { localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(next)); } catch {}
-    onColWidthsChange?.(changedKey ? { [changedKey]: next[changedKey] } : next);
+    const keys = changedKey ? [changedKey] : Object.keys(next);
+    const changed: Record<string, number> = {};
+    const previous: Record<string, number> = {};
+    for (const k of keys) {
+      if (typeof next[k] !== "number") continue; // 숫자가 아닌 값은 내보내지 않는다(빈 값 오염 방지)
+      changed[k] = next[k];
+      if (typeof before[k] === "number") previous[k] = before[k];
+    }
+    onColWidthsChange?.(changed, previous);
   }, [COL_WIDTHS_KEY, onColWidthsChange, isAdmin]);
   // 가이드선 방식(공용 부품) — 드래그 중 화면 재렌더 0, 손 뗄 때 너비 1회 확정.
   // resizingRef는 드래그 중 칸 순서 끌기를 막는 용도(참/거짓만 본다).
