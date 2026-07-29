@@ -369,3 +369,39 @@ describe("colWidthsSignature (NO.139 — 끌어놓은 칸 폭이 되돌아가지
     expect(afterRerender).toBe(before);
   });
 });
+
+// 화면에만 보이는 값(저장값이 비어 다른 곳에서 채워 그리는 칸)도 검색에 걸리게 하는 통로.
+// 일루아 대표자명이 그 예 — 저장값은 비었고 회사별 공용 이름으로 표시만 채워 그린다(NO.130).
+// 이 통로가 없으면 "화면엔 이름이 보이는데 그 이름으로 찾으면 0건"이 된다(2026-07-29 배포본 실측).
+describe("filterRowsBySearch — 화면에만 보이는 값 덧붙이기(extraSearchText)", () => {
+  const rows: RowData[] = [
+    { _id: "1", "01업체명": "디자인시안", "02대표자명": "", "04사업자번호": "594-24-00345" },
+    { _id: "2", "01업체명": "한스라이팅", "02대표자명": "한성열", "04사업자번호": "111-11-11111" },
+  ];
+  // 저장값이 빈 행에만 화면용 이름을 붙여 주는 통로(원본 행은 그대로 둔다)
+  const extra = (row: RowData) => (String(row["02대표자명"] ?? "") === "" && row._id === "1" ? "최우현" : "");
+  const ids = (q: string, fn?: (row: RowData) => string) => filterRowsBySearch(rows, q, fn).map((r) => r._id);
+
+  it("통로를 안 주면 종전과 100% 동일(비회귀)", () => {
+    expect(ids("최우현")).toEqual([]);
+    expect(ids("한성열")).toEqual(["2"]);
+    expect(ids("디자인시안")).toEqual(["1"]);
+  });
+  it("화면에만 보이는 이름으로도 찾힌다", () => {
+    expect(ids("최우현", extra)).toEqual(["1"]);
+    expect(ids("최우", extra)).toEqual(["1"]);
+  });
+  it("덧붙이기라 기존 결과는 그대로 남는다", () => {
+    expect(ids("한성열", extra)).toEqual(["2"]);
+    expect(ids("디자인시안", extra)).toEqual(["1"]);
+    expect(ids("없는이름", extra)).toEqual([]);
+  });
+  it("통로가 빈 글자·공백을 돌려줘도 안전하다", () => {
+    expect(ids("최우현", () => "")).toEqual([]);
+    expect(ids("최우현", () => "   ")).toEqual([]);
+  });
+  it("번호형 검색(숫자만 비교)에도 덧붙인 값이 함께 걸린다", () => {
+    const withPhone = (row: RowData) => (row._id === "1" ? "010-9999-8888" : "");
+    expect(ids("01099998888", withPhone)).toEqual(["1"]);
+  });
+});
