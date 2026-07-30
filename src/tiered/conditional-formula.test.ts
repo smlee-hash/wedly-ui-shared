@@ -323,3 +323,82 @@ describe("resolveConditionalFormula — 여러 조건 AND/OR(clauses)", () => {
     expect(resolveConditionalFormula(f, gv({ 분류: "위들리" }))).toBe(base);
   });
 });
+
+// ── 크기 비교(이후·이전) — 2026-08-01 요율 분기용 ──
+describe("resolveConditionalFormula — 이후(gte)·이전(lte) 비교", () => {
+  const 새요율: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "NEW" }];
+  const 기본식: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "OLD" }];
+  const f: FieldDef = {
+    key: "수수료", label: "수수료", type: "formula", formula: 기본식,
+    conditional: { rules: [
+      { leftKey: "계약일", right: { kind: "text", value: "2026-08-01" }, op: "gte", formula: 새요율 },
+    ] },
+  };
+
+  it("기준일 당일이면 새 식", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026-08-01" }))).toBe(새요율);
+  });
+  it("기준일 다음날이면 새 식", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026-08-02" }))).toBe(새요율);
+  });
+  it("기준일 하루 전이면 기본식", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026-07-31" }))).toBe(기본식);
+  });
+  it("해가 넘어가도 앞뒤가 맞는다", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2027-01-05" }))).toBe(새요율);
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2025-12-31" }))).toBe(기본식);
+  });
+  it("시각이 붙은 값도 날짜 부분으로 비교", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026-08-01T09:30" }))).toBe(새요율);
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026-07-31T23:59" }))).toBe(기본식);
+  });
+  it("빈 값이면 매칭 안 함(기본식)", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "" }))).toBe(기본식);
+    expect(resolveConditionalFormula(f, gv({}))).toBe(기본식);
+  });
+  it("날짜가 아닌 글자는 매칭 안 함(글자 크기 비교 금지)", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "미정" }))).toBe(기본식);
+  });
+
+  const num: FieldDef = {
+    key: "수수료", label: "수수료", type: "formula", formula: 기본식,
+    conditional: { rules: [
+      { leftKey: "계약금", right: { kind: "text", value: "1000000" }, op: "gte", formula: 새요율 },
+    ] },
+  };
+  it("숫자끼리도 크기 비교(글자순 아님)", () => {
+    expect(resolveConditionalFormula(num, gv({ 계약금: 2000000 }))).toBe(새요율);
+    expect(resolveConditionalFormula(num, gv({ 계약금: 999999 }))).toBe(기본식);
+    expect(resolveConditionalFormula(num, gv({ 계약금: "1,500,000" }))).toBe(새요율);
+  });
+  it("한쪽만 날짜, 한쪽은 숫자면 매칭 안 함", () => {
+    expect(resolveConditionalFormula(num, gv({ 계약금: "2026-08-05" }))).toBe(기본식);
+  });
+
+  const lte: FieldDef = {
+    key: "수수료", label: "수수료", type: "formula", formula: 기본식,
+    conditional: { rules: [
+      { leftKey: "계약일", right: { kind: "text", value: "2026-07-31" }, op: "lte", formula: 새요율 },
+    ] },
+  };
+  it("이전(lte)은 반대로 판정", () => {
+    expect(resolveConditionalFormula(lte, gv({ 계약일: "2026-07-31" }))).toBe(새요율);
+    expect(resolveConditionalFormula(lte, gv({ 계약일: "2026-07-30" }))).toBe(새요율);
+    expect(resolveConditionalFormula(lte, gv({ 계약일: "2026-08-01" }))).toBe(기본식);
+  });
+
+  const both: FieldDef = {
+    key: "수수료", label: "수수료", type: "formula", formula: 기본식,
+    conditional: { rules: [
+      { clauses: [
+          { leftKey: "계약일", right: { kind: "text", value: "2026-08-01" }, op: "gte" },
+          { leftKey: "분류", right: { kind: "text", value: "정부지원금" }, op: "eq" },
+        ], combine: "and", formula: 새요율 },
+    ] },
+  };
+  it("크기 비교와 기존 비교를 한 규칙에서 함께 쓸 수 있다", () => {
+    expect(resolveConditionalFormula(both, gv({ 계약일: "2026-08-10", 분류: "정부지원금" }))).toBe(새요율);
+    expect(resolveConditionalFormula(both, gv({ 계약일: "2026-08-10", 분류: "정책자금" }))).toBe(기본식);
+    expect(resolveConditionalFormula(both, gv({ 계약일: "2026-07-10", 분류: "정부지원금" }))).toBe(기본식);
+  });
+});
