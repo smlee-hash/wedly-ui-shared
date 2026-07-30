@@ -320,10 +320,16 @@ export function resolveConditionalFormula(
     if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter((s) => s !== "").join(", ");
     return String(raw).trim();
   };
-  // 크기 비교(이후/이전)용 값 환산. 날짜(YYYY-MM-DD 로 시작)면 앞 10글자, 숫자면 숫자로 본다.
+  // 크기 비교(이후/이전)용 값 환산. 날짜면 YYYY-MM-DD 로 맞춰서, 숫자면 숫자로 본다.
   // 둘 다 아니면 null → 매칭 안 함. 글자끼리 크기를 견주면 사람이 예상 못 한 결과가 나오기 때문.
+  //   날짜 구분자는 - . / 를 모두 받고 한 자리 월·일(2026.8.5)도 채워 넣는다 —
+  //   대량 업로드·외부 연동으로 들어온 값이 형식 때문에 조용히 조건에서 빠지면 사람이 못 잡는다.
   const comparable = (s: string): { kind: "date" | "number"; v: string | number } | null => {
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return { kind: "date", v: s.slice(0, 10) };
+    const d = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/.exec(s);
+    if (d) {
+      const mm = d[2].padStart(2, "0"), dd = d[3].padStart(2, "0");
+      return { kind: "date", v: `${d[1]}-${mm}-${dd}` };
+    }
     const n = Number(s.replace(/,/g, ""));
     if (s.trim() !== "" && Number.isFinite(n)) return { kind: "number", v: n };
     return null;
