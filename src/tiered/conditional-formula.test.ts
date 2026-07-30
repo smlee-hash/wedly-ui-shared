@@ -402,3 +402,39 @@ describe("resolveConditionalFormula — 이후(gte)·이전(lte) 비교", () => 
     expect(resolveConditionalFormula(both, gv({ 계약일: "2026-07-10", 분류: "정부지원금" }))).toBe(기본식);
   });
 });
+
+// 점·빗금으로 적힌 날짜도 같은 날로 본다 — 대량 업로드·외부 연동으로 들어올 수 있는 형식.
+// (못 알아보면 조용히 옛 요율로 떨어져 사람이 못 잡는다)
+describe("resolveConditionalFormula — 날짜 구분자가 달라도 같게 판정", () => {
+  const 새요율: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "NEW" }];
+  const 기본식: FormulaTerm[] = [{ op: "+", unit: "column", columnKey: "OLD" }];
+  const f: FieldDef = {
+    key: "수수료", label: "수수료", type: "formula", formula: 기본식,
+    conditional: { rules: [
+      { leftKey: "계약일", right: { kind: "text", value: "2026-08-01" }, op: "gte", formula: 새요율 },
+    ] },
+  };
+  it("점 표기 2026.08.05 → 새 식", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026.08.05" }))).toBe(새요율);
+  });
+  it("빗금 표기 2026/08/05 → 새 식", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026/08/05" }))).toBe(새요율);
+  });
+  it("점 표기라도 기준일 전이면 기본식", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026.07.31" }))).toBe(기본식);
+  });
+  it("비교값 쪽이 점 표기여도 판정된다", () => {
+    const g: FieldDef = { ...f, conditional: { rules: [
+      { leftKey: "계약일", right: { kind: "text", value: "2026.08.01" }, op: "gte", formula: 새요율 },
+    ] } };
+    expect(resolveConditionalFormula(g, gv({ 계약일: "2026-08-01" }))).toBe(새요율);
+    expect(resolveConditionalFormula(g, gv({ 계약일: "2026-07-31" }))).toBe(기본식);
+  });
+  it("2026.8.5 처럼 한 자리로 적혀도 같은 날로 본다", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026.8.5" }))).toBe(새요율);
+    expect(resolveConditionalFormula(f, gv({ 계약일: "2026-7-31" }))).toBe(기본식);
+  });
+  it("날짜로 볼 수 없는 글자는 여전히 매칭 안 함", () => {
+    expect(resolveConditionalFormula(f, gv({ 계약일: "8월 초" }))).toBe(기본식);
+  });
+});
