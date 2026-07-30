@@ -55,8 +55,9 @@ export type ConditionCompare =
   | { kind: "text"; value: string }
   | { kind: "field"; key: string };
 
-/** 조건 비교 방식. 미지정(옛 데이터)은 "eq"(같음)로 취급 — 앞호환. */
-export type ConditionOp = "eq" | "neq" | "contains" | "notContains";
+/** 조건 비교 방식. 미지정(옛 데이터)은 "eq"(같음)로 취급 — 앞호환.
+ *  gte/lte 는 크기 비교(이후·이전) — 날짜(YYYY-MM-DD…) 또는 숫자일 때만 판정한다. */
+export type ConditionOp = "eq" | "neq" | "contains" | "notContains" | "gte" | "lte";
 
 /** 조건 절 하나(원자). leftKey 칸 값을 right 와 op 로 비교. */
 export interface ConditionClause {
@@ -319,10 +320,28 @@ export function resolveConditionalFormula(
     if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter((s) => s !== "").join(", ");
     return String(raw).trim();
   };
+  // 크기 비교(이후/이전)용 값 환산. 날짜(YYYY-MM-DD 로 시작)면 앞 10글자, 숫자면 숫자로 본다.
+  // 둘 다 아니면 null → 매칭 안 함. 글자끼리 크기를 견주면 사람이 예상 못 한 결과가 나오기 때문.
+  const comparable = (s: string): { kind: "date" | "number"; v: string | number } | null => {
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return { kind: "date", v: s.slice(0, 10) };
+    const n = Number(s.replace(/,/g, ""));
+    if (s.trim() !== "" && Number.isFinite(n)) return { kind: "number", v: n };
+    return null;
+  };
   // op 별 일치 판정. 기준 칸/비교 값 중 하나라도 비면 어떤 op 도 매칭 안 함 → 기본식.
   const matches = (op: ConditionOp, a: unknown, b: unknown): boolean => {
     const A = valuesOf(a), B = valuesOf(b);
     if (A.length === 0 || B.length === 0) return false;
+    // 크기 비교(이후·이전): 값 전체를 하나의 날짜·숫자로 본다(쉼표로 쪼개면 "1,500,000" 이 1 이 된다).
+    if (op === "gte" || op === "lte") {
+      const L = comparable(asText(a));
+      const R = comparable(asText(b));
+      if (!L || !R || L.kind !== R.kind) return false;
+      const cmp = L.kind === "date"
+        ? String(L.v).localeCompare(String(R.v))
+        : Number(L.v) - Number(R.v);
+      return op === "gte" ? cmp >= 0 : cmp <= 0;
+    }
     const tokenEq = A.some((x) => B.includes(x)); // 토큰(쉼표/줄바꿈) 교집합 = 같음 기준
     if (op === "neq") return !tokenEq;
     // 포함/미포함: 비교값을 토큰으로 나눠(같음과 같은 축) 그 중 하나라도 기준칸 글자에 부분 포함되면 일치.
