@@ -2006,6 +2006,10 @@ export default function UnifiedDetailView({
   onSaved,
   onCreated,
   isNew = false,
+  initialDraft,
+  newTitle,
+  createLabel,
+  validateCreate,
   hiddenColumnKeys,
   adapter,
   initialTab,
@@ -2019,6 +2023,16 @@ export default function UnifiedDetailView({
   // 미전달 시 기존대로 onClose() — 다른 앱 동작 불변(앞호환).
   onCreated?: (newRow: RowData) => void;
   isNew?: boolean;
+  // ── 신규 등록 모드를 다른 화면이 빌려 쓰기 위한 선택 입력 (안 넘기면 기존과 완전히 동일) ──
+  // 예: ERP "택스봇 조회 현황"에서 상호명을 누르면 택스봇 값이 미리 채워진 "조회 DB 등록" 창이 뜬다.
+  /** 신규 등록 모드에서 미리 채워 둘 값(사용자가 그대로 고칠 수 있는 초깃값일 뿐). */
+  initialDraft?: Record<string, unknown>;
+  /** 신규 등록 창 제목(기본 "새 업체 등록"). */
+  newTitle?: string;
+  /** 등록 버튼 글자(기본 "등록"). */
+  createLabel?: string;
+  /** 값이 있으면 등록 버튼을 잠그고 그 문구를 보여 준다(빌려 쓰는 화면의 추가 규칙). */
+  validateCreate?: (draft: Record<string, unknown>) => string | null;
   // 표 "컬럼 표시 설정"에서 OFF(숨김)한 칸 키 목록 — 기본정보 섹션에서 표준 칸 포함 균일 제외(NO.56).
   hiddenColumnKeys?: string[];
   adapter: UnifiedDetailAdapter;
@@ -2049,7 +2063,11 @@ export default function UnifiedDetailView({
   const [nameValue, setNameValue] = useState(() => String(row["02상호명"] ?? ""));
   // ── 신규 등록 모드 상태 (isNew 일 때만 사용) ──
   // NO.56: 신규 등록은 어떤 칸도 자동 선택값을 넣지 않는다(영업담당 "하이브" 하드코딩 제거 — 안 골라도 저장되던 버그).
-  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ "02상호명": String(row["02상호명"] ?? "") }));
+  // 단, 빌려 쓰는 화면이 initialDraft 로 명시한 값은 미리 채운다(사용자가 고칠 수 있는 초깃값일 뿐 — 자동 선택이 아니다).
+  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({
+    ...(initialDraft ?? {}),
+    "02상호명": String(initialDraft?.["02상호명"] ?? row["02상호명"] ?? ""),
+  }));
   const [pendingComments, setPendingComments] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
@@ -2141,6 +2159,9 @@ export default function UnifiedDetailView({
     if (creating) return;
     const name = String(draft["02상호명"] ?? "").trim();
     if (!name) { setCreateErr("상호명을 입력해 주세요."); return; }
+    // 빌려 쓰는 화면의 추가 규칙(예: 사업자번호·연락처가 둘 다 없으면 등록 금지) — 안 넘기면 통과.
+    const blocked = validateCreate?.(draft);
+    if (blocked) { setCreateErr(blocked); return; }
     setCreating(true);
     setCreateErr(null);
     try {
@@ -2163,7 +2184,7 @@ export default function UnifiedDetailView({
       setCreating(false);
       setCreateErr("등록에 실패했습니다. 다시 시도해 주세요.");
     }
-  }, [creating, draft, pendingComments, onSaved, onClose, onCreated, adapter]);
+  }, [creating, draft, pendingComments, onSaved, onClose, onCreated, adapter, validateCreate]);
 
   // 상단 분야 탭 — 저장된 순서·이름 불러오기(adapter.api.loadTabConfig 경유)
   useEffect(() => {
@@ -2308,6 +2329,8 @@ export default function UnifiedDetailView({
   // ── 신규 등록 모드 — 별도 렌더(기존 상세창 경로는 건드리지 않아 회귀 없음) ──
   if (isNew) {
     const newName = String(draft["02상호명"] ?? "");
+    // 빌려 쓰는 화면의 추가 규칙에 걸리면 등록 버튼을 잠그고 이유를 보여 준다(안 넘기면 항상 null).
+    const blockedReason = validateCreate?.(draft) ?? null;
     const onHistoryTab = activeTab === "__history__";
     return (
       <FieldOptionsProvider value={adapter.fieldOptions}>
@@ -2321,15 +2344,15 @@ export default function UnifiedDetailView({
           <div className="border-b border-wedly-bd/60 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2">
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-wedly-navy flex items-center justify-center text-white text-base font-bold flex-shrink-0">＋</div>
-              <span className="text-[15px] font-bold text-wedly-navy">새 업체 등록</span>
+              <span className="text-[15px] font-bold text-wedly-navy">{newTitle ?? "새 업체 등록"}</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={handleCreate}
-                disabled={creating || !newName.trim()}
+                disabled={creating || !newName.trim() || !!blockedReason}
                 className="rounded-lg bg-wedly-navy px-4 py-2 text-sm font-semibold text-white hover:bg-wedly-navy/90 disabled:opacity-40"
               >
-                {creating ? "등록 중…" : "등록"}
+                {creating ? "등록 중…" : (createLabel ?? "등록")}
               </button>
               <button
                 onClick={onClose}
@@ -2356,7 +2379,10 @@ export default function UnifiedDetailView({
               autoFocus
               className="w-full rounded-lg border border-wedly-bd px-3 py-2 text-sm focus:border-wedly-accent focus:outline-none"
             />
-            {createErr && <p className="mt-2 text-[13px] font-medium text-wedly-red">{createErr}</p>}
+            {/* 등록을 눌러보기 전에도 막힌 이유가 보이게 한다(빌려 쓰는 화면 규칙). 오류 문구가 우선. */}
+            {(createErr ?? blockedReason) && (
+              <p className="mt-2 text-[13px] font-medium text-wedly-red">{createErr ?? blockedReason}</p>
+            )}
           </div>
 
           {/* 탭바 — 기본정보 / 히스토리 */}
