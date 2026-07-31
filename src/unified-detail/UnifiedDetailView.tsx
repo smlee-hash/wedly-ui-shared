@@ -2180,8 +2180,13 @@ export default function UnifiedDetailView({
       setCreating(false);
       if (onCreated) onCreated(newRow);
       else onClose();
-    } catch {
+    } catch (e) {
       setCreating(false);
+      // 앱이 "등록을 멈추기만 한다"는 뜻으로 던지는 신호(__ 로 시작)는 오류가 아니다.
+      // 예: 중복 안내에서 '닫기'를 눌러 입력 화면을 그대로 두는 경우 — 여기서 빨간 실패 문구가
+      // 뜨면 사용자가 저장이 깨진 줄 안다(3앱 공통으로 있던 헷갈림).
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.startsWith("__")) { setCreateErr(null); return; }
       setCreateErr("등록에 실패했습니다. 다시 시도해 주세요.");
     }
   }, [creating, draft, pendingComments, onSaved, onClose, onCreated, adapter, validateCreate]);
