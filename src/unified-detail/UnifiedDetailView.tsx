@@ -185,11 +185,13 @@ function TaxAmendmentPanel({
     [entryId, localRow, onSaved, saveOwnField],
   );
 
-  // 하이브 순서와 동일: 히스토리·계약정보·정산정보·환불정보·미팅정보·파일
+  // 하이브 순서와 동일: 히스토리·계약정보·환불정보·미팅정보·파일
+  // NO.150 — 정산정보 탭은 계약정보로 합쳐져 사라졌다(값·칸 모두 계약정보 탭 한 곳).
+  // ※ SubTab 유니온의 "settlement" 는 아래 SectionDetailPanel(정부지원금·노무·기업인증·특허)이
+  //   계속 쓰므로 그대로 둔다 — 경정청구 탭 목록에서만 뺀다.
   const SUB_TABS: { key: SubTab; label: string }[] = [
     { key: "history",    label: "히스토리" },
     { key: "contract",   label: "계약정보" },
-    { key: "settlement", label: "정산정보" },
     { key: "refund",     label: "환불정보" },
     { key: "meetings",   label: "미팅정보" },
   ];
@@ -321,19 +323,7 @@ function TaxAmendmentPanel({
           </div>
         )}
 
-        {/* 정산정보 차수 */}
-        {subTab === "settlement" && (
-          <div className="p-4">
-            <SettlementInfoTab
-              rawValue={localRow["정산정보"] ?? null}
-              row={localRow as Record<string, string | number | boolean | null>}
-              onSave={(json: string) => handleUpdate("정산정보", json)}
-              isAdmin={isAdmin}
-              subSections={subSections.settlement}
-              onUpdateSubSections={isAdmin ? (list: Array<{ id: string; label: string }>) => handleUpdateSubSections("settlement", list) : undefined}
-            />
-          </div>
-        )}
+        {/* 정산정보 차수 — NO.150 으로 계약정보 탭에 합쳐져 제거됨 */}
 
         {/* 환불정보 차수 */}
         {subTab === "refund" && (
