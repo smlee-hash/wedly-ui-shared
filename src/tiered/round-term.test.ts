@@ -93,3 +93,84 @@ describe("round 항 — 천원 단위 반올림", () => {
     expect(evalFormulaForTier(f, { id: "t1", 금액: 6856400 } as never, all)).toBeNull();
   });
 });
+
+// ── 위험한 조합 — 반올림이 기존 '계산 불가(빈칸)' 규칙과 부딪히지 않는지 ──
+// 이 조합들은 실제로 손으로 확인해 통과시킨 것이다. 여기 없으면 나중에
+// evalTermChain 을 고칠 때 조용히 깨진다.
+describe("round 항 — 다른 규칙과의 조합", () => {
+  const mk = (key: string, formula: unknown[]): FieldDef =>
+    ({ key, label: key, type: "formula", formulaResult: "number", formula } as FieldDef);
+  const 빈율칸 = { key: "빈율", label: "빈율", type: "percent" } as FieldDef;
+  const run = (f: FieldDef, tier: Record<string, unknown>) =>
+    evalFormulaForTier(f, tier as never, [...fields, 빈율칸, f]);
+
+  it("죽은 구간(빈칸 곱하기) 위에 반올림이 와도 여전히 '-'", () => {
+    const f = mk("A", [
+      { op: "+", unit: "column", value: 0, columnKey: "금액" },
+      { op: "*", unit: "column", value: 0, columnKey: "빈율" },
+      { op: "round", unit: "number", value: 1000 },
+    ]);
+    expect(run(f, { id: "t", 금액: 6856400 })).toBeNull();
+  });
+
+  it("죽은 구간 뒤에 반올림·더하기가 오면 뒤의 값만 살아난다", () => {
+    const f = mk("B", [
+      { op: "+", unit: "column", value: 0, columnKey: "금액" },
+      { op: "*", unit: "column", value: 0, columnKey: "빈율" },
+      { op: "round", unit: "number", value: 1000 },
+      { op: "+", unit: "number", value: 7000 },
+    ]);
+    expect(run(f, { id: "t", 금액: 6856400 })).toBe(7000);
+  });
+
+  it("반올림이 연속 두 번이면 순서대로 적용된다(천원 → 만원)", () => {
+    const f = mk("C", [
+      { op: "+", unit: "column", value: 0, columnKey: "금액" },
+      { op: "round", unit: "number", value: 1000 },
+      { op: "round", unit: "number", value: 10000 },
+    ]);
+    expect(run(f, { id: "t", 금액: 2056920 })).toBe(2060000);
+  });
+
+  it("반올림이 맨 끝에 오면 최종값을 반올림한다", () => {
+    const f = mk("D", [
+      { op: "+", unit: "column", value: 0, columnKey: "금액" },
+      { op: "*", unit: "percent", value: 110 },
+      { op: "round", unit: "number", value: 1000 },
+    ]);
+    expect(run(f, { id: "t", 금액: 2056920 })).toBe(2263000);
+  });
+
+  it("묶음(괄호) 안쪽의 반올림도 먹는다", () => {
+    const f = mk("E", [
+      { op: "+", unit: "group", terms: [
+        { op: "+", unit: "column", value: 0, columnKey: "금액" },
+        { op: "round", unit: "number", value: 1000 },
+      ] },
+      { op: "*", unit: "percent", value: 110 },
+    ]);
+    expect(run(f, { id: "t", 금액: 2056920 })).toBeCloseTo(2262700, 6);
+  });
+
+  it("수억·수천억 금액에서도 1원까지 정확하다", () => {
+    const f = mk("F", [
+      { op: "+", unit: "column", value: 0, columnKey: "금액" },
+      { op: "round", unit: "number", value: 1000 },
+    ]);
+    expect(run(f, { id: "t", 금액: 987654321 })).toBe(987654000);
+    expect(run(f, { id: "t", 금액: 123456789012 })).toBe(123456789000);
+  });
+
+  it("반올림 단위가 없거나 숫자가 아니면 값을 손대지 않는다", () => {
+    const f1 = mk("G", [
+      { op: "+", unit: "column", value: 0, columnKey: "금액" },
+      { op: "round", unit: "number" },
+    ]);
+    expect(run(f1, { id: "t", 금액: 12345 })).toBe(12345);
+    const f2 = mk("H", [
+      { op: "+", unit: "column", value: 0, columnKey: "금액" },
+      { op: "round", unit: "number", value: "1000" },
+    ]);
+    expect(run(f2, { id: "t", 금액: 12345 })).toBe(12345);
+  });
+});
