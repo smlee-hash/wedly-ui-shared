@@ -174,3 +174,79 @@ describe("round 항 — 다른 규칙과의 조합", () => {
     expect(run(f2, { id: "t", 금액: 12345 })).toBe(12345);
   });
 });
+// ── 잘못 저장된 반올림 딱지 방어 (적대적 검토 지적) ──
+// 반올림은 '단위(원)'를 받는 연산이라 컬럼·묶음 항에는 붙을 수 없다.
+// 붙어 있으면 평가기가 그 항을 통째로 건너뛰어 금액이 소리 없이 사라지므로,
+// 걸러내는 단계에서 더하기로 되돌린다(반올림 도입 전과 같은 동작).
+describe("round 항 — 잘못된 자리에 붙은 경우 되돌리기", () => {
+  it("컬럼 항에 붙은 반올림은 더하기로 되돌아간다(금액이 안 사라진다)", () => {
+    const raw = [
+      { op: "+", unit: "column", columnKey: "기본" },
+      { op: "round", unit: "column", columnKey: "보너스" },
+    ];
+    const parsed = parseFormulaTerms(raw);
+    expect(parsed[1].op).toBe("+");
+    expect(parsed[1].columnKey).toBe("보너스");
+
+    const fs: FieldDef[] = [
+      { key: "기본", label: "기본", type: "number" },
+      { key: "보너스", label: "보너스", type: "number" },
+      { key: "합", label: "합", type: "formula", formulaResult: "number", formula: parsed } as FieldDef,
+    ];
+    expect(evalFormulaForTier(fs[2], { id: "t", 기본: 10000, 보너스: 99999 } as never, fs)).toBe(109999);
+  });
+
+  it("묶음 항에 붙은 반올림도 더하기로 되돌아간다", () => {
+    const parsed = parseFormulaTerms([
+      { op: "+", unit: "number", value: 10000 },
+      { op: "round", unit: "group", terms: [{ op: "+", unit: "number", value: 99999 }] },
+    ]);
+    expect(parsed[1].op).toBe("+");
+    expect(parsed[1].unit).toBe("group");
+
+    const f = { key: "합2", label: "합2", type: "formula", formulaResult: "number", formula: parsed } as FieldDef;
+    expect(evalFormulaForTier(f, { id: "t" } as never, [f])).toBe(109999);
+  });
+
+  it("퍼센트 항에 붙은 반올림도 더하기로 되돌아간다", () => {
+    const parsed = parseFormulaTerms([
+      { op: "+", unit: "number", value: 10000 },
+      { op: "round", unit: "percent", value: 30 },
+    ]);
+    expect(parsed[1].op).toBe("+");
+  });
+
+  it("숫자 항의 반올림은 그대로 살아 있다", () => {
+    const parsed = parseFormulaTerms([
+      { op: "+", unit: "number", value: 12345 },
+      { op: "round", unit: "number", value: 1000 },
+    ]);
+    expect(parsed[1].op).toBe("round");
+    expect(parsed[1].value).toBe(1000);
+  });
+
+  it("반올림 단위가 음수면 값을 손대지 않는다", () => {
+    const f: FieldDef = {
+      key: "음수단위", label: "음수단위", type: "formula", formulaResult: "number",
+      formula: [
+        { op: "+", unit: "column", value: 0, columnKey: "금액" },
+        { op: "round", unit: "number", value: -1000 },
+      ],
+    } as FieldDef;
+    const all = [...fields, f];
+    expect(evalFormulaForTier(f, { id: "t1", 금액: 12345 } as never, all)).toBe(12345);
+  });
+
+  it("퍼센트 곱하기 경계 — 8,230,000 × 15% 는 정확히 1,234,500 이라 1,235,000 으로 올라간다", () => {
+    const f: FieldDef = {
+      key: "경계", label: "경계", type: "formula", formulaResult: "number",
+      formula: [
+        { op: "+", unit: "column", value: 0, columnKey: "금액" },
+        { op: "*", unit: "percent", value: 15 },
+        { op: "round", unit: "number", value: 1000 },
+      ],
+    } as FieldDef;
+    const all = [...fields, f];
+    expect(evalFormulaForTier(f, { id: "t1", 금액: 8230000 } as never, all)).toBe(1235000);
+  });
+});
