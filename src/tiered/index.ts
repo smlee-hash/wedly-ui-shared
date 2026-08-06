@@ -107,13 +107,16 @@ export interface CustomFormulaItem {
 //   예) [{unit:"column",columnKey:"예상국세환급액"}, {op:"*",unit:"column",columnKey:"국세환급액수수료율"}]
 //       → 예상국세환급액 × 국세환급액수수료율(%)  (퍼센트 컬럼은 자동으로 0~1 비율로 환산)
 export type FormulaResultFormat = "number" | "percent" | "date";
+// 항 사슬 전용 연산자. 스코어카드 직접 수식(CustomFormulaItem)에는 쓰지 않는다.
+//   "round" = 지금까지의 누적값을 value 원 단위로 반올림 (예: value=1000 → 천원 단위)
+export type FormulaTermOp = CustomFormulaOp | "round";
 // 묶음(괄호) 단위 추가 — group 이면 terms 안의 식을 먼저(괄호처럼) 계산. (한 겹만)
 export type FormulaTermUnit = CustomFormulaUnit | "group";
 export interface FormulaTerm {
-  op: CustomFormulaOp;        // 첫 항은 무시됨 (시작값)
+  op: FormulaTermOp;          // 첫 항은 무시됨 (시작값)
   unit: FormulaTermUnit;      // "column" | "number" | "percent" | "group"
   columnKey?: string;         // unit="column" 일 때 참조 컬럼 키
-  value?: number;             // unit="number" | "percent" 일 때 값
+  value?: number;             // unit="number" | "percent" 일 때 값 (op="round" 면 반올림 단위(원))
   terms?: FormulaTerm[];      // unit="group" 일 때 묶음 안 식 (안쪽은 group 불가)
 }
 
@@ -121,20 +124,24 @@ export interface FormulaTerm {
 // allowGroup=false 면 묶음(group)을 일반 항으로도 안 잡아 제거(한 겹 강제).
 export function parseFormulaTerms(raw: unknown, allowGroup = true): FormulaTerm[] {
   if (!Array.isArray(raw)) return [];
-  const allowedOps: CustomFormulaOp[] = ["+", "-", "*", "/"];
+  const allowedOps: FormulaTermOp[] = ["+", "-", "*", "/", "round"];
   const allowedUnits: CustomFormulaUnit[] = ["number", "percent", "column"];
   const out: FormulaTerm[] = [];
   for (const it of raw) {
     if (!it || typeof it !== "object") continue;
     const o = it as Record<string, unknown>;
-    const op = allowedOps.includes(o.op as CustomFormulaOp) ? (o.op as CustomFormulaOp) : "+";
+    const rawOp = allowedOps.includes(o.op as FormulaTermOp) ? (o.op as FormulaTermOp) : "+";
     if (o.unit === "group") {
       if (!allowGroup) continue; // 안쪽의 group 은 버림(한 겹만 허용)
       const inner = parseFormulaTerms(o.terms, false);
-      if (inner.length > 0) out.push({ op, unit: "group", terms: inner });
+      // round 는 '단위(원)'를 받는 연산이라 묶음에 붙을 수 없다. 붙어 있으면 평가기가
+      // 묶음 내용을 통째로 건너뛰어 그 금액이 소리 없이 사라진다 → 더하기로 되돌린다.
+      if (inner.length > 0) out.push({ op: rawOp === "round" ? "+" : rawOp, unit: "group", terms: inner });
       continue; // 빈 묶음은 버림
     }
     const unit = allowedUnits.includes(o.unit as CustomFormulaUnit) ? (o.unit as CustomFormulaUnit) : "number";
+    // 같은 이유로 round 는 숫자 항에서만 인정한다(컬럼 항에 붙으면 그 컬럼 금액이 사라진다).
+    const op: FormulaTermOp = rawOp === "round" && unit !== "number" ? "+" : rawOp;
     const value = typeof o.value === "number" && Number.isFinite(o.value) ? o.value : 0;
     const term: FormulaTerm = { op, unit, value };
     if (unit === "column" && typeof o.columnKey === "string") term.columnKey = o.columnKey;
@@ -183,6 +190,10 @@ function parseCustomItems(raw: unknown): CustomFormulaItem[] {
   for (const it of raw) {
     if (!it || typeof it !== "object") continue;
     const o = it as Record<string, unknown>;
+    // 항 사슬 전용 연산(round)이 섞여 들어오면 아래 기본값 "*" 때문에 금액이 1,000배가
+    // 된다(round 는 value 에 반올림 단위 1000 을 담고 있다). 스코어카드엔 반올림이 없으므로
+    // 그 항목은 아예 버린다. 그 밖의 알 수 없는 값은 기존 동작(곱하기)을 그대로 둔다.
+    if (o.op === "round") continue;
     const op = allowedOps.includes(o.op as CustomFormulaOp) ? (o.op as CustomFormulaOp) : "*";
     const value = typeof o.value === "number" && Number.isFinite(o.value) ? o.value : 0;
     const unit = allowedUnits.includes(o.unit as CustomFormulaUnit) ? (o.unit as CustomFormulaUnit) : "number";
@@ -431,6 +442,13 @@ export function formulaDependencyKeys(
   return [...out];
 }
 
+// 부호 대칭 반올림 — JS 의 Math.round(-1500/1000) 은 -1 이라 음수에서 어긋난다.
+function roundToStep(v: number, step: number): number {
+  if (!Number.isFinite(step) || step <= 0) return v;   // 0·음수·NaN 이면 손대지 않는다
+  const sign = v < 0 ? -1 : 1;
+  return sign * Math.round(Math.abs(v) / step) * step;
+}
+
 // 항 사슬을 순차 계산(왼→오, 우선순위 없음). 묶음(group) 안에서도 재사용한다.
 // operand: 한 항의 값과 "실제 입력이 있었는지". (group 항은 호출부 operand 가 재귀 처리)
 function evalTermChain(
@@ -449,6 +467,17 @@ function evalTermChain(
   let curHas = false;  // 지금 살아있는 누적값이 '실제 입력'에 근거하는가
   let dead = false;    // 지금 구간이 계산 불가인가 (다음 더하기·빼기에서 버려진다)
   for (let i = 0; i < terms.length; i++) {
+    if (terms[i].op === "round") {
+      // 반올림은 '입력'이 아니라 '연산'이다. operand 를 부르지 않으므로
+      // curHas·dead 가 그대로 유지된다 → 빈 차수는 계속 '-', 죽은 구간은 계속 죽은 채.
+      //
+      // 첫 항이 반올림이면 시작값이 없으니 아무것도 안 한다(손으로 쓴 데이터 대비).
+      // ⚠️ 이때 '다음 항이 시작값으로 승격되지는 않는다' — 그 항의 op 가 그대로 쓰인다.
+      //    예: [반올림, -5000] → 0-5000 = -5000 (반올림이 없었다면 첫 항 op 는 무시돼 +5000).
+      //    편집 화면은 첫 항 op 를 늘 "+" 로 저장하므로 화면으로는 만들 수 없는 모양이다.
+      if (i > 0) cur = roundToStep(cur, typeof terms[i].value === "number" ? terms[i].value! : 0);
+      continue;
+    }
     const { v, has } = operand(terms[i]);
     if (i === 0) { cur = v; curHas = has; continue; }
     const op = terms[i].op;
