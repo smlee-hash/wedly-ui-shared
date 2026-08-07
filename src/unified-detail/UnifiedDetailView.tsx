@@ -178,13 +178,29 @@ function TaxAmendmentPanel({
         adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, key));
         onSaved?.();
       } catch (e) {
-        setLocalRow((r) => ({ ...r, [key]: prev }));
-        // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
+        // 서버가 준 사유를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
         const m = e instanceof Error ? e.message : "";
+        const kind = saveFailureKindOf(e);
+        const bridge = adapter.unsaved;
+        // 잠깐 실패(배포 교체·통신 끊김)·로그인 만료면 ★값을 지우지 않는다★ — 앱의 저장 실패 막대에 담는다.
+        if (bridge && kind !== "permanent") {
+          const id = bridge.makeId(bridge.scope, entryId, key);
+          bridge.report({
+            id, scope: bridge.scope, rowId: entryId, fieldKey: key,
+            rowLabel: String((localRow as Record<string, unknown>)["02상호명"] ?? "") || "이 항목",
+            fieldLabel: key, value: newVal,
+            error: m || `'${key}' 저장에 실패했습니다.`, kind,
+            retry: async () => { try { await saveOwnField(entryId, key, newVal); return true; } catch { return false; } },
+            revert: () => setLocalRow((r) => ({ ...r, [key]: prev })),
+          });
+          return;
+        }
+        // 규칙상 저장할 수 없는 값은 다시 시도해도 소용없다 → 되돌리고 사유를 알린다.
+        setLocalRow((r) => ({ ...r, [key]: prev }));
         alert(m || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
       }
     },
-    [entryId, localRow, onSaved, saveOwnField],
+    [entryId, localRow, onSaved, saveOwnField, adapter],
   );
 
   // 하이브 순서와 동일: 히스토리·계약정보·환불정보·미팅정보·파일
@@ -1333,6 +1349,7 @@ function BasicInfoPanel({
       setBasicRow((r) => ({ ...r, [key]: newVal }));
       try {
         await saveOwnField(entryId, key, newVal);
+        adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, key));
         // 공통·커스텀 칸 모두 회사 보관소(basic-store)에도 기록(누가·앱·이전→새값) — 실패해도 행 저장은 유지.
         // 커스텀칸은 그 칸의 라벨(keyToFieldId)을 보관소 키로 사용 → 읽기 빈칸채움(allBasicFields 루프)이 같은 라벨로 되읽음.
         const fieldId = commonFieldIdForKey(key) || keyToFieldId.get(key) || "";
@@ -1863,15 +1880,32 @@ function CustomDomainPanel({
       setLocalRow((r) => ({ ...r, [key]: newVal }));
       try {
         await saveOwnField(entryId, key, newVal);
+        adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, key));
         onSaved?.();
       } catch (e) {
-        setLocalRow((r) => ({ ...r, [key]: prev }));
-        // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
+        // 서버가 준 사유를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
         const m = e instanceof Error ? e.message : "";
+        const kind = saveFailureKindOf(e);
+        const bridge = adapter.unsaved;
+        // 잠깐 실패(배포 교체·통신 끊김)·로그인 만료면 ★값을 지우지 않는다★ — 앱의 저장 실패 막대에 담는다.
+        if (bridge && kind !== "permanent") {
+          const id = bridge.makeId(bridge.scope, entryId, key);
+          bridge.report({
+            id, scope: bridge.scope, rowId: entryId, fieldKey: key,
+            rowLabel: String((localRow as Record<string, unknown>)["02상호명"] ?? "") || "이 항목",
+            fieldLabel: key, value: newVal,
+            error: m || `'${key}' 저장에 실패했습니다.`, kind,
+            retry: async () => { try { await saveOwnField(entryId, key, newVal); return true; } catch { return false; } },
+            revert: () => setLocalRow((r) => ({ ...r, [key]: prev })),
+          });
+          return;
+        }
+        // 규칙상 저장할 수 없는 값은 다시 시도해도 소용없다 → 되돌리고 사유를 알린다.
+        setLocalRow((r) => ({ ...r, [key]: prev }));
         alert(m || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
       }
     },
-    [entryId, localRow, onSaved, saveOwnField],
+    [entryId, localRow, onSaved, saveOwnField, adapter],
   );
 
   // 칸 편집(관리자) — 이름·형식 모드 / 삭제 모드
