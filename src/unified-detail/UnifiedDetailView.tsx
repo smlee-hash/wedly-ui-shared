@@ -32,6 +32,7 @@ import {
 import { isCommonBasicLabel } from "../unified/sections";
 import { applyTabConfig } from "./lib/unified-tab-config";
 import type { BasicRecord } from "./adapter-types";
+import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -176,6 +177,7 @@ function TaxAmendmentPanel({
       setLocalRow((r) => ({ ...r, [key]: newVal }));
       try {
         await saveOwnField(entryId, key, newVal);
+        adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, key));
         onSaved?.();
       } catch (e) {
         setLocalRow((r) => ({ ...r, [key]: prev }));
@@ -1344,9 +1346,28 @@ function BasicInfoPanel({
         }
         onSaved?.();
       } catch (e) {
-        setBasicRow((r) => ({ ...r, [key]: prev }));
         // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
         const m = e instanceof Error ? e.message : "";
+        const kind = saveFailureKindOf(e);
+        const bridge = adapter.unsaved;
+        // 잠깐 실패(배포 교체·통신 끊김)·로그인 만료면 ★값을 지우지 않는다★ — 앱의 저장 실패 막대에 담아
+        // 사용자가 '다시 저장'할 수 있게 한다. 지우면 배포 순간에 친 글자가 통째로 사라진다.
+        if (bridge && kind !== "permanent") {
+          const id = bridge.makeId(bridge.scope, entryId, key);
+          bridge.report({
+            id, scope: bridge.scope, rowId: entryId, fieldKey: key,
+            rowLabel: String(row["02상호명"] ?? "") || "이 항목",
+            fieldLabel: key, value: newVal,
+            error: m || `'${key}' 저장에 실패했습니다.`, kind,
+            retry: async () => {
+              try { await saveOwnField(entryId, key, newVal); return true; } catch { return false; }
+            },
+            revert: () => setBasicRow((r) => ({ ...r, [key]: prev })),
+          });
+          return;
+        }
+        // 규칙상 저장할 수 없는 값(권한·잠긴 칸·값 오류)은 다시 시도해도 소용없다 → 되돌리고 사유를 알린다.
+        setBasicRow((r) => ({ ...r, [key]: prev }));
         alert(m || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
       }
     },
@@ -2141,12 +2162,30 @@ export default function UnifiedDetailView({
     setNameValue(next);
     try {
       await adapter.api.saveOwnField(entryId, "02상호명", next);
+      adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, "02상호명"));
       onSaved?.();
-    } catch {
+    } catch (e) {
+      const kind = saveFailureKindOf(e);
+      const bridge = adapter.unsaved;
+      const m = e instanceof Error ? e.message : "";
+      // 잠깐 실패·로그인 만료면 친 이름을 지우지 않고 앱의 저장 실패 막대에 담는다.
+      if (bridge && kind !== "permanent") {
+        const id = bridge.makeId(bridge.scope, entryId, "02상호명");
+        bridge.report({
+          id, scope: bridge.scope, rowId: entryId, fieldKey: "02상호명",
+          rowLabel: orig || "이 항목", fieldLabel: "상호명", value: next,
+          error: m || "상호명을 저장하지 못했습니다.", kind,
+          retry: async () => {
+            try { await adapter.api.saveOwnField(entryId, "02상호명", next); return true; } catch { return false; }
+          },
+          revert: () => { if (mountedRef.current) setNameValue(orig); },
+        });
+        return;
+      }
       // 창이 이미 닫혔으면 안내·상태변경 생략 — 닫힌 뒤 경고창이 뜨는 문제 방지.
       if (mountedRef.current) {
         setNameValue(orig);
-        alert("상호명 저장에 실패했습니다. 다시 시도해 주세요.");
+        alert(m || "상호명 저장에 실패했습니다. 다시 시도해 주세요.");
       }
     }
   }, [entryId, onSaved, row, adapter]);
