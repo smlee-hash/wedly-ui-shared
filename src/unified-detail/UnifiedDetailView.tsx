@@ -1868,6 +1868,7 @@ function CustomDomainPanel({
   loadColumnConfig,
   saveColumnConfig,
   loadManagers,
+  adapter,
 }: {
   domainId: string;
   label: string;
@@ -1878,6 +1879,7 @@ function CustomDomainPanel({
   loadColumnConfig: () => Promise<unknown>;
   saveColumnConfig: (cfg: unknown) => Promise<void>;
   loadManagers: () => Promise<{ id: string; name: string }[]>;
+  adapter: UnifiedDetailAdapter;
 }) {
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
 
@@ -2718,6 +2720,7 @@ export default function UnifiedDetailView({
                 loadColumnConfig={adapter.api.loadColumnConfig}
                 saveColumnConfig={adapter.api.saveColumnConfig}
                 loadManagers={adapter.api.loadManagers}
+                adapter={adapter}
               />
             </div>
           )}
