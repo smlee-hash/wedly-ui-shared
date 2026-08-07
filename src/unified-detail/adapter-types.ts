@@ -148,6 +148,43 @@ export interface UnifiedDetailApi {
   uploadImage(file: File): Promise<{ url: string }>;
 }
 
+
+/**
+ * 저장 실패를 앱의 '저장 실패 보관함'에 넘기는 통로(선택).
+ *
+ * 왜 필요한가: 이 공용 상세창은 저장이 실패하면 사용자가 방금 친 값을 화면에서 지우고
+ * 경고창 하나를 띄웠다. 배포로 서버가 잠깐 끊긴 순간엔 그 값이 통째로 사라진다
+ * (배포 중 입력 유실, 2026-08-06 요청). 앱이 이 통로를 넘겨 주면 값을 지우지 않고
+ * 앱의 저장 실패 막대에 담아 '다시 저장'할 수 있게 한다.
+ *
+ * 안 넘기는 앱은 예전 그대로 동작한다(되돌리기 + 경고창).
+ */
+export type UnsavedBridge = {
+  /** 이 화면의 이름 — 앱의 표와 같은 글자여야 같은 칸의 실패가 한 항목으로 묶인다. */
+  scope: string;
+  makeId: (scope: string, rowId: string, fieldKey: string) => string;
+  report: (entry: {
+    id: string;
+    scope: string;
+    rowId: string;
+    fieldKey: string;
+    rowLabel: string;
+    fieldLabel: string;
+    value: string | number | boolean | null;
+    error: string;
+    kind: string;
+    retry: () => Promise<boolean>;
+    revert?: () => void;
+  }) => void;
+  resolve: (id: string) => void;
+};
+
+/** 저장이 실패한 이유의 종류 — 앱 어댑터가 던지는 오류에 실어 보낸다. */
+export function saveFailureKindOf(e: unknown): string {
+  const k = (e as { saveFailureKind?: unknown })?.saveFailureKind;
+  return typeof k === "string" ? k : "permanent";
+}
+
 export interface UnifiedDetailAdapter {
   appName: "ERP" | "HIVE" | "ILLUA";
   ownDomain: string;    // ERP: "tax-amendment"
@@ -162,6 +199,9 @@ export interface UnifiedDetailAdapter {
   configScope: string;  // ERP: "unified-collab" (탭/칸 설정 scope)
   domains: ColumnDef[] | unknown[]; // 보여줄 분야 탭 목록 — Phase 1A는 기존 DOMAIN_GROUPS 그대로
   api: UnifiedDetailApi;
+
+  /** 저장 실패를 앱 보관함에 넘기는 통로(선택) — 없으면 예전처럼 되돌리기+경고창. */
+  unsaved?: UnsavedBridge;
 
   // ── ERP 전용 경로 — Phase 1B-1 이전 대상 ──
 
