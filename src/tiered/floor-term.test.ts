@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evalFormulaForTier, parseFormulaTerms, type FieldDef } from "./index";
+import { evalFormulaForTier, parseFormulaTerms, parseScoreCards, type FieldDef } from "./index";
 
 const fields: FieldDef[] = [
   { key: "금액", label: "금액", type: "number" },
@@ -201,5 +201,41 @@ describe("내림 — 딱 떨어지는 금액이 오차로 깎이지 않는다", 
       }
     }
     expect(어긋남).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// 스코어카드 직접 수식에 '내림'이 새어 들어가면 ×10,000 이 된다 (코드 리뷰 지적, 2026-08-08)
+// 스코어카드 파서는 모르는 연산을 '곱하기'로 되돌리므로, 반올림처럼 내림도 '버려야' 한다.
+// 반올림만 막아 두면 내림이 그대로 통과해 금액이 1만 배가 된다.
+// ─────────────────────────────────────────────────────────────────────────
+describe("스코어카드 직접 수식 — 반올림·내림 항은 버린다", () => {
+  const 카드 = (custom: unknown[]) => [{
+    id: "c1", label: "합계", color: "blue",
+    formula: { plus: ["금액"], minus: [], custom },
+  }];
+
+  it("내림 항은 버려진다 — 곱하기 10,000 으로 둔갑하지 않는다", () => {
+    const parsed = parseScoreCards(카드([{ op: "floor", unit: "number", value: 10000 }]));
+    // 항이 하나도 안 남으면 파서가 custom 칸 자체를 안 만든다(= 버려졌다는 뜻).
+    expect(parsed?.[0].formula.custom ?? []).toEqual([]);
+  });
+
+  it("반올림 항도 그대로 버려진다(기존 동작 유지)", () => {
+    const parsed = parseScoreCards(카드([{ op: "round", unit: "number", value: 1000 }]));
+    expect(parsed?.[0].formula.custom ?? []).toEqual([]);
+  });
+
+  it("멀쩡한 항은 그대로 남는다", () => {
+    const parsed = parseScoreCards(카드([{ op: "*", unit: "percent", value: 30 }]));
+    expect(parsed?.[0].formula.custom).toEqual([{ op: "*", unit: "percent", value: 30 }]);
+  });
+
+  it("내림이 섞여 있어도 멀쩡한 항만 남는다", () => {
+    const parsed = parseScoreCards(카드([
+      { op: "*", unit: "percent", value: 30 },
+      { op: "floor", unit: "number", value: 10000 },
+    ]));
+    expect(parsed?.[0].formula.custom).toEqual([{ op: "*", unit: "percent", value: 30 }]);
   });
 });
