@@ -111,7 +111,12 @@ export interface CustomFormulaItem {
 export type FormulaResultFormat = "number" | "percent" | "date";
 // 항 사슬 전용 연산자. 스코어카드 직접 수식(CustomFormulaItem)에는 쓰지 않는다.
 //   "round" = 지금까지의 누적값을 value 원 단위로 반올림 (예: value=1000 → 천원 단위)
-export type FormulaTermOp = CustomFormulaOp | "round";
+//   "floor" = 지금까지의 누적값을 value 원 단위로 내림  (예: value=10000 → 만원 미만 버림)
+export type FormulaTermOp = CustomFormulaOp | "round" | "floor";
+
+// 반올림·내림은 '값'이 아니라 '누적값에 거는 연산'이다. 숫자 항에서만 성립하며
+// 컬럼·묶음 항에 붙으면 그 항의 금액이 통째로 사라진다 — 그래서 한 군데서 판정한다.
+export const isStepOp = (op: unknown): op is "round" | "floor" => op === "round" || op === "floor";
 // 묶음(괄호) 단위 추가 — group 이면 terms 안의 식을 먼저(괄호처럼) 계산. (한 겹만)
 export type FormulaTermUnit = CustomFormulaUnit | "group";
 export interface FormulaTerm {
@@ -126,7 +131,7 @@ export interface FormulaTerm {
 // allowGroup=false 면 묶음(group)을 일반 항으로도 안 잡아 제거(한 겹 강제).
 export function parseFormulaTerms(raw: unknown, allowGroup = true): FormulaTerm[] {
   if (!Array.isArray(raw)) return [];
-  const allowedOps: FormulaTermOp[] = ["+", "-", "*", "/", "round"];
+  const allowedOps: FormulaTermOp[] = ["+", "-", "*", "/", "round", "floor"];
   const allowedUnits: CustomFormulaUnit[] = ["number", "percent", "column"];
   const out: FormulaTerm[] = [];
   for (const it of raw) {
@@ -136,14 +141,14 @@ export function parseFormulaTerms(raw: unknown, allowGroup = true): FormulaTerm[
     if (o.unit === "group") {
       if (!allowGroup) continue; // 안쪽의 group 은 버림(한 겹만 허용)
       const inner = parseFormulaTerms(o.terms, false);
-      // round 는 '단위(원)'를 받는 연산이라 묶음에 붙을 수 없다. 붙어 있으면 평가기가
+      // 반올림·내림은 '단위(원)'를 받는 연산이라 묶음에 붙을 수 없다. 붙어 있으면 평가기가
       // 묶음 내용을 통째로 건너뛰어 그 금액이 소리 없이 사라진다 → 더하기로 되돌린다.
-      if (inner.length > 0) out.push({ op: rawOp === "round" ? "+" : rawOp, unit: "group", terms: inner });
+      if (inner.length > 0) out.push({ op: isStepOp(rawOp) ? "+" : rawOp, unit: "group", terms: inner });
       continue; // 빈 묶음은 버림
     }
     const unit = allowedUnits.includes(o.unit as CustomFormulaUnit) ? (o.unit as CustomFormulaUnit) : "number";
-    // 같은 이유로 round 는 숫자 항에서만 인정한다(컬럼 항에 붙으면 그 컬럼 금액이 사라진다).
-    const op: FormulaTermOp = rawOp === "round" && unit !== "number" ? "+" : rawOp;
+    // 같은 이유로 반올림·내림은 숫자 항에서만 인정한다(컬럼 항에 붙으면 그 컬럼 금액이 사라진다).
+    const op: FormulaTermOp = isStepOp(rawOp) && unit !== "number" ? "+" : rawOp;
     const value = typeof o.value === "number" && Number.isFinite(o.value) ? o.value : 0;
     const term: FormulaTerm = { op, unit, value };
     if (unit === "column" && typeof o.columnKey === "string") term.columnKey = o.columnKey;
@@ -451,6 +456,15 @@ function roundToStep(v: number, step: number): number {
   return sign * Math.round(Math.abs(v) / step) * step;
 }
 
+// 부호 대칭 내림(절사) — 절댓값을 내린 뒤 부호를 되돌린다. 즉 0 쪽으로 버린다.
+// "만원 미만 절사"의 통상 의미가 이것이다. Math.floor 를 그대로 쓰면 음수가 -∞ 쪽으로
+// 내려가(-1,000원이 -10,000원이 된다) '절사'와 어긋난다.
+function floorToStep(v: number, step: number): number {
+  if (!Number.isFinite(step) || step <= 0) return v;   // 0·음수·NaN 이면 손대지 않는다
+  const sign = v < 0 ? -1 : 1;
+  return sign * Math.floor(Math.abs(v) / step) * step;
+}
+
 // 항 사슬을 순차 계산(왼→오, 우선순위 없음). 묶음(group) 안에서도 재사용한다.
 // operand: 한 항의 값과 "실제 입력이 있었는지". (group 항은 호출부 operand 가 재귀 처리)
 function evalTermChain(
@@ -469,15 +483,17 @@ function evalTermChain(
   let curHas = false;  // 지금 살아있는 누적값이 '실제 입력'에 근거하는가
   let dead = false;    // 지금 구간이 계산 불가인가 (다음 더하기·빼기에서 버려진다)
   for (let i = 0; i < terms.length; i++) {
-    if (terms[i].op === "round") {
-      // 반올림은 '입력'이 아니라 '연산'이다. operand 를 부르지 않으므로
+    if (isStepOp(terms[i].op)) {
+      // 반올림·내림은 '입력'이 아니라 '연산'이다. operand 를 부르지 않으므로
       // curHas·dead 가 그대로 유지된다 → 빈 차수는 계속 '-', 죽은 구간은 계속 죽은 채.
       //
-      // 첫 항이 반올림이면 시작값이 없으니 아무것도 안 한다(손으로 쓴 데이터 대비).
+      // 첫 항이면 시작값이 없으니 아무것도 안 한다(손으로 쓴 데이터 대비).
       // ⚠️ 이때 '다음 항이 시작값으로 승격되지는 않는다' — 그 항의 op 가 그대로 쓰인다.
-      //    예: [반올림, -5000] → 0-5000 = -5000 (반올림이 없었다면 첫 항 op 는 무시돼 +5000).
       //    편집 화면은 첫 항 op 를 늘 "+" 로 저장하므로 화면으로는 만들 수 없는 모양이다.
-      if (i > 0) cur = roundToStep(cur, typeof terms[i].value === "number" ? terms[i].value! : 0);
+      if (i > 0) {
+        const step = typeof terms[i].value === "number" ? terms[i].value! : 0;
+        cur = terms[i].op === "floor" ? floorToStep(cur, step) : roundToStep(cur, step);
+      }
       continue;
     }
     const { v, has } = operand(terms[i]);
