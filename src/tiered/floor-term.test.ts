@@ -126,3 +126,80 @@ describe("floor 항 — 만원 단위 내림", () => {
     expect(evalFormulaForTier(f, { id: "t1", 금액: 2056920 } as never, all)).toBe(2057000);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// 소수점 오차로 돈이 깎이는 것 막기 (2026-08-08 적대적 검증에서 발견)
+// 컴퓨터의 소수 계산은 딱 떨어지는 금액도 아주 조금 모자라게 만든다.
+// 반올림은 이 오차를 스스로 삼키지만 내림은 경계에서 그대로 한 단위 떨어진다.
+// ─────────────────────────────────────────────────────────────────────────
+describe("내림 — 딱 떨어지는 금액이 오차로 깎이지 않는다", () => {
+  const 비율칸: FieldDef[] = [
+    { key: "환급액", label: "환급액", type: "number" },
+    {
+      key: "수수료내림", label: "수수료내림", type: "formula", formulaResult: "number",
+      formula: [
+        { op: "+", unit: "column", value: 0, columnKey: "환급액" },
+        { op: "*", unit: "percent", value: 70 },
+        { op: "floor", unit: "number", value: 10000 },
+      ],
+    } as FieldDef,
+  ];
+  const 계산 = (환급액: number, fields = 비율칸, key = "수수료내림") =>
+    evalFormulaForTier(fields.find((f) => f.key === key)!, { id: "t1", 환급액 } as never, fields);
+
+  it("700,000 × 70% = 490,000 — 480,000 으로 깎이면 안 된다", () => {
+    // 그냥 곱하면 489999.99999999994 가 나온다.
+    expect(700000 * (70 / 100)).toBeLessThan(490000);
+    expect(계산(700000)).toBe(490000);
+  });
+
+  it("1,400,000 × 70% = 980,000", () => {
+    expect(계산(1400000)).toBe(980000);
+  });
+
+  it("2,700,000 × 70% = 1,890,000", () => {
+    expect(계산(2700000)).toBe(1890000);
+  });
+
+  it("진짜로 모자란 금액은 그대로 내려간다 — 489,999 → 480,000", () => {
+    const f: FieldDef[] = [
+      { key: "금액2", label: "금액2", type: "number" },
+      {
+        key: "그냥내림", label: "그냥내림", type: "formula", formulaResult: "number",
+        formula: [
+          { op: "+", unit: "column", value: 0, columnKey: "금액2" },
+          { op: "floor", unit: "number", value: 10000 },
+        ],
+      } as FieldDef,
+    ];
+    const run = (금액2: number) =>
+      evalFormulaForTier(f.find((x) => x.key === "그냥내림")!, { id: "t1", 금액2 } as never, f);
+    expect(run(489999)).toBe(480000);
+    expect(run(489999.5)).toBe(480000);
+    expect(run(490000)).toBe(490000);
+  });
+
+  it("금액×비율 조합을 넓게 훑어도 어긋나는 곳이 없다", () => {
+    const 어긋남: string[] = [];
+    for (let base = 100000; base <= 20000000; base += 100000) {
+      for (const rate of [10, 15, 20, 25, 30, 33, 35, 40, 50, 60, 70, 80, 90]) {
+        const 정확 = Math.round(base * rate) / 100;           // 정수 곱 → 오차 없음
+        const 기대 = Math.floor(정확 / 10000) * 10000;
+        const 얻음 = evalFormulaForTier(
+          {
+            key: "x", label: "x", type: "formula", formulaResult: "number",
+            formula: [
+              { op: "+", unit: "column", value: 0, columnKey: "환급액" },
+              { op: "*", unit: "percent", value: rate },
+              { op: "floor", unit: "number", value: 10000 },
+            ],
+          } as FieldDef,
+          { id: "t1", 환급액: base } as never,
+          [{ key: "환급액", label: "환급액", type: "number" } as FieldDef],
+        );
+        if (얻음 !== 기대) 어긋남.push(`${base}×${rate}% → ${얻음} (기대 ${기대})`);
+      }
+    }
+    expect(어긋남).toEqual([]);
+  });
+});
