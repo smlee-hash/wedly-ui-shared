@@ -716,6 +716,7 @@ function SectionDetailPanel({
                   onSave={onSaveContract}
                   isAdmin={isAdmin}
                   sectionSettlementBase={sectionSettlementBase}
+                  entryId={primaryId}
                   enableConditionalFormula={adapter.enableConditionalFormula}
                   conditionFieldOptions={condFieldOpts}
                   row={localRow}
@@ -739,6 +740,7 @@ function SectionDetailPanel({
                   onSave={onSaveSettlement}
                   isAdmin={isAdmin}
                   sectionSettlementBase={sectionSettlementBase}
+                  entryId={primaryId}
                   enableConditionalFormula={adapter.enableConditionalFormula}
                   conditionFieldOptions={condFieldOpts}
                   row={localRow}
@@ -763,6 +765,7 @@ function SectionDetailPanel({
                   onSave={onSaveRefund}
                   isAdmin={isAdmin}
                   sectionSettlementBase={sectionSettlementBase}
+                  entryId={primaryId}
                   enableConditionalFormula={adapter.enableConditionalFormula}
                   conditionFieldOptions={condFieldOpts}
                   row={localRow}
