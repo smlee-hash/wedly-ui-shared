@@ -335,6 +335,7 @@ function TaxAmendmentPanel({
               onSave={(json: string) => handleUpdate("계약정보_차수", json)}
               isAdmin={isAdmin}
               storagePrefix="contract"
+              entryId={entryId}
               fieldsApiPath={ownTieredFieldsPath("contract")}
               sectionTitle="계약정보"
               subSections={subSections.contract}
@@ -354,6 +355,7 @@ function TaxAmendmentPanel({
               onSave={(json: string) => handleUpdate("환불정보_차수", json)}
               isAdmin={isAdmin}
               storagePrefix="refund"
+              entryId={entryId}
               fieldsApiPath={ownTieredFieldsPath("refund")}
               sectionTitle="환불정보"
               subSections={subSections.refund}
