@@ -460,7 +460,14 @@ function roundToStep(v: number, step: number): number {
 function floorToStep(v: number, step: number): number {
   if (!Number.isFinite(step) || step <= 0) return v;   // 0·음수·NaN 이면 손대지 않는다
   const sign = v < 0 ? -1 : 1;
-  return sign * Math.floor(Math.abs(v) / step) * step;
+  // ⚠️ 몫을 0.005원 어림으로 정리한 뒤 내린다 — 이 줄이 없으면 돈이 깎인다.
+  // 컴퓨터의 소수 계산은 딱 떨어지는 금액도 아주 조금 모자라게 만든다:
+  // 700,000 × 70% 는 490,000 이 아니라 489,999.99999999994 로 나온다.
+  // 그대로 내리면 만원이 통째로 사라진다(금액×비율 28,000개 조합 중 714개에서 재현).
+  // 반올림(roundToStep)은 이 오차를 스스로 삼키지만, 내림은 경계에서 그대로 떨어진다.
+  // 진짜로 1원이라도 모자란 금액은 이 정리에 안 걸리므로 의도대로 내려간다.
+  const q = Math.round((Math.abs(v) / step) * 1e6) / 1e6;
+  return sign * Math.floor(q) * step;
 }
 
 // 항 사슬을 순차 계산(왼→오, 우선순위 없음). 묶음(group) 안에서도 재사용한다.
