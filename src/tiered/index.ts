@@ -197,10 +197,12 @@ function parseCustomItems(raw: unknown): CustomFormulaItem[] {
   for (const it of raw) {
     if (!it || typeof it !== "object") continue;
     const o = it as Record<string, unknown>;
-    // 항 사슬 전용 연산(round)이 섞여 들어오면 아래 기본값 "*" 때문에 금액이 1,000배가
-    // 된다(round 는 value 에 반올림 단위 1000 을 담고 있다). 스코어카드엔 반올림이 없으므로
-    // 그 항목은 아예 버린다. 그 밖의 알 수 없는 값은 기존 동작(곱하기)을 그대로 둔다.
-    if (o.op === "round") continue;
+    // 항 사슬 전용 연산(반올림·내림)이 섞여 들어오면 아래 기본값 "*" 때문에 금액이 단위만큼
+    // 부풀어 오른다(반올림은 value 에 1000, 내림은 10000 을 담고 있어 각각 1,000배·1만배).
+    // 스코어카드엔 이 연산이 없으므로 그 항목은 아예 버린다.
+    // ⚠️ round 만 걸러 두면 floor 가 그대로 통과해 ×10,000 이 된다 — 반드시 함께 판정한다.
+    // 그 밖의 알 수 없는 값은 기존 동작(곱하기)을 그대로 둔다.
+    if (isStepOp(o.op)) continue;
     const op = allowedOps.includes(o.op as CustomFormulaOp) ? (o.op as CustomFormulaOp) : "*";
     const value = typeof o.value === "number" && Number.isFinite(o.value) ? o.value : 0;
     const unit = allowedUnits.includes(o.unit as CustomFormulaUnit) ? (o.unit as CustomFormulaUnit) : "number";
