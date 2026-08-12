@@ -42,6 +42,12 @@ export interface FieldDef {
   optionColors?: Record<string, { bg: string; text: string }>;
   // ── ERP 전용 — 이 차수 칸을 경정청구 등 도메인 "표"에 차수별 줄로 노출할지. 하이브·일루아는 무시. ──
   tableExposed?: boolean;
+  // ── 칸 이름표에 마우스를 올리면 뜨는 설명 (선택) ──
+  //   이름만으로는 알 수 없는 계산 기준을 적는다. 예: "수수료 합계에서 만원 미만을 버린 금액".
+  //   이름표 자리는 좁아 글자가 잘리므로, 긴 설명은 여기에 넣고 이름은 짧게 둔다.
+  //   ⚠️ 칸 종류를 바꿔 저장하는 자리에서 이 값을 함께 옮겨 담지 않으면 조용히 사라진다
+  //      (detail-modal-shared 의 SettlementInfoTab — scope·tableExposed 와 같은 자리).
+  description?: string;
   // ── 환불 차수카드 "계약 수식 따라가기" 전용 표시 (서버가 GET 때 붙임 — 저장하지 않는다) ──
   //   negateOnRead: 이 칸의 저장값을 수식에서 읽을 때 부호를 뒤집는다(환불 기준금액칸).
   //                 화면 표시·조건 판정은 저장값 그대로 — 계산에서만 음수.
