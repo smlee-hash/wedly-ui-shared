@@ -65,6 +65,15 @@ describe("filterRowsBySearch — 띄어쓰기 무시 검색", () => {
   it("띄어쓰기를 무시해도 없는 글자는 안 잡는다", () => {
     expect(ids("태권도장아토상사")).toEqual([]);
   });
+
+  it("숫자 모양 검색어에는 압축 비교를 안 쓴다 — 짧은 숫자 오탐 방지(7자리 문턱) 유지", () => {
+    const numRows: RowData[] = [
+      { _id: "p1", phone: "010-1234-5678", amount: "10,000,000" },
+    ];
+    const nids = (q: string) => filterRowsBySearch(numRows, q).map((r) => r._id);
+    expect(nids("010 1")).toEqual([]);          // 압축 "0101"이 번호·금액에 번지지 않는다(종전과 동일)
+    expect(nids("010 1234 5678")).toEqual(["p1"]); // 7자리 이상 번호는 종전대로 숫자 비교로 찾힌다
+  });
 });
 
 // NO.82 — 전화·번호 검색은 하이픈/구분자와 무관하게 숫자만 비교(부분검색 포함).
