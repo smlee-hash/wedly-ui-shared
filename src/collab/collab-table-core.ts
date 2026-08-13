@@ -37,21 +37,28 @@ export function filterRowsBySearch(
   // 번호형(숫자 7자리+) 검색어일 때만 '숫자만' 비교를 준비(전화/사업자번호 하이픈 무시). 그 외엔 종전과 동일.
   const qDigits = /^[0-9\s()+.\-]+$/.test(q) ? q.replace(/\D/g, "") : "";
   const useDigits = qDigits.length >= 7;
+  // 띄어쓰기 무시 비교 — 저장은 "태권도장 아토"인데 담당자는 "태권도장아토"로 검색해 0건이 떴고
+  // "업체가 목록에 없다"로 오해됐다(2026-08-13 이충훈 제보 실측). 반대("예성기업"↔"예성 기업")도 같다.
+  // 값마다 공백 제거본을 따로 대조한다 — 여러 칸을 이어 붙인 문자열에서 공백을 지우면
+  // 칸 경계가 사라져 서로 다른 칸의 글자가 이어져 잘못 맞는 것을 막는다.
+  const qCompact = q.replace(/\s+/g, "");
   return rows.filter((row) => {
     const parts: string[] = [];
     let digitHit = false;
+    let compactHit = false;
     const add = (v: unknown) => {
       if (v == null || v === "") return;
       const sv = String(v).toLowerCase();
       parts.push(sv);
       if (useDigits && !digitHit && sv.replace(/\D/g, "").includes(qDigits)) digitHit = true;
+      if (qCompact && !compactHit && sv.replace(/\s+/g, "").includes(qCompact)) compactHit = true;
     };
     for (const k in row) {
       if (k.startsWith("_")) continue;
       add(row[k]);
     }
     if (extraSearchText) add(extraSearchText(row));
-    return parts.join(" ").includes(q) || digitHit;
+    return parts.join(" ").includes(q) || digitHit || compactHit;
   });
 }
 
