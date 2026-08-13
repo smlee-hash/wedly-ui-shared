@@ -89,6 +89,13 @@ export type CollabTableProps = {
    */
   searchExtraText?: (row: RowData) => string;
   /**
+   * (선택) 디바운스된 검색어가 바뀔 때 부모에 알린다 — 부모가 표 밖 데이터 조달(서버 전체 검색 등)을
+   * 붙이는 통로. 생략하면 종전과 100% 동일(다른 앱 무영향). 검색어는 내부 표시 필터에도 그대로 쓰이므로,
+   * 부모는 "무엇을 rows 로 넘길지"만 바꾸면 된다. 값은 trim+소문자화된 문자열(내부 디바운스 결과 그대로).
+   * 함수 참조는 내부에서 ref 로 들고 최신 것만 부르므로 안정성(useCallback) 요건이 없다.
+   */
+  onSearchChange?: (search: string) => void;
+  /**
    * 줄 전체 색칠(조건부 서식). 그 줄의 데이터로 색 클래스(예: "bg-wedly-bg-red text-wedly-red")를 돌려주면
    * 그 줄에 칠한다. 생략하거나 null을 돌려주면 색 없음 — 기존과 100% 동일(ERP 무영향).
    * 체크된 줄은 파란 강조가 이겨 이 색은 빠진다(하이브·일루아와 동일 규칙).
@@ -618,6 +625,7 @@ export function CollabTable({
   mobile,
   renderFieldValue,
   searchExtraText,
+  onSearchChange,
   getRowColorClass,
   getColAccent: getColAccentProp,
   tabs,
@@ -809,6 +817,14 @@ export function CollabTable({
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim().toLowerCase()), 100);
     return () => clearTimeout(t);
   }, [searchInput]);
+
+  // 부모에 검색어 변화 알림(onSearchChange) — 매 렌더 새 함수를 넘겨도 안전하게 ref 로 최신 것만 부른다.
+  //  세션에 남은 검색어 복원(마운트) 시에도 1회 불린다 — 부모의 서버 검색이 새로고침 뒤에도 이어지게.
+  const onSearchChangeRef = useRef(onSearchChange);
+  onSearchChangeRef.current = onSearchChange;
+  useEffect(() => {
+    onSearchChangeRef.current?.(debouncedSearch);
+  }, [debouncedSearch]);
 
   // 검색어를 브라우저 탭(session)에 기록 → 같은 탭 새로고침 시 유지, 탭 종료 시 삭제.
   useEffect(() => {
