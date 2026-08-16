@@ -344,7 +344,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-wedly-bd animate-modal-in max-h-[80vh] flex flex-col">
         <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60 flex items-center justify-between">
-          <h3 className="text-[15px] font-bold text-wedly-navy">컬럼 설정</h3>
+          <h3 className="text-wedly-sub font-bold text-wedly-navy">컬럼 설정</h3>
           <button
             onClick={onClose}
             className="text-wedly-muted hover:text-wedly-t1 w-7 h-7 flex items-center justify-center rounded hover:bg-wedly-bg-gray"

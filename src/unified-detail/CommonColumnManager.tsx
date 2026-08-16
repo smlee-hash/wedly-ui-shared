@@ -120,7 +120,7 @@ export function CommonColumnManager({
 
       {/* ── 추가된 칸 목록 ── */}
       <section className="space-y-2">
-        <h3 className="text-[14px] font-semibold text-wedly-t1">추가된 칸</h3>
+        <h3 className="text-wedly-sub font-semibold text-wedly-t1">추가된 칸</h3>
         <p className="text-[12px] text-wedly-muted">
           <b>공통(3앱)</b>으로 두면 3개 앱에 같은 칸이 생기고 값이 함께 맞춰집니다. <b>이 앱만</b>으로 두면 이 앱(ERP)에서만 보입니다.
         </p>
@@ -168,7 +168,7 @@ export function CommonColumnManager({
 
       {/* ── 칸 추가 ── */}
       <section className="space-y-2">
-        <h3 className="text-[14px] font-semibold text-wedly-t1">칸 추가</h3>
+        <h3 className="text-wedly-sub font-semibold text-wedly-t1">칸 추가</h3>
         <div className="rounded-xl border border-wedly-bd/60 p-3 space-y-3">
           <div>
             <label className="block text-[11px] text-wedly-muted mb-1">칸 이름</label>

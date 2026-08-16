@@ -130,7 +130,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
       <div className="w-full max-w-3xl rounded-2xl border border-wedly-bd bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-wedly-t1">{title}</h2>
+          <h2 className="text-wedly-section font-semibold text-wedly-t1">{title}</h2>
           <button onClick={onClose} aria-label="닫기" className="text-wedly-muted hover:text-wedly-t1">✕</button>
         </div>
 
@@ -308,7 +308,7 @@ function PreviewTable({ fields, rows }: { fields: TargetField[]; rows: Record<st
       <div className="bg-wedly-bg-gray px-3 py-2 text-xs font-medium text-wedly-t2">바뀐 항목으로 미리보기</div>
       <div className="overflow-x-auto">
         <table className="text-xs" style={{ minWidth: "max-content" }}>
-          <thead><tr>{cols.map((c) => <th key={c.key} className="whitespace-nowrap border-b border-wedly-bd/60 px-2 py-1.5 text-left font-medium text-wedly-accent">{c.label}</th>)}</tr></thead>
+          <thead className="text-wedly-label"><tr>{cols.map((c) => <th key={c.key} className="whitespace-nowrap border-b border-wedly-bd/60 px-2 py-1.5 text-left font-medium text-wedly-accent">{c.label}</th>)}</tr></thead>
           <tbody>{rows.map((r, i) => <tr key={i}>{cols.map((c) => <td key={c.key} className="whitespace-nowrap border-b border-wedly-bd/60 px-2 py-1.5 text-wedly-t2">{String(r[c.key] ?? "")}</td>)}</tr>)}</tbody>
         </table>
       </div>

@@ -48,7 +48,7 @@ export function CommonFieldsLauncher({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold text-wedly-t1">공통 컬럼 관리</h2>
+              <h2 className="text-wedly-section font-semibold text-wedly-t1">공통 컬럼 관리</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}

@@ -911,7 +911,7 @@ export function HistoryPanel({
             <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setShowCategoryHideManager(false)} />
             <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-wedly-bd flex flex-col max-h-[80vh]">
               <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60">
-                <h3 className="text-[15px] font-bold text-wedly-navy">카테고리 숨김 관리</h3>
+                <h3 className="text-wedly-sub font-bold text-wedly-navy">카테고리 숨김 관리</h3>
                 <p className="mt-1 text-[12px] text-wedly-muted">화면에서 일시적으로 가려 둘 카테고리를 켜고 끌 수 있어요. 삭제와 달리 다시 보이기 가능합니다.</p>
               </div>
               <div className="px-5 py-3 overflow-y-auto flex-1 space-y-1.5">

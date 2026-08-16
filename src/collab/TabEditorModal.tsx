@@ -144,7 +144,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-wedly-navy">탭 편집</h2>
+          <h2 className="text-wedly-section font-bold text-wedly-navy">탭 편집</h2>
           <button onClick={onClose} className="text-wedly-muted hover:text-wedly-t2" title="닫기">✕</button>
         </div>
 
