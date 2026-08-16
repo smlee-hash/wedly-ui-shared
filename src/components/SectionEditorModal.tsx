@@ -97,7 +97,7 @@ export function SectionEditorAddModal({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-wedly-bd">
         <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60">
-          <h3 className="text-[15px] font-bold text-wedly-navy">새 섹션 추가</h3>
+          <h3 className="text-wedly-sub font-bold text-wedly-navy">새 섹션 추가</h3>
           <p className="mt-1 text-[12px] text-wedly-muted">상세 정보 패널 안에 새 하위 섹션을 만듭니다.</p>
         </div>
         <div className="px-5 py-4 space-y-4">
@@ -196,7 +196,7 @@ export function SectionEditorDeleteConfirm({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-wedly-bd">
         <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60">
-          <h3 className="text-[15px] font-bold text-wedly-navy">섹션 삭제</h3>
+          <h3 className="text-wedly-sub font-bold text-wedly-navy">섹션 삭제</h3>
         </div>
         <div className="px-5 py-4 text-[13px] text-wedly-t2 space-y-2">
           <p>

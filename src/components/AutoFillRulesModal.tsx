@@ -153,7 +153,7 @@ export default function AutoFillRulesModal({
               </svg>
             </div>
             <div>
-              <h2 className="text-[15px] font-semibold text-wedly-t1">자동 입력 규칙 편집</h2>
+              <h2 className="text-wedly-section font-semibold text-wedly-t1">자동 입력 규칙 편집</h2>
               <p className="mt-0.5 text-[12px] text-wedly-muted">
                 특정 컬럼 값에 따라 다른 컬럼이 자동으로 채워지도록 규칙을 만들 수 있습니다.
               </p>
@@ -300,7 +300,7 @@ export default function AutoFillRulesModal({
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setErrorMsg(null)}>
           <div className="w-full max-w-sm rounded-2xl border border-wedly-bd bg-white shadow-2xl animate-modal-in" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60">
-              <h3 className="text-[15px] font-bold text-wedly-navy">오류</h3>
+              <h3 className="text-wedly-sub font-bold text-wedly-navy">오류</h3>
             </div>
             <div className="px-5 py-4 text-[13px] text-wedly-t1">{errorMsg}</div>
             <div className="px-5 py-3 bg-wedly-bg-gray/50 border-t border-wedly-bd/60 flex justify-end">
@@ -320,7 +320,7 @@ export default function AutoFillRulesModal({
                   <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
-              <h3 className="text-[15px] font-bold text-wedly-navy">저장 완료</h3>
+              <h3 className="text-wedly-sub font-bold text-wedly-navy">저장 완료</h3>
             </div>
             <div className="px-5 py-4 text-[13px] text-wedly-t1">{successMsg}</div>
             <div className="px-5 py-3 bg-wedly-bg-gray/50 border-t border-wedly-bd/60 flex justify-end">

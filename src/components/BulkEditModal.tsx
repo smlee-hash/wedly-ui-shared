@@ -193,7 +193,7 @@ export default function BulkEditModal({
               </svg>
             </div>
             <div>
-              <h2 className="text-[15px] font-semibold text-wedly-t1">선택 항목 일괄 수정</h2>
+              <h2 className="text-wedly-section font-semibold text-wedly-t1">선택 항목 일괄 수정</h2>
               <p className="mt-0.5 text-[12px] text-wedly-muted">
                 선택한 <span className="font-semibold text-wedly-accent">{selectedIds.length}</span>개 행의 한 컬럼 값을 한 번에 바꿉니다.
               </p>
@@ -298,7 +298,7 @@ export default function BulkEditModal({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60">
-              <h3 className="text-[15px] font-bold text-wedly-navy">일괄 수정 확인</h3>
+              <h3 className="text-wedly-sub font-bold text-wedly-navy">일괄 수정 확인</h3>
             </div>
             <div className="px-5 py-4 text-[13px] text-wedly-t2 leading-relaxed">
               선택한 <span className="font-semibold text-wedly-accent">{selectedIds.length}</span>개 행의
@@ -343,7 +343,7 @@ export default function BulkEditModal({
                   <path d="M8 1l7 13H1L8 1zM8 6v3M8 11.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
-              <h3 className="text-[15px] font-bold text-wedly-navy">알림</h3>
+              <h3 className="text-wedly-sub font-bold text-wedly-navy">알림</h3>
             </div>
             <div className="px-5 py-4 text-[13px] text-wedly-t1 leading-relaxed">
               {errorMsg}

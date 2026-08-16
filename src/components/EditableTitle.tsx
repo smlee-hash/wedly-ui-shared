@@ -28,7 +28,7 @@ export function EditableTitle({
 
   if (readOnly) {
     return (
-      <h2 className={`text-lg sm:text-xl font-bold text-wedly-navy truncate ${className}`}>
+      <h2 className={`text-wedly-section font-bold text-wedly-navy truncate ${className}`}>
         {display}
       </h2>
     );
@@ -67,7 +67,7 @@ export function EditableTitle({
       className={`group min-w-0 flex-1 inline-flex items-center gap-1.5 text-left rounded-md px-1.5 -mx-1.5 hover:bg-wedly-bg-gray/60 transition-colors ${className}`}
       title="클릭(또는 탭)해서 상호명 수정"
     >
-      <h2 className="text-lg sm:text-xl font-bold text-wedly-navy truncate">{display}</h2>
+      <h2 className="text-wedly-section font-bold text-wedly-navy truncate">{display}</h2>
       {/* 연필 아이콘 — 휴대폰(마우스 올림 없음)에서도 '수정 가능'이 보이도록 항상 옅게 표시, 마우스 올리면 진해짐 */}
       <svg
         width="14"
