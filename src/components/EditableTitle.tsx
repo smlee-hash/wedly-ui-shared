@@ -55,7 +55,7 @@ export function EditableTitle({
             e.currentTarget.blur();
           }
         }}
-        className={`min-w-0 flex-1 text-lg sm:text-xl font-bold text-wedly-navy bg-transparent border-b border-wedly-bd focus:border-wedly-accent outline-none ${className}`}
+        className={`min-w-0 flex-1 text-wedly-section font-bold text-wedly-navy bg-transparent border-b border-wedly-bd focus:border-wedly-accent outline-none ${className}`}
       />
     );
   }
