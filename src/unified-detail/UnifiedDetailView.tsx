@@ -777,7 +777,7 @@ function AddBasicColumnModal({ title = "기본정보에 칸 추가", onClose, on
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40" />
       <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-xs p-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-[14px] font-bold text-wedly-navy mb-3">{title}</h3>
+        <h3 className="text-wedly-sub font-bold text-wedly-navy mb-3">{title}</h3>
         <label className="block text-[11px] text-wedly-muted mb-1">칸 이름</label>
         <input
           autoFocus
@@ -1616,12 +1616,12 @@ function BasicInfoPanel({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[13px] min-w-[480px]">
-              <thead>
+              <thead className="text-wedly-label">
                 <tr className="border-b border-wedly-bd/60">
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-wedly-muted">영역</th>
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-wedly-muted">담당 파트너</th>
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-wedly-muted">진행상태</th>
-                  <th className="px-3 py-2 text-left text-[11px] font-semibold text-wedly-muted">핵심 날짜</th>
+                  <th className="px-3 py-2 text-left font-semibold text-wedly-muted">영역</th>
+                  <th className="px-3 py-2 text-left font-semibold text-wedly-muted">담당 파트너</th>
+                  <th className="px-3 py-2 text-left font-semibold text-wedly-muted">진행상태</th>
+                  <th className="px-3 py-2 text-left font-semibold text-wedly-muted">핵심 날짜</th>
                   <th className="px-3 py-2" />
                 </tr>
               </thead>

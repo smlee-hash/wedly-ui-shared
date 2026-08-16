@@ -126,7 +126,7 @@ export function PanelEditorAddModal({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-wedly-bd">
         <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60">
-          <h3 className="text-[15px] font-bold text-wedly-navy">새 상위 패널 만들기</h3>
+          <h3 className="text-wedly-sub font-bold text-wedly-navy">새 상위 패널 만들기</h3>
           <p className="mt-1 text-[12px] text-wedly-muted">상세 모달 좌상단(상세 정보 · 히스토리 · 파일) 옆에 새 탭을 추가합니다.</p>
         </div>
         <div className="px-5 py-4 space-y-4">
@@ -290,7 +290,7 @@ export function PanelManagerModal({
       <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-wedly-bd flex flex-col max-h-[80vh]">
         <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60 flex items-center justify-between">
           <div>
-            <h3 className="text-[15px] font-bold text-wedly-navy">상위 패널 관리</h3>
+            <h3 className="text-wedly-sub font-bold text-wedly-navy">상위 패널 관리</h3>
             <p className="mt-1 text-[12px] text-wedly-muted">상세 모달 좌상단의 탭들을 추가·이름수정·삭제합니다.</p>
           </div>
           <button

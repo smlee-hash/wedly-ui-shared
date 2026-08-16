@@ -657,7 +657,7 @@ function ConfirmEditDialog({
             </svg>
           </div>
           <div className="min-w-0">
-            <h3 className="text-[15px] font-bold text-wedly-navy">수정 확인</h3>
+            <h3 className="text-wedly-sub font-bold text-wedly-navy">수정 확인</h3>
             <p className="truncate text-[12px] text-wedly-muted">
               <span className="font-semibold text-wedly-t2">{label}</span> 칸을 아래와 같이 바꿉니다.
             </p>

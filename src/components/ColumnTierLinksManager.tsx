@@ -131,7 +131,7 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
 
   return (
     <div className="px-3 sm:px-6 py-3 sm:py-4 max-w-3xl mx-auto">
-      <h1 className="text-lg sm:text-xl font-bold text-wedly-navy">차수 ↔ 컬럼 연결 설정</h1>
+      <h1 className="text-wedly-page font-bold text-wedly-navy">차수 ↔ 컬럼 연결 설정</h1>
       <p className="mt-1 text-[12px] sm:text-[13px] text-wedly-muted">상위 섹션 → 세부(계약/정산/환불) → 차수 칸을 골라 표 컬럼과 짝지으면 양쪽이 함께 바뀝니다.</p>
 
       {/* 현재 연결 목록 */}
@@ -153,7 +153,7 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
 
       {/* 추가 폼 */}
       <div className="mt-6 rounded-2xl border border-wedly-bd bg-white p-4 shadow-sm space-y-3">
-        <h2 className="text-[14px] font-bold text-wedly-navy">연결 추가</h2>
+        <h2 className="text-wedly-section font-bold text-wedly-navy">연결 추가</h2>
 
         <div>
           <label className="block text-[12px] text-wedly-muted mb-1">표 컬럼</label>
@@ -213,7 +213,7 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-2xl border border-wedly-bd bg-white shadow-2xl">
             <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60">
-              <h3 className="text-[15px] font-bold text-wedly-navy">연결 적용 미리보기</h3>
+              <h3 className="text-wedly-sub font-bold text-wedly-navy">연결 적용 미리보기</h3>
               <p className="mt-1 text-[12px] text-wedly-muted">{colLabelMap[preview.link.columnKey] || preview.link.columnKey} ↔ {sectionLabel(preview.link.section ?? adapter.ownDomain)} · {AREA_LABEL[preview.link.area]}</p>
             </div>
             <div className="px-5 py-4 text-[13px] text-wedly-t2 space-y-1">

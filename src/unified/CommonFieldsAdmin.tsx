@@ -446,7 +446,7 @@ export function CommonFieldsAdmin({
       {/* ── 공통 컬럼 ── */}
       <section className="space-y-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-[14px] font-semibold text-wedly-accent">공통 컬럼</h3>
+          <h3 className="text-wedly-sub font-semibold text-wedly-accent">공통 컬럼</h3>
           <span className="text-[12px] text-wedly-muted">3개 앱이 값을 함께 씁니다</span>
         </div>
         {renderRows(commonItems, "공통 컬럼이 없습니다.")}
@@ -455,7 +455,7 @@ export function CommonFieldsAdmin({
       {/* ── 커스텀 컬럼 ── */}
       <section className="space-y-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-[14px] font-semibold text-wedly-t1">커스텀 컬럼</h3>
+          <h3 className="text-wedly-sub font-semibold text-wedly-t1">커스텀 컬럼</h3>
           <span className="text-[12px] text-wedly-muted">이 앱에서만 보입니다</span>
         </div>
         {renderRows(customItems, "커스텀 컬럼이 없습니다.")}
