@@ -249,6 +249,23 @@ export type TierData = {
   _subSectionId?: string;
 } & Record<string, string | number | null | undefined>;
 
+// ── 수식 칸 수동 수정(관리자 override) ──────────────────────────────────
+// 관리자가 수식 계산값 대신 손으로 넣은 값은 차수 객체 안 "_ovr_<칸키>" 로 저장된다.
+// 이 키가 있으면 evalFormulaForTier 가 수식을 계산하지 않고 이 값을 그대로 돌려주므로
+// 카드 화면·정산 파이프라인·표 연동이 전부 같은 값을 본다. 복원 = 키 삭제.
+export const TIER_OVERRIDE_PREFIX = "_ovr_";
+
+export function overrideKeyOf(fieldKey: string): string {
+  return TIER_OVERRIDE_PREFIX + fieldKey;
+}
+
+/** 차수에 저장된 수동 수정값. 없거나 숫자로 못 읽으면 null. */
+export function getTierOverride(tier: TierData, fieldKey: string): number | null {
+  const raw = tier[overrideKeyOf(fieldKey)];
+  const num = typeof raw === "number" ? raw : typeof raw === "string" && raw !== "" ? Number(raw) : NaN;
+  return Number.isFinite(num) ? num : null;
+}
+
 export const ORDINAL_KO = ["1차", "2차", "3차", "4차", "5차", "6차", "7차", "8차", "9차", "10차", "11차", "12차"];
 
 export function makeEmptyTier(idx: number, fields: FieldDef[]): TierData {
@@ -293,6 +310,15 @@ export function parseTiers(raw: unknown, fields: FieldDef[]): TierData[] {
         tier[f.key] = typeof v === "string" ? v : "";
       }
     }
+      // 수동 수정값(_ovr_*) 보존 — 카드가 읽고 다시 저장할 때 증발하지 않게.
+      // 대응하는 수식 칸 정의가 있을 때만 살린다(칸이 지워지면 잔재도 자연 청소).
+      for (const f of fields) {
+        if (f.type !== "formula") continue;
+        const ok = overrideKeyOf(f.key);
+        const ov = item[ok];
+        const num = typeof ov === "number" ? ov : typeof ov === "string" && ov !== "" ? Number(ov) : NaN;
+        if (Number.isFinite(num)) tier[ok] = num;
+      }
     return tier;
   });
 }
@@ -538,6 +564,10 @@ export function evalFormulaForTier(
   seen: ReadonlySet<string> = new Set<string>(),
   conditionValues?: Record<string, unknown>,
 ): number | null {
+  // 관리자 수동 수정값이 있으면 수식을 계산하지 않고 그 값을 쓴다.
+  // 다른 수식 칸이 이 칸을 참조(재귀)할 때도 여기로 들어오므로 연쇄 반영이 자동이다.
+  const manual = getTierOverride(tier, field.key);
+  if (manual !== null) return manual;
   if (seen.has(field.key)) return null; // 순환 참조 차단 (조건 평가에서 자기 칸 참조 대비 먼저)
   const nextSeen = new Set(seen);
   nextSeen.add(field.key);
