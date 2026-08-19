@@ -315,13 +315,15 @@ export function parseTiers(raw: unknown, fields: FieldDef[]): TierData[] {
       }
     }
       // 수동 수정값(_ovr_*) 보존 — 카드가 읽고 다시 저장할 때 증발하지 않게.
-      // 대응하는 수식 칸 정의가 있을 때만 살린다(칸이 지워지면 잔재도 자연 청소).
-      for (const f of fields) {
-        if (f.type !== "formula") continue;
-        const ok = overrideKeyOf(f.key);
-        const ov = item[ok];
+      // ⚠️ 칸 정의(fields)에 걸지 않고 접두사로 보존한다: 카드 첫 렌더는 정의가 아직
+      // 안 와서 parseTiers(raw, []) 로 도는데, 그 사이 차수 추가·삭제 조작이 저장되면
+      // 정의 기준 보존은 수동값을 통째로 증발시킨다(적대적 리뷰 심각2, 2026-08-19).
+      // 정의가 지워진 잔재 키는 계산에서 안 읽히므로 남아 있어도 무해하다.
+      for (const k of Object.keys(item)) {
+        if (!k.startsWith(TIER_OVERRIDE_PREFIX)) continue;
+        const ov = item[k];
         const num = typeof ov === "number" ? ov : typeof ov === "string" && ov !== "" ? Number(ov) : NaN;
-        if (Number.isFinite(num)) tier[ok] = num;
+        if (Number.isFinite(num)) tier[k] = num;
       }
     return tier;
   });
