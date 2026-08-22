@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { UnifiedDetailAdapter } from "./adapter-types";
 import type { CustomerDetailLite } from "./lib/customer-detail";
+import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
 
 export default function BasicFilesField({
   row,
@@ -125,7 +126,7 @@ export default function BasicFilesField({
                 {adapter.onOpenFile ? (
                   <button type="button" onClick={() => adapter.onOpenFile!(f, entryId)} className={cls} title={f.name}>{body}</button>
                 ) : (
-                  <a href={f.url} target="_blank" rel="noopener noreferrer" className={cls} title={f.name}>{body}</a>
+                  <a href={selfHostedFileUrl(f.url)} target="_blank" rel="noopener noreferrer" className={cls} title={f.name}>{body}</a>
                 )}
                 {dlBtn}
               </div>

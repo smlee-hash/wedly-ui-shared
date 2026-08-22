@@ -12,6 +12,7 @@ import { SelectDropdownBody, MultiPersonEditor, personDisplayName } from "@wedly
 import { cn } from "../lib/cn";
 import { shouldConfirmFieldEdit } from "./lib/edit-confirm-gate";
 import { parseUploadSuccess } from "./upload-response";
+import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
 
 // 칸 정의에 실려온 선택지(공용 추가 칸)를 앞에 두고, 앱 동적 선택지를 뒤에 합친다(중복 제거).
 // 정의 선택지가 없으면 기존 동작(앱 선택지)을 그대로 — 표준 칸·기존 커스텀 칸 무영향.
@@ -591,7 +592,7 @@ function FileEditor({
       {files.map((f, i) => (
         <div key={i} className="flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 group/file">
           <a
-            href={f.url}
+            href={selfHostedFileUrl(f.url)}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 min-w-0 truncate text-[14px] sm:text-[13px] text-wedly-t1 hover:text-wedly-accent"
