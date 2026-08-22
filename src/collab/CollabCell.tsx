@@ -5,6 +5,7 @@ import type { ColumnDef } from "../types/columns";
 import { cn } from "../lib/cn";
 import { cellChips, type CellChip, type CellColorMaps } from "./collab-cell";
 import type { CellValue, RowData } from "./collab-table-core";
+import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
 
 // 딱지(둥근 알약) 모양 — ERP·하이브 본화면 표와 동일. (display 는 점 유무에 따라 분기)
 const CHIP_BASE = "px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap";
@@ -47,7 +48,7 @@ export function ColoredCell({
           f.url ? (
             <a
               key={`${f.name}-${i}`}
-              href={f.url}
+              href={selfHostedFileUrl(f.url)}
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}

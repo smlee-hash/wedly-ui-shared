@@ -10,6 +10,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { UnifiedDetailAdapter } from "./adapter-types";
 import type { CustomerDetailLite } from "./lib/customer-detail";
+import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
 
 export default function BasicFilesField({
   row,
@@ -103,7 +104,7 @@ export default function BasicFilesField({
           {inline.map((f, i) => (
             <div key={i} className="flex items-center gap-1 min-w-0">
               <a
-                href={f.url}
+                href={selfHostedFileUrl(f.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-1 items-center gap-2 px-3 py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[13px] text-wedly-t1 hover:text-wedly-accent min-w-0"

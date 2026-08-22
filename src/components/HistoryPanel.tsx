@@ -9,6 +9,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { cn } from "../lib/cn";
 import { useAutoResizeTextarea } from "../hooks/useAutoResizeTextarea";
 import { timeAgo as defaultTimeAgo } from "../lib/utils";
+import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
 import {
   parseCommentBody,
   appendImageLines,
@@ -830,9 +831,9 @@ export function HistoryPanel({
                   <div className="ml-7 text-[13px] text-wedly-t2 whitespace-pre-wrap leading-relaxed bg-wedly-bg-gray rounded-lg px-3 py-2">
                     {bodyParts.map((part, pi) =>
                       part.type === "image" ? (
-                        <a key={pi} href={part.url} target="_blank" rel="noopener noreferrer" className="block my-1">
+                        <a key={pi} href={selfHostedFileUrl(part.url)} target="_blank" rel="noopener noreferrer" className="block my-1">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={historyThumbnailUrl(part.url)} alt="첨부 이미지" className="max-w-full max-h-60 rounded-lg border border-wedly-bd hover:opacity-90 transition-opacity cursor-pointer" />
+                          <img src={historyThumbnailUrl(selfHostedFileUrl(part.url))} alt="첨부 이미지" className="max-w-full max-h-60 rounded-lg border border-wedly-bd hover:opacity-90 transition-opacity cursor-pointer" />
                         </a>
                       ) : (
                         <span key={pi}>{part.value}{pi < bodyParts.length - 1 ? "\n" : ""}</span>
