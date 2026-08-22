@@ -10,6 +10,7 @@
 
 import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
+import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
 import { getOptionColorClass } from "../lib/options";
 import type { ColumnLite, UnifiedSection } from "../unified/sections";
 import {
@@ -60,7 +61,7 @@ export function renderUnifiedFieldValue(
       return (
         <span className="flex flex-col gap-1.5 min-w-0">
           {(d.files ?? []).map((f, i) => {
-            const href = fileHref(f);
+            const href = selfHostedFileUrl(fileHref(f) || "");
             const label = fileLabel(f);
             const base =
               "flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[14px] sm:text-[13px] text-wedly-t1 max-w-full";

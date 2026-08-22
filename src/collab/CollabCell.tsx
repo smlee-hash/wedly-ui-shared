@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { ColumnDef } from "../types/columns";
 import { cn } from "../lib/cn";
+import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
 import { cellChips, type CellChip, type CellColorMaps } from "./collab-cell";
 import type { CellValue, RowData } from "./collab-table-core";
 
@@ -47,7 +48,7 @@ export function ColoredCell({
           f.url ? (
             <a
               key={`${f.name}-${i}`}
-              href={f.url}
+              href={selfHostedFileUrl(f.url)}
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}

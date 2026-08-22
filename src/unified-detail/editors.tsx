@@ -10,6 +10,7 @@ import { TextEditor, NumberEditor, isCommonBasicLabel, renderUnifiedFieldValue, 
 // 선택 칸 본문(옵션 추가·색칠)·사람 선택 위젯도 하이브와 같은 공용 부품 사용.
 import { SelectDropdownBody, MultiPersonEditor, personDisplayName } from "@wedly/detail-modal-shared";
 import { cn } from "../lib/cn";
+import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
 import { shouldConfirmFieldEdit } from "./lib/edit-confirm-gate";
 
 // 칸 정의에 실려온 선택지(공용 추가 칸)를 앞에 두고, 앱(ERP) 동적 선택지를 뒤에 합친다(중복 제거).
@@ -577,7 +578,7 @@ function FileEditor({
       {files.map((f, i) => (
         <div key={i} className="flex items-center gap-2 px-3 py-2 sm:py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 group/file">
           <a
-            href={f.url}
+            href={selfHostedFileUrl(f.url)}
             target="_blank"
             rel="noopener noreferrer"
             className="flex-1 min-w-0 truncate text-[14px] sm:text-[13px] text-wedly-t1 hover:text-wedly-accent"
