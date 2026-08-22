@@ -28,12 +28,16 @@ export function selfHostedFileUrlFrom(url: string, selfOrigin: string): string {
     return url;
   }
 
-  if (u.protocol !== "https:" && u.protocol !== "http:") return url;
+  // 형제 함수(internal-file-token.ts)와 같은 규칙 — https 만, 표준 포트만.
+  // 「정확한 집 목록」의 뜻을 흐리지 않으려면 여기서도 같은 잣대를 써야 한다
+  // (2026-08-23 적대적 리뷰: 같은 규칙이 세 벌 서로 다르게 적혀 있었다).
+  if (u.protocol !== "https:") return url;
+  if (u.port !== "") return url;
   if (u.origin === selfOrigin) return url;
   if (!WEDLY_APP_HOSTS.has(u.hostname.toLowerCase())) return url;
   if (!UPLOAD_PATH.test(u.pathname)) return url;
 
-  return u.pathname + u.search;
+  return u.pathname + u.search + u.hash;
 }
 
 /** 브라우저용 얇은 껍데기. 서버에서 그릴 때는 location 이 없으니 원본을 그대로 둔다. */
