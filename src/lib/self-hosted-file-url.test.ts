@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { selfHostedFileUrl, selfHostedFileUrlFrom } from "./self-hosted-file-url";
 
 const SELF = "https://erp.wedly.kr";
@@ -70,6 +70,31 @@ describe("selfHostedFileUrlFrom — 형제 앱 업로드 주소를 자기 앱 �
     ).toBe("/api/upload/abc123");
   });
 
+  it("https 가 아닌 주소는 그대로 — 프로토콜 검사가 사라지면 잡힌다", () => {
+    // 우리 집 이름을 단 ftp 주소. 파서는 통과시키지만 열 수 있는 파일이 아니다.
+    const original = "ftp://erp.wedly.kr/api/upload/abc123";
+    expect(selfHostedFileUrlFrom(original, HIVE)).toBe(original);
+  });
+
+  it("암호화 안 된 주소(http)도 그대로 — 형제 함수와 같은 잣대", () => {
+    const original = "http://erp.wedly.kr/api/upload/abc123";
+    expect(selfHostedFileUrlFrom(original, HIVE)).toBe(original);
+  });
+
+  it("표준이 아닌 문(포트)이 붙은 주소는 그대로 — 정확한 집 목록의 뜻을 흐리지 않게", () => {
+    const original = "https://erp.wedly.kr:8443/api/upload/abc123";
+    expect(selfHostedFileUrlFrom(original, HIVE)).toBe(original);
+  });
+
+  it("주소 뒤 자리표(#)를 잃지 않는다 — PDF 쪽번호가 붙은 주소", () => {
+    expect(
+      selfHostedFileUrlFrom(
+        "https://wedly-hive-collab-production-1dce.up.railway.app/api/upload/abc123#page=3",
+        SELF,
+      ),
+    ).toBe("/api/upload/abc123#page=3");
+  });
+
   it("빈 문자열 → 빈 문자열", () => {
     expect(selfHostedFileUrlFrom("", SELF)).toBe("");
   });
@@ -106,9 +131,33 @@ describe("selfHostedFileUrlFrom — 형제 앱 업로드 주소를 자기 앱 �
   });
 });
 
-describe("selfHostedFileUrl — 서버에서 그릴 때는 그대로", () => {
-  it("location 이 없으면 원본을 그대로 돌려준다", () => {
+describe("selfHostedFileUrl — 실제로 부르는 껍데기", () => {
+  // ★이 묶음이 없으면 7자리가 실제로 쓰는 함수가 한 번도 안 돌아간다.
+  //  시험이 node 환경이라 브라우저 갈래(location 이 있는 쪽)가 통째로 빠졌고,
+  //  껍데기가 엉뚱한 집 주소를 기준 삼아도 전부 초록이었다(2026-08-23 적대적 리뷰 지적).
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("location 이 없으면(서버에서 그릴 때) 원본을 그대로 돌려준다", () => {
     const original = "https://wedly-hive-collab-production-1dce.up.railway.app/api/upload/abc123";
+    expect(selfHostedFileUrl(original)).toBe(original);
+  });
+
+  it("형제 앱 주소 → 지금 보고 있는 앱의 상대주소", () => {
+    vi.stubGlobal("location", { origin: SELF, href: SELF + "/" });
+    expect(
+      selfHostedFileUrl("https://wedly-hive-collab-production-1dce.up.railway.app/api/upload/abc123"),
+    ).toBe("/api/upload/abc123");
+  });
+
+  it("★지금 보고 있는 앱이 기준이다 — 자기 앱 주소는 안 바뀐다", () => {
+    vi.stubGlobal("location", { origin: HIVE, href: HIVE + "/" });
+    const original = "https://wedly-hive-collab-production-1dce.up.railway.app/api/upload/abc123";
+    expect(selfHostedFileUrl(original)).toBe(original);
+  });
+
+  it("우리 앱이 아닌 곳은 안 바뀐다", () => {
+    vi.stubGlobal("location", { origin: SELF, href: SELF + "/" });
+    const original = "https://prod-files.notion-static.com/abc/file.png";
     expect(selfHostedFileUrl(original)).toBe(original);
   });
 });
