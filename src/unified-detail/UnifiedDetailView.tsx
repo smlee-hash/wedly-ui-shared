@@ -2757,14 +2757,16 @@ export default function UnifiedDetailView({
   const currentGroup = orderedGroups.find((g) => g.key === activeTab) ?? null;
   const currentRows = currentGroup ? rowsOfGroup(detail, currentGroup) : [];
   // 이 그룹의 본 패널(차수 카드 등)을 오른쪽 「정보」 칸으로 옮기는가 — 어댑터 옵트인(wide 전용).
+  // 가운데 고정 조각 — 어느 분야 탭을 골라도 가운데는 이 한 벌만 그린다(2026-08-23 사장님 지시).
+  // 미지정 앱(하이브·일루아)·compact 는 이 값이 없어 기존 동작 그대로.
+  const WideCenterPanel = wideActive ? adapter.components.wideCenterPanel : undefined;
   const infoOnRight = Boolean(
     wideActive &&
       currentGroup &&
       !customIdSet.has(currentGroup.key) &&
-      adapter.components.widePanelPlacement?.[currentGroup.key] === "right" &&
-      // 머리 조각이 없으면 가운데가 전체 패널 폴백이라, 오른쪽까지 켜면 같은 편집 화면이 두 벌 —
-      // 배치는 머리 조각(진행 업무)이 있는 그룹에서만 유효(적대적 리뷰 계약 지적).
-      Boolean(adapter.components.sectionPanelHeaders?.[currentGroup.key]),
+      // 고정 조각이 있으면 모든 분야에서 본 패널을 오른쪽으로(가운데는 고정 조각 몫).
+      // 없으면 예전대로 그룹별 지정(widePanelPlacement)만 따른다.
+      (Boolean(WideCenterPanel) || adapter.components.widePanelPlacement?.[currentGroup.key] === "right"),
   );
 
   // 오른쪽 칸 세그먼트 보정 — 「정보」 배치가 없는 그룹에서 info 에 머물면 빈 칸이 된다.
@@ -3051,10 +3053,10 @@ export default function UnifiedDetailView({
                     {!loading && currentGroup && (
                       <div className="flex flex-col h-full">
                         {(() => {
-                          // 「정보」를 오른쪽으로 옮긴 그룹은 가운데에 진행 업무(머리 조각)만 남긴다
-                          // (2026-08-23 사장님 지시). 머리 조각이 없으면 빈 화면 방지로 기존 전체 패널.
+                          // 가운데는 고정 조각(업무 현황) 한 벌 — 어느 분야를 골라도 같다.
+                          // 고정 조각이 없으면 그룹별 머리 조각, 그것도 없으면 기존 전체 패널(폴백).
                           const HeaderOnly = infoOnRight
-                            ? adapter.components.sectionPanelHeaders?.[currentGroup.key]
+                            ? WideCenterPanel ?? adapter.components.sectionPanelHeaders?.[currentGroup.key]
                             : undefined;
                           if (HeaderOnly) {
                             return (
