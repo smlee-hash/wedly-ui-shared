@@ -2458,13 +2458,6 @@ export default function UnifiedDetailView({
     };
   }, [layout]);
   const wideActive = layout === "wide" && !isNew && wideViewport;
-  // 이 그룹의 본 패널(차수 카드 등)을 오른쪽 「정보」 칸으로 옮기는가 — 어댑터 옵트인(wide 전용).
-  const infoOnRight = Boolean(
-    wideActive &&
-      currentGroup &&
-      !customIdSet.has(currentGroup.key) &&
-      adapter.components.widePanelPlacement?.[currentGroup.key] === "right",
-  );
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
@@ -2771,6 +2764,13 @@ export default function UnifiedDetailView({
   // 현재 그룹 탭에 해당하는 도메인 행들
   const currentGroup = orderedGroups.find((g) => g.key === activeTab) ?? null;
   const currentRows = currentGroup ? rowsOfGroup(detail, currentGroup) : [];
+  // 이 그룹의 본 패널(차수 카드 등)을 오른쪽 「정보」 칸으로 옮기는가 — 어댑터 옵트인(wide 전용).
+  const infoOnRight = Boolean(
+    wideActive &&
+      currentGroup &&
+      !customIdSet.has(currentGroup.key) &&
+      adapter.components.widePanelPlacement?.[currentGroup.key] === "right",
+  );
 
   // 창을 닫기 직전, 입력 중이던 칸의 포커스를 풀어 그 칸의 자동 저장(포커스가 빠질 때 실행)이
   // 먼저 일어나게 한다. 바깥 어두운 영역이나 ✕ 클릭은 칸의 포커스를 자동으로 풀어주지 않는
