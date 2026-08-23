@@ -2471,6 +2471,8 @@ export default function UnifiedDetailView({
   // 좁은 화면(휴대폰)에서도 3분할 내용을 쓰되, 한 번에 한 칸만 보여 주고 아래 단추로 바꾼다
   // (2026-08-23 사장님 선택 — 세 칸을 나란히 넣으면 한 칸이 130px 안팎이라 못 읽는다).
   const narrowSwitch = layout === "wide" && !isNew && !wideViewport;
+  // 3분할 내용을 쓰는 상태(넓은 화면 나란히 / 좁은 화면 전환) — 선언 순서를 위해 여기서 계산.
+  const threePane = layout === "wide" && !isNew;
   const [narrowPane, setNarrowPane] = useState<"basic" | "center" | "side">("center");
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
@@ -2774,7 +2776,6 @@ export default function UnifiedDetailView({
   // 가운데 고정 조각 — 어느 분야 탭을 골라도 가운데는 이 한 벌만 그린다(2026-08-23 사장님 지시).
   // 미지정 앱(하이브·일루아)·compact 는 이 값이 없어 기존 동작 그대로.
   // 좁은 화면 전환 방식에서도 같은 배치를 쓴다 — 「업무 현황」 칸에 업무 현황이 나와야 한다.
-  const threePane = wideActive || narrowSwitch;
   // 오른쪽 줄에 직접 그릴 세부 탭 — 경정청구(자기 분야)는 계약·환불·미팅, 그 외 분야는 정산까지.
   const rightSubTabs =
     currentGroup?.key === adapter.ownDomain
