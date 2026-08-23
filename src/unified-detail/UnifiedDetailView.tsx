@@ -2458,6 +2458,10 @@ export default function UnifiedDetailView({
     };
   }, [layout]);
   const wideActive = layout === "wide" && !isNew && wideViewport;
+  // 좁은 화면(휴대폰)에서도 3분할 내용을 쓰되, 한 번에 한 칸만 보여 주고 아래 단추로 바꾼다
+  // (2026-08-23 사장님 선택 — 세 칸을 나란히 넣으면 한 칸이 130px 안팎이라 못 읽는다).
+  const narrowSwitch = layout === "wide" && !isNew && !wideViewport;
+  const [narrowPane, setNarrowPane] = useState<"basic" | "center" | "side">("center");
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
@@ -2937,7 +2941,7 @@ export default function UnifiedDetailView({
     );
   }
 
-  if (wideActive) {
+  if (wideActive || narrowSwitch) {
     const sideBtn = (key: "info" | "history" | "files", label: string) => (
       <button
         type="button"
@@ -2957,7 +2961,7 @@ export default function UnifiedDetailView({
       >
         <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
         <div
-          className="relative bg-white shadow-2xl w-full h-full sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] flex flex-col rounded-none sm:rounded-2xl overflow-hidden animate-modal-in"
+          className={`relative bg-white shadow-2xl w-full h-full flex flex-col rounded-none overflow-hidden animate-modal-in ${narrowSwitch ? "" : "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl"}`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="border-b border-wedly-bd/60 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2">
@@ -2998,7 +3002,7 @@ export default function UnifiedDetailView({
           </div>
 
           <div className="flex flex-1 min-h-0">
-            <aside className="w-[320px] 2xl:w-[400px] flex-shrink-0 border-r border-wedly-bd/60 overflow-y-auto">
+            <aside className={narrowSwitch ? (narrowPane === "basic" ? "flex-1 min-w-0 overflow-y-auto" : "hidden") : "w-[320px] 2xl:w-[400px] flex-shrink-0 border-r border-wedly-bd/60 overflow-y-auto"}>
               <BasicInfoPanel
                 row={row}
                 detail={detail}
@@ -3018,7 +3022,7 @@ export default function UnifiedDetailView({
               />
             </aside>
 
-            <main className="flex-1 min-w-0 flex flex-col">
+            <main className={narrowSwitch ? (narrowPane === "center" ? "flex-1 min-w-0 flex flex-col" : "hidden") : "flex-1 min-w-0 flex flex-col"}>
               <div className="flex-1 min-h-0 overflow-y-auto">
                 {error && (
                   <div className="p-6">
@@ -3101,7 +3105,7 @@ export default function UnifiedDetailView({
               </div>
             </main>
 
-            <aside className="w-[380px] 2xl:w-[520px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0">
+            <aside className={narrowSwitch ? (narrowPane === "side" ? "flex-1 min-w-0 flex flex-col min-h-0" : "hidden") : "w-[380px] 2xl:w-[520px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0"}>
               {/* 분야 탭 줄 — 3분할에서는 오른쪽 패널 맨 위로(원래 상세창 모습을 통째로 오른쪽에). */}
               <div className="flex items-center gap-1 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 py-2">
                 <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
@@ -3259,6 +3263,30 @@ export default function UnifiedDetailView({
               )}
             </aside>
           </div>
+
+          {/* 좁은 화면(휴대폰) 전용 — 아래 단추로 세 칸을 오간다(2026-08-23 사장님 선택). */}
+          {narrowSwitch && (
+            <div className="flex items-stretch gap-1 border-t border-wedly-bd/60 bg-white px-2 py-2 flex-shrink-0">
+              {([
+                ["basic", "기본정보"],
+                ["center", "업무 현황"],
+                ["side", "정보 · 기록"],
+              ] as Array<["basic" | "center" | "side", string]>).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setNarrowPane(key)}
+                  className={`flex-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold break-keep ${
+                    narrowPane === key
+                      ? "bg-wedly-bg-blue text-wedly-accent"
+                      : "text-wedly-muted hover:bg-wedly-bg-gray"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       </FieldOptionsProvider>
