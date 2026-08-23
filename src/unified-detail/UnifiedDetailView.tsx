@@ -1935,6 +1935,9 @@ function GroupDomainPanel({
         isAdmin={isAdmin}
         onSaved={onSaved}
         adapter={adapter}
+        // wide 에서 히스토리를 오른쪽 패널로 옮길 때 커스텀 패널도 자기 히스토리 탭을 숨길 수 있게.
+        // prop 을 모르는 패널은 무시하므로 미대응 앱 불변.
+        hiddenSubTabs={hiddenSubTabs}
       />,
     );
   }
@@ -3130,16 +3133,40 @@ export default function UnifiedDetailView({
                 {sideBtn("files", "파일")}
               </div>
               {wideSide === "history" ? (
-                <WideGroupHistory
-                  group={currentGroup && !customIdSet.has(currentGroup.key) ? currentGroup : null}
-                  rows={currentRows}
-                  primaryRow={row}
-                  historyApi={historyApi}
-                  ownDomain={adapter.ownDomain}
-                  saveOwnField={adapter.api.saveOwnField}
-                  onSaved={handleSaved}
-                  hasCustomPanel={Boolean(currentGroup && adapter.components.sectionPanels?.[currentGroup.key])}
-                />
+                (() => {
+                  // 커스텀 패널 그룹은 앱이 준 오른쪽 히스토리 조각이 있으면 그것을 그린다
+                  // (같은 저장소의 기록이 오른쪽으로 이사 — 2026-08-23 사장님 지시). 없으면 기존 안내문.
+                  const SideHistory =
+                    currentGroup && !customIdSet.has(currentGroup.key)
+                      ? adapter.components.sectionHistoryPanels?.[currentGroup.key]
+                      : undefined;
+                  if (SideHistory && currentGroup) {
+                    return (
+                      <div className="flex-1 min-h-0 overflow-y-auto">
+                        <SideHistory
+                          key={currentGroup.key}
+                          rows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : currentRows}
+                          primaryRow={row as Record<string, unknown>}
+                          isAdmin={isAdmin}
+                          onSaved={handleSaved}
+                          adapter={adapter}
+                        />
+                      </div>
+                    );
+                  }
+                  return (
+                    <WideGroupHistory
+                      group={currentGroup && !customIdSet.has(currentGroup.key) ? currentGroup : null}
+                      rows={currentRows}
+                      primaryRow={row}
+                      historyApi={historyApi}
+                      ownDomain={adapter.ownDomain}
+                      saveOwnField={adapter.api.saveOwnField}
+                      onSaved={handleSaved}
+                      hasCustomPanel={Boolean(currentGroup && adapter.components.sectionPanels?.[currentGroup.key])}
+                    />
+                  );
+                })()
               ) : (
                 <WideFilesPane row={row} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
               )}

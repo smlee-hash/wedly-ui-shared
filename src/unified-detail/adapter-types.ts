@@ -234,6 +234,10 @@ export interface UnifiedDetailAdapter {
     /** 분야 그룹별 "패널 위에 얹는 머리 조각" — 제공 시 그 그룹 패널(기본·커스텀 모두) 위에 렌더.
      *  미제공이면 기존 동작(하이브·일루아 불변). props 는 sectionPanels 와 동일(SectionPanelProps). */
     sectionPanelHeaders?: Record<string, React.ComponentType<SectionPanelProps>>;
+    /** 분야 그룹별 "3분할 오른쪽 히스토리" — wide 에서 그 그룹이 활성일 때 오른쪽 패널에 렌더.
+     *  커스텀 패널(sectionPanels)을 쓰는 그룹은 히스토리 저장소가 앱 고유라 껍데기가 못 그린다 —
+     *  앱이 같은 저장소를 그리는 조각을 여기로 준다. 미제공이면 기존 동작(안내문). */
+    sectionHistoryPanels?: Record<string, React.ComponentType<SectionPanelProps>>;
     /** ERP 전용: 기본정보 탭 "택스봇 자동 리포트" 칸 컨트롤. 제공 시 기본정보에 그 칸이 나타남(미제공이면 칸 없음 — 하이브·일루아 불변). props: { row, entryId, onSaved? }. */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     TaxbotReportControl?: React.ComponentType<any>;
@@ -275,4 +279,6 @@ export type SectionPanelProps = {
   adapter: UnifiedDetailAdapter;
   /** 조건부 수식 기준 칸(기본정보). 미설정이면 패널이 자체 계산. */
   conditionFieldOptions?: Array<{ key: string; label: string; options?: Array<{ value: string; badgeClass?: string }> }>;
+  /** wide(3분할)에서 숨길 하위 탭 키 — 히스토리를 오른쪽 패널로 옮길 때 등. 미전달이면 불변. */
+  hiddenSubTabs?: string[];
 };
