@@ -146,6 +146,7 @@ function TaxAmendmentPanel({
   ownTieredFieldsPath,
   adapter,
   hiddenSubTabs,
+  hideSubTabBar,
 }: {
   domainRow: DomainRowLite;
   subTab: SubTab;
@@ -161,6 +162,7 @@ function TaxAmendmentPanel({
   ownTieredFieldsPath: (kind: "contract" | "refund") => string;
   adapter: UnifiedDetailAdapter;
   hiddenSubTabs?: string[];
+  hideSubTabBar?: boolean;
 }) {
   const { SettlementInfoTab, MeetingsTab } = adapter.components;
   const [localRow, setLocalRow] = useState<Record<string, unknown>>(() => ({ ...domainRow.row }));
@@ -304,8 +306,8 @@ function TaxAmendmentPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {/* 하위 탭 바 */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-wedly-bd/60 bg-wedly-bg-gray/50 flex-shrink-0">
+      {/* 하위 탭 바 (오른쪽 한 줄로 끌어올린 경우 숨김) */}
+      <div className={`items-center gap-1 px-4 py-2 border-b border-wedly-bd/60 bg-wedly-bg-gray/50 flex-shrink-0 ${hideSubTabBar ? "hidden" : "flex"}`}>
         <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
           {displaySubTabs.map(({ key, label }, i) => (
             tabEditMode && isAdmin ? (
@@ -454,6 +456,7 @@ function SectionDetailPanel({
   sectionSettlementBase,
   adapter,
   hiddenSubTabs,
+  hideSubTabBar,
 }: {
   sectionKey: string;
   primaryId: string;
@@ -466,6 +469,7 @@ function SectionDetailPanel({
   sectionSettlementBase: string;
   adapter: UnifiedDetailAdapter;
   hiddenSubTabs?: string[];
+  hideSubTabBar?: boolean;
 }) {
   const { MeetingsTab, SectionSettlementTab } = adapter.components;
   const [localRow, setLocalRow] = useState<Record<string, unknown>>(() => ({ ...primaryRow }));
@@ -721,8 +725,8 @@ function SectionDetailPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {/* 하위 탭 바 — 경정청구와 동일 6칸·동일 순서 */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-wedly-bd/60 bg-wedly-bg-gray/50 flex-shrink-0">
+      {/* 하위 탭 바 — 경정청구와 동일 6칸·동일 순서 (오른쪽 한 줄로 끌어올린 경우 숨김) */}
+      <div className={`items-center gap-1 px-4 py-2 border-b border-wedly-bd/60 bg-wedly-bg-gray/50 flex-shrink-0 ${hideSubTabBar ? "hidden" : "flex"}`}>
         <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
           {displaySubTabs.map(({ key, label }) => (
             <button
@@ -1846,6 +1850,7 @@ function GroupDomainPanel({
   allRows,
   adapter,
   hiddenSubTabs,
+  hideSubTabBar,
   omitHeader,
 }: {
   group: DomainGroup;
@@ -1869,6 +1874,8 @@ function GroupDomainPanel({
   allRows?: DomainRowLite[];
   adapter: UnifiedDetailAdapter;
   hiddenSubTabs?: string[];
+  /** true 면 패널 자체의 하위 탭 줄을 그리지 않는다 — 오른쪽 한 줄로 끌어올렸을 때(중복 방지). */
+  hideSubTabBar?: boolean;
   /** true 면 머리 조각(sectionPanelHeaders)을 그리지 않는다 — 오른쪽 「정보」 칸용(가운데와 중복 방지). */
   omitHeader?: boolean;
 }) {
@@ -1920,6 +1927,7 @@ function GroupDomainPanel({
         ownTieredFieldsPath={ownTieredFieldsPath}
         adapter={adapter}
         hiddenSubTabs={hiddenSubTabs}
+        hideSubTabBar={hideSubTabBar}
       />,
     );
   }
@@ -1941,6 +1949,7 @@ function GroupDomainPanel({
         // wide 에서 히스토리를 오른쪽 패널로 옮길 때 커스텀 패널도 자기 히스토리 탭을 숨길 수 있게.
         // prop 을 모르는 패널은 무시하므로 미대응 앱 불변.
         hiddenSubTabs={hiddenSubTabs}
+        hideSubTabBar={hideSubTabBar}
       />,
     );
   }
@@ -1962,6 +1971,7 @@ function GroupDomainPanel({
       sectionSettlementBase={sectionSettlementBase}
       adapter={adapter}
       hiddenSubTabs={hiddenSubTabs}
+      hideSubTabBar={hideSubTabBar}
     />,
   );
 }
@@ -2765,6 +2775,20 @@ export default function UnifiedDetailView({
   // 미지정 앱(하이브·일루아)·compact 는 이 값이 없어 기존 동작 그대로.
   // 좁은 화면 전환 방식에서도 같은 배치를 쓴다 — 「업무 현황」 칸에 업무 현황이 나와야 한다.
   const threePane = wideActive || narrowSwitch;
+  // 오른쪽 줄에 직접 그릴 세부 탭 — 경정청구(자기 분야)는 계약·환불·미팅, 그 외 분야는 정산까지.
+  const rightSubTabs =
+    currentGroup?.key === adapter.ownDomain
+      ? ([
+          { key: "contract", label: "계약정보" },
+          { key: "refund", label: "환불정보" },
+          { key: "meetings", label: "미팅정보" },
+        ] as const)
+      : ([
+          { key: "contract", label: "계약정보" },
+          { key: "settlement", label: "정산정보" },
+          { key: "refund", label: "환불정보" },
+          { key: "meetings", label: "미팅정보" },
+        ] as const);
   const WideCenterPanel = threePane ? adapter.components.wideCenterPanel : undefined;
   const infoOnRight = Boolean(
     threePane &&
@@ -3003,6 +3027,29 @@ export default function UnifiedDetailView({
             </button>
           </div>
 
+          {/* 좁은 화면(휴대폰) — 위쪽 단추로 세 칸 전환(PC 와 같은 짜임: 위=고르기, 아래=내용). */}
+          {narrowSwitch && (
+            <div className="flex items-stretch gap-1 border-b border-wedly-bd/60 bg-white px-2 py-2 flex-shrink-0">
+              {([
+                ["basic", "기본정보"],
+                ["center", "업무 현황"],
+                ["side", "정보 · 기록"],
+              ] as Array<["basic" | "center" | "side", string]>).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setNarrowPane(key)}
+                  className={`flex-1 rounded-xl px-2 py-2 text-[13px] font-semibold break-keep ${
+                    narrowPane === key
+                      ? "bg-wedly-bg-blue text-wedly-accent"
+                      : "text-wedly-muted hover:bg-wedly-bg-gray"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex flex-1 min-h-0">
             <aside className={narrowSwitch ? (narrowPane === "basic" ? "flex-1 min-w-0 overflow-y-auto" : "hidden") : "w-[320px] 2xl:w-[400px] flex-shrink-0 border-r border-wedly-bd/60 overflow-y-auto"}>
               <BasicInfoPanel
@@ -3189,9 +3236,27 @@ export default function UnifiedDetailView({
                   </div>
                 )}
               </div>
-              <div className="p-2 border-b border-wedly-bd/60 flex-shrink-0 flex items-center gap-1">
-                {infoOnRight && sideBtn("info", "정보")}
+              {/* 오른쪽 한 줄 — 히스토리 · 그 분야 세부 탭들 · 파일(원래 상세창 순서 그대로). */}
+              <div className="p-2 border-b border-wedly-bd/60 flex-shrink-0 flex items-center gap-1 overflow-x-auto">
                 {sideBtn("history", "히스토리")}
+                {infoOnRight &&
+                  rightSubTabs.map(({ key, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setWideSide("info");
+                        setSubTab(key as SubTab);
+                      }}
+                      className={
+                        wideSide === "info" && subTab === key
+                          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap"
+                          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap"
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
                 {sideBtn("files", "파일")}
               </div>
               {infoOnRight && currentGroup && (
@@ -3220,6 +3285,7 @@ export default function UnifiedDetailView({
                       sectionSettlementBase={adapter.sectionSettlementBase}
                       adapter={adapter}
                       hiddenSubTabs={["history", "files"]}
+                      hideSubTabBar
                       omitHeader
                     />
                   )}
@@ -3265,30 +3331,6 @@ export default function UnifiedDetailView({
               )}
             </aside>
           </div>
-
-          {/* 좁은 화면(휴대폰) 전용 — 아래 단추로 세 칸을 오간다(2026-08-23 사장님 선택). */}
-          {narrowSwitch && (
-            <div className="flex items-stretch gap-1 border-t border-wedly-bd/60 bg-white px-2 py-2 flex-shrink-0">
-              {([
-                ["basic", "기본정보"],
-                ["center", "업무 현황"],
-                ["side", "정보 · 기록"],
-              ] as Array<["basic" | "center" | "side", string]>).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setNarrowPane(key)}
-                  className={`flex-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold break-keep ${
-                    narrowPane === key
-                      ? "bg-wedly-bg-blue text-wedly-accent"
-                      : "text-wedly-muted hover:bg-wedly-bg-gray"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
       </FieldOptionsProvider>
