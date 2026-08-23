@@ -3017,87 +3017,6 @@ export default function UnifiedDetailView({
             </aside>
 
             <main className="flex-1 min-w-0 flex flex-col">
-              <div className="flex items-center gap-1 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 py-2">
-                <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
-                  {(isAdmin && topTabEditMode ? orderedGroups : visibleGroups).map((group, gi) => {
-                    const rows = rowsOfGroup(detail, group);
-                    const status = firstNonEmpty(rows, (r) => r.status ?? null);
-                    const hasData = rows.length > 0;
-                    const active = activeTab === group.key;
-                    if (isAdmin && topTabEditMode) {
-                      const hidden = topHidden.includes(group.key);
-                      return (
-                        <div key={group.key} className={`flex items-center gap-0.5 bg-white border rounded-full pl-1 pr-1.5 py-0.5 flex-shrink-0 ${hidden ? "border-wedly-bd/40 opacity-50" : "border-wedly-bd"}`}>
-                          <button type="button" onClick={() => moveTopTab(gi, -1)} disabled={gi === 0} title="왼쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">◀</button>
-                          <input
-                            value={topLabels[group.key] ?? group.label}
-                            onChange={(e) => setTopLabels((prev) => ({ ...prev, [group.key]: e.target.value }))}
-                            onBlur={(e) => {
-                              const v = e.target.value.trim();
-                              setTopLabels((prev) => { const nx = { ...prev }; if (v) nx[group.key] = v; else delete nx[group.key]; return nx; });
-                              saveTopTabConfig({ op: "label", which: "top", id: group.key, label: v });
-                            }}
-                            title="이름 변경"
-                            className="w-[72px] text-[13px] font-semibold text-wedly-t1 bg-transparent outline-none text-center"
-                          />
-                          <button type="button" onClick={() => moveTopTab(gi, 1)} disabled={gi === orderedGroups.length - 1} title="오른쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">▶</button>
-                          <button type="button" onClick={() => toggleHideTopTab(group.key)} title={hidden ? "다시 보이기" : "이 탭 숨기기"} className="ml-0.5 pl-1 text-[11px] text-wedly-muted hover:text-wedly-accent border-l border-wedly-bd/60 whitespace-nowrap">{hidden ? "보임" : "숨김"}</button>
-                          {customIdSet.has(group.key) && (
-                            <button type="button" onClick={() => removeCustomDomain(group.key)} title="이 분야 삭제" className="ml-0.5 pl-1 text-[11px] text-wedly-red hover:text-wedly-red/80 border-l border-wedly-bd/60 whitespace-nowrap">삭제</button>
-                          )}
-                        </div>
-                      );
-                    }
-                    return (
-                      <button
-                        key={group.key}
-                        onClick={() => setActiveTab(group.key)}
-                        className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
-                          active
-                            ? "bg-wedly-bg-blue text-wedly-accent"
-                            : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
-                        }`}
-                      >
-                        <StatusDot status={hasData ? status : undefined} />
-                        {group.label}
-                      </button>
-                    );
-                  })}
-                  {isAdmin && topTabEditMode && (
-                    <button
-                      type="button"
-                      onClick={addCustomDomain}
-                      title="새 분야 탭 추가"
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap border border-dashed border-wedly-accent/50 text-wedly-accent hover:bg-wedly-bg-blue/40 transition-colors flex-shrink-0"
-                    >
-                      ＋ 새 분야
-                    </button>
-                  )}
-                </div>
-                {isAdmin && (
-                  <div className="flex-shrink-0 flex items-center gap-1 ml-2">
-                    {topTabEditMode && (
-                      <button type="button" onClick={resetTopTabs} className="px-2 py-1 text-[11px] rounded-md border border-wedly-bd text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors whitespace-nowrap">초기화</button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setTopTabEditMode((v) => !v)}
-                      title="탭 편집 — 분야 탭 순서·이름 변경"
-                      className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors whitespace-nowrap ${
-                        topTabEditMode
-                          ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40"
-                          : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"
-                      }`}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                        <path d="M11.5 2L14 4.5L5.5 13L2 14L3 10.5L11.5 2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                      </svg>
-                      {topTabEditMode ? "완료" : "탭 편집"}
-                    </button>
-                  </div>
-                )}
-              </div>
-
               <div className="flex-1 min-h-0 overflow-y-auto">
                 {error && (
                   <div className="p-6">
@@ -3181,6 +3100,87 @@ export default function UnifiedDetailView({
             </main>
 
             <aside className="w-[380px] 2xl:w-[520px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0">
+              {/* 분야 탭 줄 — 3분할에서는 오른쪽 패널 맨 위로(원래 상세창 모습을 통째로 오른쪽에). */}
+              <div className="flex items-center gap-1 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 py-2">
+                <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+                  {(isAdmin && topTabEditMode ? orderedGroups : visibleGroups).map((group, gi) => {
+                    const rows = rowsOfGroup(detail, group);
+                    const status = firstNonEmpty(rows, (r) => r.status ?? null);
+                    const hasData = rows.length > 0;
+                    const active = activeTab === group.key;
+                    if (isAdmin && topTabEditMode) {
+                      const hidden = topHidden.includes(group.key);
+                      return (
+                        <div key={group.key} className={`flex items-center gap-0.5 bg-white border rounded-full pl-1 pr-1.5 py-0.5 flex-shrink-0 ${hidden ? "border-wedly-bd/40 opacity-50" : "border-wedly-bd"}`}>
+                          <button type="button" onClick={() => moveTopTab(gi, -1)} disabled={gi === 0} title="왼쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">◀</button>
+                          <input
+                            value={topLabels[group.key] ?? group.label}
+                            onChange={(e) => setTopLabels((prev) => ({ ...prev, [group.key]: e.target.value }))}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              setTopLabels((prev) => { const nx = { ...prev }; if (v) nx[group.key] = v; else delete nx[group.key]; return nx; });
+                              saveTopTabConfig({ op: "label", which: "top", id: group.key, label: v });
+                            }}
+                            title="이름 변경"
+                            className="w-[72px] text-[13px] font-semibold text-wedly-t1 bg-transparent outline-none text-center"
+                          />
+                          <button type="button" onClick={() => moveTopTab(gi, 1)} disabled={gi === orderedGroups.length - 1} title="오른쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">▶</button>
+                          <button type="button" onClick={() => toggleHideTopTab(group.key)} title={hidden ? "다시 보이기" : "이 탭 숨기기"} className="ml-0.5 pl-1 text-[11px] text-wedly-muted hover:text-wedly-accent border-l border-wedly-bd/60 whitespace-nowrap">{hidden ? "보임" : "숨김"}</button>
+                          {customIdSet.has(group.key) && (
+                            <button type="button" onClick={() => removeCustomDomain(group.key)} title="이 분야 삭제" className="ml-0.5 pl-1 text-[11px] text-wedly-red hover:text-wedly-red/80 border-l border-wedly-bd/60 whitespace-nowrap">삭제</button>
+                          )}
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        key={group.key}
+                        onClick={() => setActiveTab(group.key)}
+                        className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
+                          active
+                            ? "bg-wedly-bg-blue text-wedly-accent"
+                            : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                        }`}
+                      >
+                        <StatusDot status={hasData ? status : undefined} />
+                        {group.label}
+                      </button>
+                    );
+                  })}
+                  {isAdmin && topTabEditMode && (
+                    <button
+                      type="button"
+                      onClick={addCustomDomain}
+                      title="새 분야 탭 추가"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap border border-dashed border-wedly-accent/50 text-wedly-accent hover:bg-wedly-bg-blue/40 transition-colors flex-shrink-0"
+                    >
+                      ＋ 새 분야
+                    </button>
+                  )}
+                </div>
+                {isAdmin && (
+                  <div className="flex-shrink-0 flex items-center gap-1 ml-2">
+                    {topTabEditMode && (
+                      <button type="button" onClick={resetTopTabs} className="px-2 py-1 text-[11px] rounded-md border border-wedly-bd text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors whitespace-nowrap">초기화</button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setTopTabEditMode((v) => !v)}
+                      title="탭 편집 — 분야 탭 순서·이름 변경"
+                      className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors whitespace-nowrap ${
+                        topTabEditMode
+                          ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40"
+                          : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"
+                      }`}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                        <path d="M11.5 2L14 4.5L5.5 13L2 14L3 10.5L11.5 2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                      </svg>
+                      {topTabEditMode ? "완료" : "탭 편집"}
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="p-2 border-b border-wedly-bd/60 flex-shrink-0 flex items-center gap-1">
                 {infoOnRight && sideBtn("info", "정보")}
                 {sideBtn("history", "히스토리")}
