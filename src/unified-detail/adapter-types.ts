@@ -287,4 +287,6 @@ export type SectionPanelProps = {
   conditionFieldOptions?: Array<{ key: string; label: string; options?: Array<{ value: string; badgeClass?: string }> }>;
   /** wide(3분할)에서 숨길 하위 탭 키 — 히스토리를 오른쪽 패널로 옮길 때 등. 미전달이면 불변. */
   hiddenSubTabs?: string[];
+  /** true 면 패널 자체 하위 탭 줄을 그리지 않는다 — 오른쪽 한 줄로 끌어올렸을 때. 미전달이면 불변. */
+  hideSubTabBar?: boolean;
 };
