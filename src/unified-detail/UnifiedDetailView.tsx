@@ -3217,7 +3217,7 @@ export default function UnifiedDetailView({
                   )}
                 </div>
               )}
-              {wideSide !== "info" || !infoOnRight ? (wideSide === "history" || (wideSide === "info" && !infoOnRight) ? (
+              {wideSide === "info" && infoOnRight ? null : wideSide === "history" || wideSide === "info" ? (
                 (() => {
                   // 커스텀 패널 그룹은 앱이 준 오른쪽 히스토리 조각이 있으면 그것을 그린다
                   // (같은 저장소의 기록이 오른쪽으로 이사 — 2026-08-23 사장님 지시). 없으면 기존 안내문.
@@ -3254,7 +3254,7 @@ export default function UnifiedDetailView({
                 })()
               ) : (
                 <WideFilesPane row={row} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
-              )) : null}
+              )}
             </aside>
           </div>
         </div>
