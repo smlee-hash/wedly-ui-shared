@@ -234,6 +234,9 @@ export interface UnifiedDetailAdapter {
     /** 분야 그룹별 "패널 위에 얹는 머리 조각" — 제공 시 그 그룹 패널(기본·커스텀 모두) 위에 렌더.
      *  미제공이면 기존 동작(하이브·일루아 불변). props 는 sectionPanels 와 동일(SectionPanelProps). */
     sectionPanelHeaders?: Record<string, React.ComponentType<SectionPanelProps>>;
+    /** wide(3분할) 전용 — 그 그룹의 본 패널(차수 카드 등)을 오른쪽 「정보」 칸으로 옮긴다.
+     *  값이 "right" 인 그룹은 가운데에 머리 조각(진행 업무)만 남는다. 미지정 그룹·compact 불변. */
+    widePanelPlacement?: Record<string, "right">;
     /** 분야 그룹별 "3분할 오른쪽 히스토리" — wide 에서 그 그룹이 활성일 때 오른쪽 패널에 렌더.
      *  커스텀 패널(sectionPanels)을 쓰는 그룹은 히스토리 저장소가 앱 고유라 껍데기가 못 그린다 —
      *  앱이 같은 저장소를 그리는 조각을 여기로 준다. 미제공이면 기존 동작(안내문). */

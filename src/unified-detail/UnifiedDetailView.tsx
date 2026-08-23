@@ -1846,6 +1846,7 @@ function GroupDomainPanel({
   allRows,
   adapter,
   hiddenSubTabs,
+  omitHeader,
 }: {
   group: DomainGroup;
   rows: DomainRowLite[];
@@ -1868,8 +1869,10 @@ function GroupDomainPanel({
   allRows?: DomainRowLite[];
   adapter: UnifiedDetailAdapter;
   hiddenSubTabs?: string[];
+  /** true 면 머리 조각(sectionPanelHeaders)을 그리지 않는다 — 오른쪽 「정보」 칸용(가운데와 중복 방지). */
+  omitHeader?: boolean;
 }) {
-  const HeaderPanel = adapter.components.sectionPanelHeaders?.[group.key];
+  const HeaderPanel = omitHeader ? undefined : adapter.components.sectionPanelHeaders?.[group.key];
   const header = HeaderPanel ? (
     <HeaderPanel
       rows={allRows && allRows.length > 0 ? allRows : rows}
@@ -2432,7 +2435,7 @@ export default function UnifiedDetailView({
   // 관리자가 만든 "새 분야" 탭 목록(id + 처음 이름). 기존 분야와 합쳐 상단 탭으로 표시.
   const [topCustom, setTopCustom] = useState<Array<{ id: string; label: string }>>([]);
   const [topTabEditMode, setTopTabEditMode] = useState(false);
-  const [wideSide, setWideSide] = useState<"history" | "files">("history");
+  const [wideSide, setWideSide] = useState<"info" | "history" | "files">("history");
   const [wideViewport, setWideViewport] = useState(() => {
     if (layout !== "wide") return false;
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
@@ -2455,6 +2458,13 @@ export default function UnifiedDetailView({
     };
   }, [layout]);
   const wideActive = layout === "wide" && !isNew && wideViewport;
+  // 이 그룹의 본 패널(차수 카드 등)을 오른쪽 「정보」 칸으로 옮기는가 — 어댑터 옵트인(wide 전용).
+  const infoOnRight = Boolean(
+    wideActive &&
+      currentGroup &&
+      !customIdSet.has(currentGroup.key) &&
+      adapter.components.widePanelPlacement?.[currentGroup.key] === "right",
+  );
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
@@ -2686,6 +2696,14 @@ export default function UnifiedDetailView({
     const first = visibleGroups[0];
     if (first) setActiveTab(first.key);
   }, [wideActive, activeTab, visibleGroups]);
+
+  // 오른쪽 칸 세그먼트 보정 — 「정보」 배치가 없는 그룹에서 info 에 머물면 빈 칸이 된다.
+  useEffect(() => {
+    if (!wideActive) return;
+    if (infoOnRight) setWideSide("info");
+    else setWideSide((cur) => (cur === "info" ? "history" : cur));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wideActive, infoOnRight, currentGroup?.key]);
 
   const headerChips = useMemo(() => {
     if (!headerChipKeys || headerChipKeys.length === 0) return [] as Array<{ key: string; text: string }>;
@@ -2964,7 +2982,7 @@ export default function UnifiedDetailView({
           </div>
 
           <div className="flex flex-1 min-h-0">
-            <aside className="w-[340px] flex-shrink-0 border-r border-wedly-bd/60 overflow-y-auto">
+            <aside className="w-[320px] 2xl:w-[400px] flex-shrink-0 border-r border-wedly-bd/60 overflow-y-auto">
               <BasicInfoPanel
                 row={row}
                 detail={detail}
@@ -3099,27 +3117,48 @@ export default function UnifiedDetailView({
                     {loading && <Spinner />}
                     {!loading && currentGroup && (
                       <div className="flex flex-col h-full">
-                        <GroupDomainPanel
-                          group={currentGroup}
-                          rows={currentRows}
-                          allRows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : []}
-                          primaryRow={row}
-                          subTab={subTab}
-                          onSubTabChange={setSubTab}
-                          onSaved={handleSaved}
-                          isAdmin={isAdmin}
-                          saveOwnField={adapter.api.saveOwnField}
-                          ownDomain={adapter.ownDomain}
-                          loadColumnConfig={adapter.api.loadColumnConfig}
-                          saveColumnConfig={adapter.api.saveColumnConfig}
-                          loadTabConfig={adapter.api.loadTabConfig}
-                          saveTabConfig={adapter.api.saveTabConfig}
-                          historyApi={historyApi}
-                          ownTieredFieldsPath={adapter.ownTieredFieldsPath}
-                          sectionSettlementBase={adapter.sectionSettlementBase}
-                          adapter={adapter}
-                          hiddenSubTabs={["history", "files"]}
-                        />
+                        {(() => {
+                          // 「정보」를 오른쪽으로 옮긴 그룹은 가운데에 진행 업무(머리 조각)만 남긴다
+                          // (2026-08-23 사장님 지시). 머리 조각이 없으면 빈 화면 방지로 기존 전체 패널.
+                          const HeaderOnly = infoOnRight
+                            ? adapter.components.sectionPanelHeaders?.[currentGroup.key]
+                            : undefined;
+                          if (HeaderOnly) {
+                            return (
+                              <HeaderOnly
+                                key={currentGroup.key}
+                                rows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : currentRows}
+                                primaryRow={row as Record<string, unknown>}
+                                isAdmin={isAdmin}
+                                onSaved={handleSaved}
+                                adapter={adapter}
+                              />
+                            );
+                          }
+                          return (
+                            <GroupDomainPanel
+                              group={currentGroup}
+                              rows={currentRows}
+                              allRows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : []}
+                              primaryRow={row}
+                              subTab={subTab}
+                              onSubTabChange={setSubTab}
+                              onSaved={handleSaved}
+                              isAdmin={isAdmin}
+                              saveOwnField={adapter.api.saveOwnField}
+                              ownDomain={adapter.ownDomain}
+                              loadColumnConfig={adapter.api.loadColumnConfig}
+                              saveColumnConfig={adapter.api.saveColumnConfig}
+                              loadTabConfig={adapter.api.loadTabConfig}
+                              saveTabConfig={adapter.api.saveTabConfig}
+                              historyApi={historyApi}
+                              ownTieredFieldsPath={adapter.ownTieredFieldsPath}
+                              sectionSettlementBase={adapter.sectionSettlementBase}
+                              adapter={adapter}
+                              hiddenSubTabs={["history", "files"]}
+                            />
+                          );
+                        })()}
                       </div>
                     )}
                   </>
@@ -3127,12 +3166,43 @@ export default function UnifiedDetailView({
               </div>
             </main>
 
-            <aside className="w-[340px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0">
+            <aside className="w-[380px] 2xl:w-[520px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0">
               <div className="p-2 border-b border-wedly-bd/60 flex-shrink-0 flex items-center gap-1">
+                {infoOnRight && sideBtn("info", "정보")}
                 {sideBtn("history", "히스토리")}
                 {sideBtn("files", "파일")}
               </div>
-              {wideSide === "history" ? (
+              {wideSide === "info" && infoOnRight && currentGroup ? (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  {loading ? (
+                    <Spinner />
+                  ) : (
+                    <GroupDomainPanel
+                      key={currentGroup.key}
+                      group={currentGroup}
+                      rows={currentRows}
+                      allRows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : []}
+                      primaryRow={row}
+                      subTab={subTab}
+                      onSubTabChange={setSubTab}
+                      onSaved={handleSaved}
+                      isAdmin={isAdmin}
+                      saveOwnField={adapter.api.saveOwnField}
+                      ownDomain={adapter.ownDomain}
+                      loadColumnConfig={adapter.api.loadColumnConfig}
+                      saveColumnConfig={adapter.api.saveColumnConfig}
+                      loadTabConfig={adapter.api.loadTabConfig}
+                      saveTabConfig={adapter.api.saveTabConfig}
+                      historyApi={historyApi}
+                      ownTieredFieldsPath={adapter.ownTieredFieldsPath}
+                      sectionSettlementBase={adapter.sectionSettlementBase}
+                      adapter={adapter}
+                      hiddenSubTabs={["history", "files"]}
+                      omitHeader
+                    />
+                  )}
+                </div>
+              ) : wideSide === "history" ? (
                 (() => {
                   // 커스텀 패널 그룹은 앱이 준 오른쪽 히스토리 조각이 있으면 그것을 그린다
                   // (같은 저장소의 기록이 오른쪽으로 이사 — 2026-08-23 사장님 지시). 없으면 기존 안내문.
