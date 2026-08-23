@@ -2923,7 +2923,7 @@ export default function UnifiedDetailView({
   }
 
   if (wideActive) {
-    const sideBtn = (key: "history" | "files", label: string) => (
+    const sideBtn = (key: "info" | "history" | "files", label: string) => (
       <button
         type="button"
         onClick={() => setWideSide(key)}
