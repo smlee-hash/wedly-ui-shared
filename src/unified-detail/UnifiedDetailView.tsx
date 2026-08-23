@@ -2791,6 +2791,11 @@ export default function UnifiedDetailView({
           { key: "meetings", label: "미팅정보" },
         ] as const);
   const WideCenterPanel = threePane ? adapter.components.wideCenterPanel : undefined;
+  // 직접 만든 분야 — 고정 조각이 가운데를 차지하면 이 조각도 오른쪽으로 옮겨야 한다.
+  // (안 옮기면 그 탭을 골라도 아무 데도 안 그려져 빈 화면이 된다.)
+  const customOnRight = Boolean(
+    threePane && WideCenterPanel && currentGroup && customIdSet.has(currentGroup.key),
+  );
   const infoOnRight = Boolean(
     threePane &&
       currentGroup &&
@@ -2805,7 +2810,11 @@ export default function UnifiedDetailView({
   const historyIntentRef = useRef(openOnHistory);
   useEffect(() => {
     if (!threePane) return;
-    if (infoOnRight) {
+    if (infoOnRight || customOnRight) {
+      // 「정보」를 켜면서 세부 탭이 그 줄에 없는 값(history)으로 남으면 어느 단추도 안 켜진다.
+      if (infoOnRight) {
+        setSubTab((cur) => (rightSubTabs.some((t) => t.key === cur) ? cur : ("contract" as SubTab)));
+      }
       if (historyIntentRef.current) {
         historyIntentRef.current = false;
         setWideSide("history");
@@ -2816,7 +2825,7 @@ export default function UnifiedDetailView({
       setWideSide((cur) => (cur === "info" ? "history" : cur));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threePane, infoOnRight, currentGroup?.key]);
+  }, [threePane, infoOnRight, customOnRight, currentGroup?.key]);
 
 
   // 창을 닫기 직전, 입력 중이던 칸의 포커스를 풀어 그 칸의 자동 저장(포커스가 빠질 때 실행)이
@@ -2975,8 +2984,8 @@ export default function UnifiedDetailView({
         type="button"
         onClick={() => setWideSide(key)}
         className={wideSide === key
-          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
-          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"}
+          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
+          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"}
       >
         {label}
       </button>
@@ -3254,6 +3263,7 @@ export default function UnifiedDetailView({
               {/* 오른쪽 한 줄 — 히스토리 · 그 분야 세부 탭들 · 파일(원래 상세창 순서 그대로). */}
               <div className="p-2 border-b border-wedly-bd/60 flex-shrink-0 flex items-center gap-1 overflow-x-auto">
                 {sideBtn("history", "히스토리")}
+                {customOnRight && currentGroup && sideBtn("info", currentGroup.label)}
                 {infoOnRight &&
                   rightSubTabs.map(({ key, label }) => (
                     <button
@@ -3265,8 +3275,8 @@ export default function UnifiedDetailView({
                       }}
                       className={
                         wideSide === "info" && subTab === key
-                          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
-                          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
+                          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
+                          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
                       }
                     >
                       {label}
@@ -3274,6 +3284,23 @@ export default function UnifiedDetailView({
                   ))}
                 {sideBtn("files", "파일")}
               </div>
+              {customOnRight && currentGroup && (
+                <div className={wideSide === "info" ? "flex-1 min-h-0 overflow-y-auto" : "hidden"}>
+                  <CustomDomainPanel
+                    key={currentGroup.key}
+                    domainId={currentGroup.key}
+                    label={currentGroup.label}
+                    row={row}
+                    isAdmin={isAdmin}
+                    onSaved={handleSaved}
+                    saveOwnField={adapter.api.saveOwnField}
+                    loadColumnConfig={adapter.api.loadColumnConfig}
+                    saveColumnConfig={adapter.api.saveColumnConfig}
+                    loadManagers={adapter.api.loadManagers}
+                    adapter={adapter}
+                  />
+                </div>
+              )}
               {infoOnRight && currentGroup && (
                 <div className={wideSide === "info" ? "flex-1 min-h-0 overflow-y-auto" : "hidden"}>
                   {loading ? (
@@ -3306,7 +3333,7 @@ export default function UnifiedDetailView({
                   )}
                 </div>
               )}
-              {wideSide === "info" && infoOnRight ? null : wideSide === "history" || wideSide === "info" ? (
+              {wideSide === "info" && (infoOnRight || customOnRight) ? null : wideSide === "history" || wideSide === "info" ? (
                 (() => {
                   // 커스텀 패널 그룹은 앱이 준 오른쪽 히스토리 조각이 있으면 그것을 그린다
                   // (같은 저장소의 기록이 오른쪽으로 이사 — 2026-08-23 사장님 지시). 없으면 기존 안내문.
