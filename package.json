@@ -1,6 +1,6 @@
 {
   "name": "@wedly/ui-shared",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "description": "WEDLY 하이브·ERP 공용 부품 보관함 — 상세 모달·세부 섹션·표·셀 입력기·페이지 위쪽 컨트롤·공통 모달·레이아웃 등 양쪽 앱이 공유하는 모든 화면 부품을 모음",
   "private": true,
   "type": "module",
@@ -20,6 +20,26 @@
     "./tier-link-ui": {
       "types": "./src/tier-link-ui/index.ts",
       "default": "./src/tier-link-ui/index.ts"
+    },
+    "./ui": {
+      "types": "./src/ui/index.ts",
+      "default": "./src/ui/index.ts"
+    },
+    "./ui/cn": {
+      "types": "./src/ui/cn.ts",
+      "default": "./src/ui/cn.ts"
+    },
+    "./ui/anchoredPosition": {
+      "types": "./src/ui/anchoredPosition.ts",
+      "default": "./src/ui/anchoredPosition.ts"
+    },
+    "./ui/useAnchoredPosition": {
+      "types": "./src/ui/useAnchoredPosition.ts",
+      "default": "./src/ui/useAnchoredPosition.ts"
+    },
+    "./ui/required-tokens": {
+      "types": "./src/ui/required-tokens.ts",
+      "default": "./src/ui/required-tokens.ts"
     }
   },
   "files": [
@@ -34,14 +54,20 @@
   "peerDependencies": {
     "@tanstack/react-virtual": ">=3.0.0",
     "@wedly/detail-modal-shared": "*",
+    "clsx": ">=2.0.0",
+    "lucide-react": ">=0.400.0",
     "next": ">=15.0.0",
     "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
+    "react-dom": ">=18.0.0",
+    "tailwind-merge": ">=3.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.5.0",
     "vitest": "^2.1.9"
-  }
+  },
+  "sideEffects": [
+    "*.css"
+  ]
 }
