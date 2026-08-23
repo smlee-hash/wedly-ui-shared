@@ -2761,14 +2761,27 @@ export default function UnifiedDetailView({
     wideActive &&
       currentGroup &&
       !customIdSet.has(currentGroup.key) &&
-      adapter.components.widePanelPlacement?.[currentGroup.key] === "right",
+      adapter.components.widePanelPlacement?.[currentGroup.key] === "right" &&
+      // 머리 조각이 없으면 가운데가 전체 패널 폴백이라, 오른쪽까지 켜면 같은 편집 화면이 두 벌 —
+      // 배치는 머리 조각(진행 업무)이 있는 그룹에서만 유효(적대적 리뷰 계약 지적).
+      Boolean(adapter.components.sectionPanelHeaders?.[currentGroup.key]),
   );
 
   // 오른쪽 칸 세그먼트 보정 — 「정보」 배치가 없는 그룹에서 info 에 머물면 빈 칸이 된다.
+  // 목록 말풍선(히스토리)으로 연 경우엔 첫 보정에서 히스토리 의도를 지킨다(적대적 리뷰 지적).
+  const historyIntentRef = useRef(openOnHistory);
   useEffect(() => {
     if (!wideActive) return;
-    if (infoOnRight) setWideSide("info");
-    else setWideSide((cur) => (cur === "info" ? "history" : cur));
+    if (infoOnRight) {
+      if (historyIntentRef.current) {
+        historyIntentRef.current = false;
+        setWideSide("history");
+      } else {
+        setWideSide("info");
+      }
+    } else {
+      setWideSide((cur) => (cur === "info" ? "history" : cur));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wideActive, infoOnRight, currentGroup?.key]);
 
@@ -3173,8 +3186,8 @@ export default function UnifiedDetailView({
                 {sideBtn("history", "히스토리")}
                 {sideBtn("files", "파일")}
               </div>
-              {wideSide === "info" && infoOnRight && currentGroup ? (
-                <div className="flex-1 min-h-0 overflow-y-auto">
+              {infoOnRight && currentGroup && (
+                <div className={wideSide === "info" ? "flex-1 min-h-0 overflow-y-auto" : "hidden"}>
                   {loading ? (
                     <Spinner />
                   ) : (
@@ -3203,7 +3216,8 @@ export default function UnifiedDetailView({
                     />
                   )}
                 </div>
-              ) : wideSide === "history" ? (
+              )}
+              {wideSide !== "info" || !infoOnRight ? (wideSide === "history" || (wideSide === "info" && !infoOnRight) ? (
                 (() => {
                   // 커스텀 패널 그룹은 앱이 준 오른쪽 히스토리 조각이 있으면 그것을 그린다
                   // (같은 저장소의 기록이 오른쪽으로 이사 — 2026-08-23 사장님 지시). 없으면 기존 안내문.
@@ -3240,7 +3254,7 @@ export default function UnifiedDetailView({
                 })()
               ) : (
                 <WideFilesPane row={row} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
-              )}
+              )) : null}
             </aside>
           </div>
         </div>
