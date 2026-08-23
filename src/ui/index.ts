@@ -8,6 +8,8 @@
 //  (클래스 합치기·좌표 계산)는 전용 통로(`@wedly/ui-shared/ui/cn` 등)로 부른다.
 
 export { cn, WEDLY_TEXT_TIERS } from "./cn";
+// 쓰는 앱이 globals.css 에 먼저 정의해야 하는 WEDLY 이름 목록 (없으면 그 앱에서 배경이 안 그려진다)
+export { REQUIRED_WEDLY_TOKENS } from "./required-tokens";
 export { computeAnchoredPosition } from "./anchoredPosition";
 export type { AnchorRect, ViewportSize, AnchoredPosition } from "./anchoredPosition";
 export { useAnchoredPosition } from "./useAnchoredPosition";
