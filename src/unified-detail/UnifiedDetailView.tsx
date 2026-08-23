@@ -2690,14 +2690,6 @@ export default function UnifiedDetailView({
     if (first) setActiveTab(first.key);
   }, [wideActive, activeTab, visibleGroups]);
 
-  // 오른쪽 칸 세그먼트 보정 — 「정보」 배치가 없는 그룹에서 info 에 머물면 빈 칸이 된다.
-  useEffect(() => {
-    if (!wideActive) return;
-    if (infoOnRight) setWideSide("info");
-    else setWideSide((cur) => (cur === "info" ? "history" : cur));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wideActive, infoOnRight, currentGroup?.key]);
-
   const headerChips = useMemo(() => {
     if (!headerChipKeys || headerChipKeys.length === 0) return [] as Array<{ key: string; text: string }>;
     const out: Array<{ key: string; text: string }> = [];
@@ -2771,6 +2763,15 @@ export default function UnifiedDetailView({
       !customIdSet.has(currentGroup.key) &&
       adapter.components.widePanelPlacement?.[currentGroup.key] === "right",
   );
+
+  // 오른쪽 칸 세그먼트 보정 — 「정보」 배치가 없는 그룹에서 info 에 머물면 빈 칸이 된다.
+  useEffect(() => {
+    if (!wideActive) return;
+    if (infoOnRight) setWideSide("info");
+    else setWideSide((cur) => (cur === "info" ? "history" : cur));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wideActive, infoOnRight, currentGroup?.key]);
+
 
   // 창을 닫기 직전, 입력 중이던 칸의 포커스를 풀어 그 칸의 자동 저장(포커스가 빠질 때 실행)이
   // 먼저 일어나게 한다. 바깥 어두운 영역이나 ✕ 클릭은 칸의 포커스를 자동으로 풀어주지 않는
