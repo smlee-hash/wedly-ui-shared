@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo, type DragEvent } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, type DragEvent, type ReactNode } from "react";
 import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, refreshCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
 import { type ColumnDef } from "../types/columns";
 import {
@@ -83,6 +83,28 @@ function fmtDate(s: string | null): string {
   return s.slice(0, 10);
 }
 
+// wide 헤더 칩 — 비어 있지 않은 글자·숫자만. 객체·불리언은 칩으로 못 그린다("[object Object]" 방지).
+function formatHeaderChip(value: unknown): string | null {
+  const one = (v: unknown): string | null => {
+    if (typeof v === "string") return v.trim() || null;
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+    return null;
+  };
+  if (Array.isArray(value)) {
+    const parts = value.map(one).filter((s): s is string => Boolean(s));
+    return parts.length > 0 ? parts.join(", ") : null;
+  }
+  return one(value);
+}
+
+function WideEmptyNote({ text }: { text: string }) {
+  return (
+    <div className="flex flex-1 items-center justify-center px-3 text-center text-[12px] text-wedly-muted">
+      {text}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // StatusDot — 상태별 색점 (하이브 UnifiedView.tsx StatusDot 과 동일)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,6 +145,7 @@ function TaxAmendmentPanel({
   historyApi,
   ownTieredFieldsPath,
   adapter,
+  hiddenSubTabs,
 }: {
   domainRow: DomainRowLite;
   subTab: SubTab;
@@ -137,6 +160,7 @@ function TaxAmendmentPanel({
   historyApi: HistoryPanelApi;
   ownTieredFieldsPath: (kind: "contract" | "refund") => string;
   adapter: UnifiedDetailAdapter;
+  hiddenSubTabs?: string[];
 }) {
   const { SettlementInfoTab, MeetingsTab } = adapter.components;
   const [localRow, setLocalRow] = useState<Record<string, unknown>>(() => ({ ...domainRow.row }));
@@ -242,13 +266,33 @@ function TaxAmendmentPanel({
   }, [saveTabConfig]);
   // 저장된 순서·이름을 적용한 표시용 하위 탭 목록
   const orderedSubTabs = applyTabConfig(SUB_TABS, subOrder, subLabels);
+  // hiddenSubTabs 미전달이면 같은 배열 참조 — compact 렌더 불변.
+  const displaySubTabs = hiddenSubTabs?.length
+    ? orderedSubTabs.filter((t) => !hiddenSubTabs.includes(t.key))
+    : orderedSubTabs;
+  // ★ 폴백은 hiddenSubTabs 를 넘긴 쪽(wide)에서만 — 미전달(compact·하이브·일루아)이면
+  //   subTab 그대로다. 폴백을 무조건 걸면 "목록에 없는 subTab = 빈 본문"이던 기존 동작이
+  //   "첫 탭을 렌더"로 바뀌어 스위치 안 켠 앱까지 달라진다(적대적 리뷰 지적).
+  const shownSubTab: SubTab = !hiddenSubTabs?.length
+    ? subTab
+    : displaySubTabs.some((t) => t.key === subTab)
+      ? subTab
+      : ((displaySubTabs[0]?.key as SubTab | undefined) ?? subTab);
   const moveSubTab = (idx: number, dir: -1 | 1) => {
-    const keys = orderedSubTabs.map((t) => t.key);
+    const displayKeys = displaySubTabs.map((t) => t.key);
     const j = idx + dir;
-    if (j < 0 || j >= keys.length) return;
-    [keys[idx], keys[j]] = [keys[j], keys[idx]];
-    setSubOrder(keys);
-    handleSaveTabConfig({ op: "order", which: "sub", order: keys });
+    if (j < 0 || j >= displayKeys.length) return;
+    [displayKeys[idx], displayKeys[j]] = [displayKeys[j], displayKeys[idx]];
+    if (!hiddenSubTabs?.length) {
+      setSubOrder(displayKeys);
+      handleSaveTabConfig({ op: "order", which: "sub", order: displayKeys });
+      return;
+    }
+    const full = orderedSubTabs.map((t) => t.key);
+    let di = 0;
+    const next = full.map((k) => (hiddenSubTabs.includes(k) ? k : displayKeys[di++]));
+    setSubOrder(next);
+    handleSaveTabConfig({ op: "order", which: "sub", order: next });
   };
   const resetTabs = () => {
     setSubOrder([]);
@@ -263,7 +307,7 @@ function TaxAmendmentPanel({
       {/* 하위 탭 바 */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-wedly-bd/60 bg-wedly-bg-gray/50 flex-shrink-0">
         <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
-          {orderedSubTabs.map(({ key, label }, i) => (
+          {displaySubTabs.map(({ key, label }, i) => (
             tabEditMode && isAdmin ? (
               <div key={key} className="flex items-center gap-0.5 bg-white border border-wedly-bd rounded-full pl-1 pr-1.5 py-0.5 flex-shrink-0">
                 <button type="button" onClick={() => moveSubTab(i, -1)} disabled={i === 0} title="왼쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">◀</button>
@@ -278,14 +322,14 @@ function TaxAmendmentPanel({
                   title="이름 변경"
                   className="w-[72px] text-[13px] font-semibold text-wedly-t1 bg-transparent outline-none text-center"
                 />
-                <button type="button" onClick={() => moveSubTab(i, 1)} disabled={i === orderedSubTabs.length - 1} title="오른쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">▶</button>
+                <button type="button" onClick={() => moveSubTab(i, 1)} disabled={i === displaySubTabs.length - 1} title="오른쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">▶</button>
               </div>
             ) : (
               <button
                 key={key}
                 onClick={() => onSubTabChange(key)}
                 className={`px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap transition-colors ${
-                  subTab === key
+                  shownSubTab === key
                     ? "bg-wedly-bg-blue text-wedly-accent"
                     : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
                 }`}
@@ -322,12 +366,12 @@ function TaxAmendmentPanel({
 
       <div className="flex-1 overflow-y-auto">
         {/* 히스토리 */}
-        {subTab === "history" && (
+        {shownSubTab === "history" && (
           <HistoryPanel pageId={entryId} rowData={localRow} api={historyApi} />
         )}
 
         {/* 계약정보 차수 */}
-        {subTab === "contract" && (
+        {shownSubTab === "contract" && (
           <div className="p-4">
             <SettlementInfoTab
               rawValue={localRow["계약정보_차수"] ?? null}
@@ -347,7 +391,7 @@ function TaxAmendmentPanel({
         {/* 정산정보 차수 — NO.150 으로 계약정보 탭에 합쳐져 제거됨 */}
 
         {/* 환불정보 차수 */}
-        {subTab === "refund" && (
+        {shownSubTab === "refund" && (
           <div className="p-4">
             <SettlementInfoTab
               rawValue={localRow["환불정보_차수"] ?? null}
@@ -365,7 +409,7 @@ function TaxAmendmentPanel({
         )}
 
         {/* 미팅정보 */}
-        {subTab === "meetings" && (
+        {shownSubTab === "meetings" && (
           <div className="p-4">
             <MeetingsTab
               rawValue={localRow["_meetings"] ?? null}
@@ -409,6 +453,7 @@ function SectionDetailPanel({
   saveOwnField,
   sectionSettlementBase,
   adapter,
+  hiddenSubTabs,
 }: {
   sectionKey: string;
   primaryId: string;
@@ -420,6 +465,7 @@ function SectionDetailPanel({
   saveOwnField: SaveOwnFieldFn;
   sectionSettlementBase: string;
   adapter: UnifiedDetailAdapter;
+  hiddenSubTabs?: string[];
 }) {
   const { MeetingsTab, SectionSettlementTab } = adapter.components;
   const [localRow, setLocalRow] = useState<Record<string, unknown>>(() => ({ ...primaryRow }));
@@ -661,18 +707,29 @@ function SectionDetailPanel({
     { key: "refund", label: "환불정보" },
     { key: "meetings", label: "미팅정보" },
   ];
+  const displaySubTabs = hiddenSubTabs?.length
+    ? SUB_TABS.filter((t) => !hiddenSubTabs.includes(t.key))
+    : SUB_TABS;
+  // ★ 폴백은 hiddenSubTabs 를 넘긴 쪽(wide)에서만 — 미전달(compact·하이브·일루아)이면
+  //   subTab 그대로다. 폴백을 무조건 걸면 "목록에 없는 subTab = 빈 본문"이던 기존 동작이
+  //   "첫 탭을 렌더"로 바뀌어 스위치 안 켠 앱까지 달라진다(적대적 리뷰 지적).
+  const shownSubTab: SubTab = !hiddenSubTabs?.length
+    ? subTab
+    : displaySubTabs.some((t) => t.key === subTab)
+      ? subTab
+      : ((displaySubTabs[0]?.key as SubTab | undefined) ?? subTab);
 
   return (
     <div className="flex flex-col h-full">
       {/* 하위 탭 바 — 경정청구와 동일 6칸·동일 순서 */}
       <div className="flex items-center gap-1 px-4 py-2 border-b border-wedly-bd/60 bg-wedly-bg-gray/50 flex-shrink-0">
         <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
-          {SUB_TABS.map(({ key, label }) => (
+          {displaySubTabs.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => onSubTabChange(key)}
               className={`px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap transition-colors ${
-                subTab === key
+                shownSubTab === key
                   ? "bg-wedly-bg-blue text-wedly-accent"
                   : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
               }`}
@@ -685,7 +742,7 @@ function SectionDetailPanel({
 
       <div className="flex-1 overflow-y-auto">
         {/* 히스토리 — 분야별 독립(고객 기록 분야칸 저장) */}
-        {subTab === "history" && (
+        {shownSubTab === "history" && (
           <div className="p-4">
             {shared && secHistory === undefined ? (
               <Spinner />
@@ -704,7 +761,7 @@ function SectionDetailPanel({
         )}
 
         {/* 계약정보 — 분야별 독립 차수카드 */}
-        {subTab === "contract" && (
+        {shownSubTab === "contract" && (
           <div className="p-4">
             {shared && secContract === undefined ? (
               <Spinner />
@@ -729,7 +786,7 @@ function SectionDetailPanel({
         )}
 
         {/* 정산정보 — 분야별 독립 표(편집) */}
-        {subTab === "settlement" && (
+        {shownSubTab === "settlement" && (
           <div className="p-4">
             {shared && secSettlement === undefined ? (
               <Spinner />
@@ -753,7 +810,7 @@ function SectionDetailPanel({
         )}
 
         {/* 환불정보 — 분야별 독립 차수카드 */}
-        {subTab === "refund" && (
+        {shownSubTab === "refund" && (
           <div className="p-4">
             {shared && secRefund === undefined ? (
               <Spinner />
@@ -778,7 +835,7 @@ function SectionDetailPanel({
         )}
 
         {/* 미팅정보 — 분야별 독립 */}
-        {subTab === "meetings" && (
+        {shownSubTab === "meetings" && (
           <div className="p-4">
             <MeetingsTab
               rawValue={localRow[nk("_meetings")] ?? null}
@@ -957,6 +1014,7 @@ function BasicInfoPanel({
   loadManagers,
   adapter,
   hiddenColumnKeys = [],
+  stacked,
 }: {
   row: RowData;
   detail: CustomerDetailLite | null;
@@ -977,6 +1035,8 @@ function BasicInfoPanel({
   adapter: UnifiedDetailAdapter;
   // 표 컬럼 표시 설정 OFF 칸 키(표준 칸 포함) — visibleBasicFields 에서 균일 제외(NO.56).
   hiddenColumnKeys?: string[];
+  /** true면 라벨 위·값 아래. 미전달이면 기존 가로 배치 불변. */
+  stacked?: boolean;
 }) {
   // 자기 주력 분야 칸 정의 — 어댑터 주입(ERP=COLUMNS). 앱별로 다른 자기분야 칸을 외부에서 받는다.
   const { ownColumns } = adapter;
@@ -1540,12 +1600,18 @@ function BasicInfoPanel({
                   if (!TaxbotCtl) return null;
                   const r = row as Record<string, unknown>;
                   return (
-                    <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
-                      <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
+                    <div key={f.key} className={stacked
+                      ? "flex flex-col gap-1 px-1 py-2"
+                      : "flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5"}>
+                      <div className={stacked
+                        ? "flex items-center gap-1"
+                        : "w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1"}>
                         <BasicScopeBadge label={col.label} override={commonOverride} />
-                        <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
+                        <span className={stacked
+                          ? "text-[10.5px] text-wedly-muted mb-0.5"
+                          : `text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className={stacked ? "w-full min-w-0" : "flex-1 min-w-0"}>
                         <TaxbotCtl row={r} entryId={String(r["_id"] ?? "")} onSaved={onSaved} />
                       </div>
                     </div>
@@ -1558,12 +1624,18 @@ function BasicInfoPanel({
                   if (isNew) return null;
                   const r = row as Record<string, unknown>;
                   return (
-                    <div key={f.key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
-                      <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
+                    <div key={f.key} className={stacked
+                      ? "flex flex-col gap-1 px-1 py-2"
+                      : "flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5"}>
+                      <div className={stacked
+                        ? "flex items-center gap-1"
+                        : "w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1"}>
                         <BasicScopeBadge label={col.label} override={commonOverride} />
-                        <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
+                        <span className={stacked
+                          ? "text-[10.5px] text-wedly-muted mb-0.5"
+                          : `text-[13px] font-medium sm:font-normal ${isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>{col.label}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className={stacked ? "w-full min-w-0" : "flex-1 min-w-0"}>
                         <BasicFilesField
                           row={r}
                           adapter={adapter}
@@ -1585,17 +1657,24 @@ function BasicInfoPanel({
                     colorCommon
                     commonOverride={commonOverride}
                     loadManagers={loadManagers}
+                    stacked={stacked}
                   />
                 );
               })}
               {/* 신규 등록 전용 "리포트" 첨부 칸 — 등록 단계에서 바로 파일 첨부(저장 시 함께 등록). NO.56 #2. */}
               {isNew && (
-                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5">
-                  <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
+                <div className={stacked
+                  ? "flex flex-col gap-1 px-1 py-2"
+                  : "flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 px-1 py-2 sm:py-1.5"}>
+                  <div className={stacked
+                    ? "flex items-center gap-1"
+                    : "w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1"}>
                     <BasicScopeBadge label="리포트" override={commonOverride} />
-                    <span className={`text-[13px] font-medium sm:font-normal ${isCommonBasicLabel("리포트", commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>리포트</span>
+                    <span className={stacked
+                      ? "text-[10.5px] text-wedly-muted mb-0.5"
+                      : `text-[13px] font-medium sm:font-normal ${isCommonBasicLabel("리포트", commonOverride) ? "text-wedly-accent" : "text-wedly-muted"}`}>리포트</span>
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className={stacked ? "w-full min-w-0" : "flex-1 min-w-0"}>
                     <NewEntryReportUpload
                       files={Array.isArray(draft?.["_files"]) ? (draft!["_files"] as DraftFile[]) : []}
                       onChange={(f) => onDraftChange?.("_files", f)}
@@ -1766,6 +1845,7 @@ function GroupDomainPanel({
   sectionSettlementBase,
   allRows,
   adapter,
+  hiddenSubTabs,
 }: {
   group: DomainGroup;
   rows: DomainRowLite[];
@@ -1787,17 +1867,40 @@ function GroupDomainPanel({
   // 카드 조건 기준 칸(DB분류·영업담당·주소지)은 경정청구 행에만 있어, 그룹 행만 주면 조건이 영영 미발동.
   allRows?: DomainRowLite[];
   adapter: UnifiedDetailAdapter;
+  hiddenSubTabs?: string[];
 }) {
+  const HeaderPanel = adapter.components.sectionPanelHeaders?.[group.key];
+  const header = HeaderPanel ? (
+    <HeaderPanel
+      rows={allRows && allRows.length > 0 ? allRows : rows}
+      primaryRow={primaryRow as Record<string, unknown>}
+      isAdmin={isAdmin}
+      onSaved={onSaved}
+      adapter={adapter}
+    />
+  ) : null;
+  // 머리 조각이 있을 때만 세로 틀로 감싼다 — h-full 패널이 부모 높이를 넘겨 이중 스크롤이
+  // 생기지 않게(적대적 리뷰 지적). 미제공이면 렌더 트리 완전 동일.
+  const wrap = (panel: ReactNode) =>
+    header ? (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex-shrink-0">{header}</div>
+        <div className="flex min-h-0 flex-1 flex-col">{panel}</div>
+      </div>
+    ) : (
+      panel
+    );
+
   // 자기 분야 그룹은 기존 편집 패널(자체 저장소) — 그대로 유지
   if (group.key === ownDomain) {
     if (rows.length === 0) {
-      return (
+      return wrap(
         <div className="flex flex-col items-center justify-center py-16 gap-1 text-[13px] text-wedly-muted">
           <span>경정청구 데이터가 없습니다.</span>
-        </div>
+        </div>,
       );
     }
-    return (
+    return wrap(
       <TaxAmendmentPanel
         key={group.key}
         domainRow={rows[0]}
@@ -1813,7 +1916,8 @@ function GroupDomainPanel({
         historyApi={historyApi}
         ownTieredFieldsPath={ownTieredFieldsPath}
         adapter={adapter}
-      />
+        hiddenSubTabs={hiddenSubTabs}
+      />,
     );
   }
 
@@ -1821,7 +1925,7 @@ function GroupDomainPanel({
   // 하이브·일루아는 sectionPanels 를 주입하지 않으므로 기존 동작 그대로.
   const CustomSectionPanel = adapter.components.sectionPanels?.[group.key];
   if (CustomSectionPanel) {
-    return (
+    return wrap(
       <CustomSectionPanel
         key={group.key}
         // 회사 전체 도메인 행을 넘긴다(NO.125 반려 재작업) — 패널은 스스로 자기 도메인을 거른다
@@ -1831,14 +1935,14 @@ function GroupDomainPanel({
         isAdmin={isAdmin}
         onSaved={onSaved}
         adapter={adapter}
-      />
+      />,
     );
   }
 
   // 그 외 분야: 분야별 독립 상세 패널. 저장은 고객(경정청구) 기록에 분야 이름표 칸으로.
   // 데이터 없는 분야(기업인증·특허)도 동일하게 동작(고객 기록에만 저장).
   const primaryId = String((primaryRow as Record<string, unknown>)["_id"] ?? "");
-  return (
+  return wrap(
     <SectionDetailPanel
       key={group.key}
       sectionKey={group.key}
@@ -1851,7 +1955,8 @@ function GroupDomainPanel({
       saveOwnField={saveOwnField}
       sectionSettlementBase={sectionSettlementBase}
       adapter={adapter}
-    />
+      hiddenSubTabs={hiddenSubTabs}
+    />,
   );
 }
 
@@ -2049,6 +2154,215 @@ function CustomDomainPanel({
   );
 }
 
+// wide 오른쪽 — SectionDetailPanel 히스토리와 동일 props·저장 경로 (compact 경로는 그대로).
+function WideSectionHistory({
+  sectionKey,
+  primaryId,
+  primaryRow,
+  saveOwnField,
+  onSaved,
+}: {
+  sectionKey: string;
+  primaryId: string;
+  primaryRow: Record<string, unknown>;
+  saveOwnField: SaveOwnFieldFn;
+  onSaved?: () => void;
+}) {
+  const nk = useCallback((k: string) => `uc:${sectionKey}:${k}`, [sectionKey]);
+  const bizno = useMemo(() => normalizeBizno(primaryRow["15사업자번호"]), [primaryRow]);
+  const shared = bizno.length > 0;
+  const [secHistory, setSecHistory] = useState<UnifiedComment[] | undefined>(
+    shared ? undefined : [],
+  );
+  const historyInitial = useMemo<UnifiedComment[]>(() => {
+    const raw = primaryRow[nk("_history")];
+    if (Array.isArray(raw)) return raw as UnifiedComment[];
+    if (typeof raw === "string" && raw.trim()) {
+      try {
+        const a = JSON.parse(raw);
+        return Array.isArray(a) ? (a as UnifiedComment[]) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionKey]);
+
+  useEffect(() => {
+    if (!shared) {
+      setSecHistory([]);
+      return;
+    }
+    let alive = true;
+    setSecHistory(undefined);
+    const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
+    fetch(`${base}?kind=history`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!alive) return;
+        const v = j?.success ? j.data : null;
+        setSecHistory(Array.isArray(v) ? (v as UnifiedComment[]) : historyInitial);
+      })
+      .catch(() => {
+        if (alive) setSecHistory(historyInitial);
+      });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shared, bizno, sectionKey]);
+
+  const onPersistHistory = useCallback(
+    async (next: UnifiedComment[]) => {
+      if (!primaryId) return;
+      try {
+        await saveOwnField(primaryId, nk("_history"), JSON.stringify(next));
+        onSaved?.();
+      } catch {
+        alert("히스토리 저장에 실패했습니다. 다시 시도해 주세요.");
+      }
+    },
+    [primaryId, nk, onSaved, saveOwnField],
+  );
+
+  const onPersistHistoryRouted = useCallback(
+    (next: UnifiedComment[]) => {
+      if (!shared) {
+        onPersistHistory(next);
+        return;
+      }
+      const prev = secHistory;
+      setSecHistory(next);
+      const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
+      fetch(`${base}?kind=history`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: next }),
+      })
+        .then((res) => {
+          if (!res.ok) {
+            if (res.status === 401) throw new Error("로그인이 필요합니다. 다시 로그인해 주세요.");
+            throw new Error("저장 실패");
+          }
+          onSaved?.();
+        })
+        .catch((e: unknown) => {
+          setSecHistory(prev);
+          const m = e instanceof Error ? e.message : "";
+          alert(m.includes("로그인") ? m : "히스토리 저장에 실패했습니다. 다시 시도해 주세요.");
+        });
+    },
+    [shared, onPersistHistory, secHistory, bizno, sectionKey, onSaved],
+  );
+
+  return (
+    <div className="p-4">
+      {shared && secHistory === undefined ? (
+        <Spinner />
+      ) : (
+        <>
+          {!shared && <NoBiznoNotice />}
+          <SectionHistoryPanel
+            key={shared ? "shared" : "legacy"}
+            storageId={`${bizno || primaryId}:${sectionKey}`}
+            initial={shared ? (secHistory ?? []) : historyInitial}
+            onPersist={onPersistHistoryRouted}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function WideGroupHistory({
+  group,
+  rows,
+  primaryRow,
+  historyApi,
+  ownDomain,
+  saveOwnField,
+  onSaved,
+  hasCustomPanel = false,
+}: {
+  group: DomainGroup | null;
+  rows: DomainRowLite[];
+  primaryRow: RowData;
+  historyApi: HistoryPanelApi;
+  ownDomain: string;
+  saveOwnField: SaveOwnFieldFn;
+  onSaved?: () => void;
+  /** 이 그룹에 커스텀 분야 패널(sectionPanels)이 있는가 — 그 패널은 자기 저장소의 히스토리를
+   *  스스로 그리므로, 오른쪽에 다른 저장소(section-store) 히스토리를 겹쳐 띄우면 같은 이름의
+   *  다른 기록 2개가 생겨 한쪽이 유실처럼 보인다(적대적 리뷰 치명 지적). */
+  hasCustomPanel?: boolean;
+}) {
+  if (!group || group.domains.length === 0) {
+    return <WideEmptyNote text="이 영역의 기록이 아직 없어요" />;
+  }
+  if (hasCustomPanel) {
+    return <WideEmptyNote text="이 영역의 기록은 가운데 화면의 히스토리 탭에서 관리해요" />;
+  }
+  if (group.key === ownDomain) {
+    if (rows.length === 0) return <WideEmptyNote text="이 영역의 기록이 아직 없어요" />;
+    const domainRow = rows[0];
+    return (
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <HistoryPanel pageId={domainRow.entryId} rowData={domainRow.row} api={historyApi} />
+      </div>
+    );
+  }
+  const primaryId = String((primaryRow as Record<string, unknown>)["_id"] ?? "");
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto">
+      <WideSectionHistory
+        key={group.key}
+        sectionKey={group.key}
+        primaryId={primaryId}
+        primaryRow={primaryRow as Record<string, unknown>}
+        saveOwnField={saveOwnField}
+        onSaved={onSaved}
+      />
+    </div>
+  );
+}
+
+function WideFilesPane({
+  row,
+  entryId,
+  adapter,
+  onSaved,
+}: {
+  row: RowData;
+  entryId: string;
+  adapter: UnifiedDetailAdapter;
+  onSaved?: () => void;
+}) {
+  const ErpFilesPanel = adapter.components.ErpFilesPanel;
+  if (!ErpFilesPanel) {
+    return <WideEmptyNote text="파일 패널이 없는 앱입니다" />;
+  }
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto p-4">
+      <ErpFilesPanel
+        row={row}
+        fields={adapter.ownFileFields}
+        pageId={entryId}
+        onPatchField={async (key: string, jsonValue: string) => {
+          // 저장 성공 후 부모 재조회 — 안 부르면 패널을 다시 열 때 낡은 행으로 목록을 만들어
+          // 방금 올린 파일이 사라진 것처럼 보인다(적대적 리뷰 지적).
+          await adapter.api.saveOwnField(entryId, key, jsonValue);
+          onSaved?.();
+        }}
+        // compact 파일 팝업(BasicFilesField)과 동일한 기본 분류 — 첫 파일 칸.
+        defaultCategoryKey={adapter.ownFileFields[0]?.key ?? "첨부파일"}
+        readOnly={false}
+        includeSharedFiles
+      />
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2067,6 +2381,8 @@ export default function UnifiedDetailView({
   initialTab,
   openOnHistory = false,
   historyPreferredGroup,
+  layout = "compact",
+  headerChipKeys,
 }: {
   row: RowData;
   onClose: () => void;
@@ -2095,6 +2411,10 @@ export default function UnifiedDetailView({
   openOnHistory?: boolean;
   // 말풍선 히스토리로 열 때 우선 분야 그룹 키(ERP=tax-amendment, 일루아=government-subsidy). 없으면 히스토리 있는 첫 분야. NO.80b
   historyPreferredGroup?: string;
+  /** 기본 compact. wide 는 3분할(기본정보 | 분야 | 히스토리·파일). 안 넘기면 기존 불변. */
+  layout?: "compact" | "wide";
+  /** wide 헤더에 값 칩으로 보여줄 행 칸 키 목록. */
+  headerChipKeys?: string[];
 }) {
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2109,6 +2429,29 @@ export default function UnifiedDetailView({
   // 관리자가 만든 "새 분야" 탭 목록(id + 처음 이름). 기존 분야와 합쳐 상단 탭으로 표시.
   const [topCustom, setTopCustom] = useState<Array<{ id: string; label: string }>>([]);
   const [topTabEditMode, setTopTabEditMode] = useState(false);
+  const [wideSide, setWideSide] = useState<"history" | "files">("history");
+  const [wideViewport, setWideViewport] = useState(() => {
+    if (layout !== "wide") return false;
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+    return window.matchMedia("(min-width:1024px)").matches;
+  });
+  useEffect(() => {
+    if (layout !== "wide") {
+      setWideViewport(false);
+      return;
+    }
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(min-width:1024px)");
+    const onChange = () => setWideViewport(mq.matches);
+    onChange();
+    if (typeof mq.addEventListener === "function") mq.addEventListener("change", onChange);
+    else mq.addListener(onChange);
+    return () => {
+      if (typeof mq.removeEventListener === "function") mq.removeEventListener("change", onChange);
+      else mq.removeListener(onChange);
+    };
+  }, [layout]);
+  const wideActive = layout === "wide" && !isNew && wideViewport;
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
@@ -2333,6 +2676,25 @@ export default function UnifiedDetailView({
     }
   }, [openOnHistory, detail, visibleGroups, historyPreferredGroup]);
 
+  // wide 에서는 기본정보가 왼쪽 고정이라 가운데 탭이 __basic__ 이면 첫 분야로 옮긴다. compact 영향 0.
+  useEffect(() => {
+    if (!wideActive) return;
+    if (activeTab !== "__basic__") return;
+    const first = visibleGroups[0];
+    if (first) setActiveTab(first.key);
+  }, [wideActive, activeTab, visibleGroups]);
+
+  const headerChips = useMemo(() => {
+    if (!headerChipKeys || headerChipKeys.length === 0) return [] as Array<{ key: string; text: string }>;
+    const out: Array<{ key: string; text: string }> = [];
+    for (const key of headerChipKeys) {
+      const text = formatHeaderChip((row as Record<string, unknown>)[key]);
+      if (text) out.push({ key, text });
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [headerChipKeys, row]);
+
   const moveTopTab = useCallback((idx: number, dir: -1 | 1) => {
     const keys = orderedGroups.map((g) => g.key);
     const j = idx + dir;
@@ -2531,6 +2893,257 @@ export default function UnifiedDetailView({
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      </div>
+      </FieldOptionsProvider>
+    );
+  }
+
+  if (wideActive) {
+    const sideBtn = (key: "history" | "files", label: string) => (
+      <button
+        type="button"
+        onClick={() => setWideSide(key)}
+        className={wideSide === key
+          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-3 py-1.5 text-[12px]"
+          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-3 py-1.5 text-[12px]"}
+      >
+        {label}
+      </button>
+    );
+    return (
+      <FieldOptionsProvider value={adapter.fieldOptions}>
+      <div
+        className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center"
+        onClick={handleClose}
+      >
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+        <div
+          className="relative bg-white shadow-2xl w-full h-full sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] flex flex-col rounded-none sm:rounded-2xl overflow-hidden animate-modal-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="border-b border-wedly-bd/60 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-wedly-navy flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                {company.charAt(0) || "G"}
+              </div>
+              <EditableTitle
+                value={nameValue}
+                placeholder="통합 보기"
+                onSave={(v) => saveName(v)}
+              />
+              {headerChips.length > 0 && (
+                <div className="flex items-center gap-1 overflow-x-auto min-w-0">
+                  {headerChips.map((chip) => (
+                    <span
+                      key={chip.key}
+                      className="rounded-full bg-wedly-bg-gray border border-wedly-bd px-2.5 py-0.5 text-[11px] text-wedly-t2 whitespace-nowrap"
+                    >
+                      {chip.text}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {loading && (
+                <span className="text-[11px] text-wedly-accent animate-pulse flex-shrink-0">불러오는 중...</span>
+              )}
+            </div>
+            <button
+              onClick={handleClose}
+              className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-wedly-bg-gray text-wedly-muted hover:text-wedly-t2 transition-colors flex-shrink-0"
+              aria-label="닫기"
+            >
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="flex flex-1 min-h-0">
+            <aside className="w-[340px] flex-shrink-0 border-r border-wedly-bd/60 overflow-y-auto">
+              <BasicInfoPanel
+                row={row}
+                detail={detail}
+                loading={loading}
+                onOpenTab={openGroupTab}
+                onSaved={handleSaved}
+                isAdmin={isAdmin}
+                orderedGroups={orderedGroups}
+                saveOwnField={adapter.api.saveOwnField}
+                ownDomain={adapter.ownDomain}
+                loadColumnConfig={adapter.api.loadColumnConfig}
+                saveColumnConfig={adapter.api.saveColumnConfig}
+                loadManagers={adapter.api.loadManagers}
+                adapter={adapter}
+                hiddenColumnKeys={hiddenColumnKeys}
+                stacked
+              />
+            </aside>
+
+            <main className="flex-1 min-w-0 flex flex-col">
+              <div className="flex items-center gap-1 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 py-2">
+                <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+                  {(isAdmin && topTabEditMode ? orderedGroups : visibleGroups).map((group, gi) => {
+                    const rows = rowsOfGroup(detail, group);
+                    const status = firstNonEmpty(rows, (r) => r.status ?? null);
+                    const hasData = rows.length > 0;
+                    const active = activeTab === group.key;
+                    if (isAdmin && topTabEditMode) {
+                      const hidden = topHidden.includes(group.key);
+                      return (
+                        <div key={group.key} className={`flex items-center gap-0.5 bg-white border rounded-full pl-1 pr-1.5 py-0.5 flex-shrink-0 ${hidden ? "border-wedly-bd/40 opacity-50" : "border-wedly-bd"}`}>
+                          <button type="button" onClick={() => moveTopTab(gi, -1)} disabled={gi === 0} title="왼쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">◀</button>
+                          <input
+                            value={topLabels[group.key] ?? group.label}
+                            onChange={(e) => setTopLabels((prev) => ({ ...prev, [group.key]: e.target.value }))}
+                            onBlur={(e) => {
+                              const v = e.target.value.trim();
+                              setTopLabels((prev) => { const nx = { ...prev }; if (v) nx[group.key] = v; else delete nx[group.key]; return nx; });
+                              saveTopTabConfig({ op: "label", which: "top", id: group.key, label: v });
+                            }}
+                            title="이름 변경"
+                            className="w-[72px] text-[13px] font-semibold text-wedly-t1 bg-transparent outline-none text-center"
+                          />
+                          <button type="button" onClick={() => moveTopTab(gi, 1)} disabled={gi === orderedGroups.length - 1} title="오른쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">▶</button>
+                          <button type="button" onClick={() => toggleHideTopTab(group.key)} title={hidden ? "다시 보이기" : "이 탭 숨기기"} className="ml-0.5 pl-1 text-[11px] text-wedly-muted hover:text-wedly-accent border-l border-wedly-bd/60 whitespace-nowrap">{hidden ? "보임" : "숨김"}</button>
+                          {customIdSet.has(group.key) && (
+                            <button type="button" onClick={() => removeCustomDomain(group.key)} title="이 분야 삭제" className="ml-0.5 pl-1 text-[11px] text-wedly-red hover:text-wedly-red/80 border-l border-wedly-bd/60 whitespace-nowrap">삭제</button>
+                          )}
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        key={group.key}
+                        onClick={() => setActiveTab(group.key)}
+                        className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
+                          active
+                            ? "bg-wedly-bg-blue text-wedly-accent"
+                            : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                        }`}
+                      >
+                        <StatusDot status={hasData ? status : undefined} />
+                        {group.label}
+                      </button>
+                    );
+                  })}
+                  {isAdmin && topTabEditMode && (
+                    <button
+                      type="button"
+                      onClick={addCustomDomain}
+                      title="새 분야 탭 추가"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap border border-dashed border-wedly-accent/50 text-wedly-accent hover:bg-wedly-bg-blue/40 transition-colors flex-shrink-0"
+                    >
+                      ＋ 새 분야
+                    </button>
+                  )}
+                </div>
+                {isAdmin && (
+                  <div className="flex-shrink-0 flex items-center gap-1 ml-2">
+                    {topTabEditMode && (
+                      <button type="button" onClick={resetTopTabs} className="px-2 py-1 text-[11px] rounded-md border border-wedly-bd text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors whitespace-nowrap">초기화</button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setTopTabEditMode((v) => !v)}
+                      title="탭 편집 — 분야 탭 순서·이름 변경"
+                      className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors whitespace-nowrap ${
+                        topTabEditMode
+                          ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40"
+                          : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"
+                      }`}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                        <path d="M11.5 2L14 4.5L5.5 13L2 14L3 10.5L11.5 2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                      </svg>
+                      {topTabEditMode ? "완료" : "탭 편집"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {error && (
+                  <div className="p-6">
+                    <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-4 py-3 text-[13px] text-wedly-red">
+                      {error}
+                      <div className="mt-3 border-t border-wedly-bd-red/60 pt-3 text-wedly-t2">
+                        <span className="font-medium">경정청구 기본 정보:</span> {company}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!error && activeTab !== "__basic__" && customIdSet.has(activeTab) && currentGroup && (
+                  <div className="flex flex-col h-full">
+                    <CustomDomainPanel
+                      key={activeTab}
+                      domainId={activeTab}
+                      label={currentGroup.label}
+                      row={row}
+                      isAdmin={isAdmin}
+                      onSaved={handleSaved}
+                      saveOwnField={adapter.api.saveOwnField}
+                      loadColumnConfig={adapter.api.loadColumnConfig}
+                      saveColumnConfig={adapter.api.saveColumnConfig}
+                      loadManagers={adapter.api.loadManagers}
+                      adapter={adapter}
+                    />
+                  </div>
+                )}
+                {!error && activeTab !== "__basic__" && !customIdSet.has(activeTab) && (
+                  <>
+                    {loading && <Spinner />}
+                    {!loading && currentGroup && (
+                      <div className="flex flex-col h-full">
+                        <GroupDomainPanel
+                          group={currentGroup}
+                          rows={currentRows}
+                          allRows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : []}
+                          primaryRow={row}
+                          subTab={subTab}
+                          onSubTabChange={setSubTab}
+                          onSaved={handleSaved}
+                          isAdmin={isAdmin}
+                          saveOwnField={adapter.api.saveOwnField}
+                          ownDomain={adapter.ownDomain}
+                          loadColumnConfig={adapter.api.loadColumnConfig}
+                          saveColumnConfig={adapter.api.saveColumnConfig}
+                          loadTabConfig={adapter.api.loadTabConfig}
+                          saveTabConfig={adapter.api.saveTabConfig}
+                          historyApi={historyApi}
+                          ownTieredFieldsPath={adapter.ownTieredFieldsPath}
+                          sectionSettlementBase={adapter.sectionSettlementBase}
+                          adapter={adapter}
+                          hiddenSubTabs={["history", "files"]}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </main>
+
+            <aside className="w-[340px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0">
+              <div className="p-2 border-b border-wedly-bd/60 flex-shrink-0 flex items-center gap-1">
+                {sideBtn("history", "히스토리")}
+                {sideBtn("files", "파일")}
+              </div>
+              {wideSide === "history" ? (
+                <WideGroupHistory
+                  group={currentGroup && !customIdSet.has(currentGroup.key) ? currentGroup : null}
+                  rows={currentRows}
+                  primaryRow={row}
+                  historyApi={historyApi}
+                  ownDomain={adapter.ownDomain}
+                  saveOwnField={adapter.api.saveOwnField}
+                  onSaved={handleSaved}
+                  hasCustomPanel={Boolean(currentGroup && adapter.components.sectionPanels?.[currentGroup.key])}
+                />
+              ) : (
+                <WideFilesPane row={row} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
+              )}
+            </aside>
           </div>
         </div>
       </div>

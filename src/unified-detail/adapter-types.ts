@@ -231,6 +231,9 @@ export interface UnifiedDetailAdapter {
     SectionSettlementTab: React.ComponentType<any>;
     /** 분야 그룹별 커스텀 편집기. 키 = DomainGroup.key. 제공 시 기본 SectionDetailPanel 대신 렌더. 미제공이면 기존 동작(하이브·일루아 불변). */
     sectionPanels?: Record<string, React.ComponentType<SectionPanelProps>>;
+    /** 분야 그룹별 "패널 위에 얹는 머리 조각" — 제공 시 그 그룹 패널(기본·커스텀 모두) 위에 렌더.
+     *  미제공이면 기존 동작(하이브·일루아 불변). props 는 sectionPanels 와 동일(SectionPanelProps). */
+    sectionPanelHeaders?: Record<string, React.ComponentType<SectionPanelProps>>;
     /** ERP 전용: 기본정보 탭 "택스봇 자동 리포트" 칸 컨트롤. 제공 시 기본정보에 그 칸이 나타남(미제공이면 칸 없음 — 하이브·일루아 불변). props: { row, entryId, onSaved? }. */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     TaxbotReportControl?: React.ComponentType<any>;

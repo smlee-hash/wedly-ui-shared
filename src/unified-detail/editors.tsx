@@ -714,6 +714,7 @@ export function EditableFieldRow({
   colorCommon = false,
   commonOverride,
   loadManagers,
+  stacked,
 }: {
   col: ColumnDef;
   value: unknown;
@@ -725,6 +726,8 @@ export function EditableFieldRow({
   commonOverride?: CommonFieldOverride | null;
   /** person 칸 담당자 목록 로드 — 어댑터 경유. 없으면 빈 목록으로 폴백. */
   loadManagers?: () => Promise<{ id: string; name: string }[]>;
+  /** true면 라벨 위·값 아래(폭 100%). 미전달이면 기존 가로 배치 불변. */
+  stacked?: boolean;
 }) {
   const fo = useFieldOptions();
   const [editing, setEditing] = useState(false);
@@ -835,18 +838,27 @@ export function EditableFieldRow({
 
   return (
     // 모바일 2단(라벨 위/값 아래), 데스크탑 가로 정렬 — 하이브 EditableFieldRow 와 동일.
-    <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 py-3 sm:py-2 px-1 sm:min-h-[36px] group">
-      <div className="w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1">
+    // stacked: 라벨 위·값 아래(폭 100%). 미전달 시 기존 클래스 문자열 그대로.
+    <div className={stacked
+      ? "flex flex-col gap-1 py-2 px-1 group"
+      : "flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 py-3 sm:py-2 px-1 sm:min-h-[36px] group"}>
+      <div className={stacked
+        ? "flex items-center gap-1"
+        : "w-full sm:w-[160px] sm:flex-shrink-0 flex items-center gap-1"}>
         {colorCommon && <BasicScopeBadge label={col.label} override={commonOverride} />}
         <span
-          className={`text-[13px] font-medium sm:font-normal leading-tight sm:truncate ${
-            colorCommon && isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"
-          }`}
+          className={stacked
+            ? "text-[10.5px] text-wedly-muted mb-0.5"
+            : `text-[13px] font-medium sm:font-normal leading-tight sm:truncate ${
+                colorCommon && isCommonBasicLabel(col.label, commonOverride) ? "text-wedly-accent" : "text-wedly-muted"
+              }`}
         >
           {col.label}
         </span>
       </div>
-      <div className="flex-1 text-[15px] sm:text-[13px] text-wedly-t1 min-w-0 relative">
+      <div className={stacked
+        ? "w-full text-[15px] sm:text-[13px] text-wedly-t1 min-w-0 relative"
+        : "flex-1 text-[15px] sm:text-[13px] text-wedly-t1 min-w-0 relative"}>
         {col.type === "file" ? (
           // 파일 칸: 항상 편집 UI를 직접 표시(클릭-to-edit 패턴 대신 항상 열려 있음)
           <FileEditor
