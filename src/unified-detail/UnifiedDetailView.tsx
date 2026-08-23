@@ -2969,13 +2969,14 @@ export default function UnifiedDetailView({
   }
 
   if (wideActive || narrowSwitch) {
+    // 오른쪽 줄 단추 — 두 줄로 쪼개지지 않게 whitespace-nowrap·shrink-0(2026-08-24 사장님 지적).
     const sideBtn = (key: "info" | "history" | "files", label: string) => (
       <button
         type="button"
         onClick={() => setWideSide(key)}
         className={wideSide === key
-          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-3 py-1.5 text-[12px]"
-          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-3 py-1.5 text-[12px]"}
+          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
+          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"}
       >
         {label}
       </button>
@@ -3084,7 +3085,7 @@ export default function UnifiedDetailView({
                     </div>
                   </div>
                 )}
-                {!error && activeTab !== "__basic__" && customIdSet.has(activeTab) && currentGroup && (
+                {!error && !WideCenterPanel && activeTab !== "__basic__" && customIdSet.has(activeTab) && currentGroup && (
                   <div className="flex flex-col h-full">
                     <CustomDomainPanel
                       key={activeTab}
@@ -3101,16 +3102,29 @@ export default function UnifiedDetailView({
                     />
                   </div>
                 )}
-                {!error && activeTab !== "__basic__" && !customIdSet.has(activeTab) && (
+                {/* 가운데 고정 조각(업무 현황) — 분야 탭을 바꿔도 다시 그리지 않는다(2026-08-24 사장님 지시).
+                    key 를 고정값으로 두고 분야 조건 밖에 두어, 탭 전환에 영향받지 않게. */}
+                {!error && WideCenterPanel && (
+                  <div className="flex flex-col h-full">
+                    <WideCenterPanel
+                      key="wide-center"
+                      rows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : []}
+                      primaryRow={row as Record<string, unknown>}
+                      isAdmin={isAdmin}
+                      onSaved={handleSaved}
+                      adapter={adapter}
+                    />
+                  </div>
+                )}
+                {!error && !WideCenterPanel && activeTab !== "__basic__" && !customIdSet.has(activeTab) && (
                   <>
                     {loading && <Spinner />}
                     {!loading && currentGroup && (
                       <div className="flex flex-col h-full">
                         {(() => {
-                          // 가운데는 고정 조각(업무 현황) 한 벌 — 어느 분야를 골라도 같다.
-                          // 고정 조각이 없으면 그룹별 머리 조각, 그것도 없으면 기존 전체 패널(폴백).
+                          // 고정 조각이 없는 앱: 그룹별 머리 조각, 그것도 없으면 기존 전체 패널(폴백).
                           const HeaderOnly = infoOnRight
-                            ? WideCenterPanel ?? adapter.components.sectionPanelHeaders?.[currentGroup.key]
+                            ? adapter.components.sectionPanelHeaders?.[currentGroup.key]
                             : undefined;
                           if (HeaderOnly) {
                             return (
@@ -3251,8 +3265,8 @@ export default function UnifiedDetailView({
                       }}
                       className={
                         wideSide === "info" && subTab === key
-                          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap"
-                          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap"
+                          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
+                          : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-3 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
                       }
                     >
                       {label}
