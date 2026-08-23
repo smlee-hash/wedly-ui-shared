@@ -2688,11 +2688,11 @@ export default function UnifiedDetailView({
 
   // wide 에서는 기본정보가 왼쪽 고정이라 가운데 탭이 __basic__ 이면 첫 분야로 옮긴다. compact 영향 0.
   useEffect(() => {
-    if (!wideActive) return;
+    if (!threePane) return;
     if (activeTab !== "__basic__") return;
     const first = visibleGroups[0];
     if (first) setActiveTab(first.key);
-  }, [wideActive, activeTab, visibleGroups]);
+  }, [threePane, activeTab, visibleGroups]);
 
   const headerChips = useMemo(() => {
     if (!headerChipKeys || headerChipKeys.length === 0) return [] as Array<{ key: string; text: string }>;
@@ -2763,9 +2763,11 @@ export default function UnifiedDetailView({
   // 이 그룹의 본 패널(차수 카드 등)을 오른쪽 「정보」 칸으로 옮기는가 — 어댑터 옵트인(wide 전용).
   // 가운데 고정 조각 — 어느 분야 탭을 골라도 가운데는 이 한 벌만 그린다(2026-08-23 사장님 지시).
   // 미지정 앱(하이브·일루아)·compact 는 이 값이 없어 기존 동작 그대로.
-  const WideCenterPanel = wideActive ? adapter.components.wideCenterPanel : undefined;
+  // 좁은 화면 전환 방식에서도 같은 배치를 쓴다 — 「업무 현황」 칸에 업무 현황이 나와야 한다.
+  const threePane = wideActive || narrowSwitch;
+  const WideCenterPanel = threePane ? adapter.components.wideCenterPanel : undefined;
   const infoOnRight = Boolean(
-    wideActive &&
+    threePane &&
       currentGroup &&
       !customIdSet.has(currentGroup.key) &&
       // 고정 조각이 있으면 모든 분야에서 본 패널을 오른쪽으로(가운데는 고정 조각 몫).
@@ -2777,7 +2779,7 @@ export default function UnifiedDetailView({
   // 목록 말풍선(히스토리)으로 연 경우엔 첫 보정에서 히스토리 의도를 지킨다(적대적 리뷰 지적).
   const historyIntentRef = useRef(openOnHistory);
   useEffect(() => {
-    if (!wideActive) return;
+    if (!threePane) return;
     if (infoOnRight) {
       if (historyIntentRef.current) {
         historyIntentRef.current = false;
@@ -2789,7 +2791,7 @@ export default function UnifiedDetailView({
       setWideSide((cur) => (cur === "info" ? "history" : cur));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wideActive, infoOnRight, currentGroup?.key]);
+  }, [threePane, infoOnRight, currentGroup?.key]);
 
 
   // 창을 닫기 직전, 입력 중이던 칸의 포커스를 풀어 그 칸의 자동 저장(포커스가 빠질 때 실행)이
