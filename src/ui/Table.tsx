@@ -26,9 +26,21 @@ export type TableColumn<T> = {
  * 옮겨 오기 전에는 그 파일에서 가져다 썼는데, 공용 꾸러미에서는 앱 전용 경로를 부를 수 없다.
  * 값이 어긋나면 ERP 배포 전 시험(`__tests__/shared-shell.test.ts`)이 잡는다.
  */
-const TD_CELL = "border-b border-wedly-bd/50 py-1.5 text-wedly-sub text-wedly-t1";
+const TD_CELL = "border-b border-wedly-bd/50 px-3 py-2 text-wedly-sub text-wedly-t1";
 
-const TABLE_TH = "py-1.5 text-wedly-label font-semibold text-white";
+/**
+ * 머리 칸 (2026-08-25 사장님 「제목 크기가 너무 작고 칸끼리 간격이 너무 벌어져 가독성이 떨어진다」).
+ *
+ * 재 보니 둘 다 사실이었다(배포본 실측):
+ *  · 머리글이 **10.5px** 인데 본문 칸은 13px — **머리글이 본문보다 작아** 위계가 거꾸로였다.
+ *  · th·td 에 **좌우 여백이 0px** 이라 글자가 칸 맨 끝에 붙고, 표가 늘어나며 생긴 남는 폭이
+ *    통째로 칸 사이로 벌어졌다(3칸 예시에서 금액 칸만 303px).
+ *
+ * 좌우 여백 `px-3` 을 넣어 글자를 칸 안으로 들이고, 상하도 6px→8px 로 넓혔다.
+ * 글자 크기는 이 파일이 아니라 `label` 층(10.5px→12px)에서 함께 올라간다 —
+ * 앱 안의 손으로 짠 표 머리글 149곳이 같은 층을 쓰므로, 여기만 키우면 표마다 크기가 갈린다.
+ */
+const TABLE_TH = "px-3 py-2 text-wedly-label font-semibold text-white";
 
 export function Table<T>({
   columns,
