@@ -3,22 +3,18 @@ import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
 import { cn } from "./cn";
 
 /**
- * 상태 박스 (2026-08-23 부품화 — 그동안 규격 문서로만 있던 v2를 부품으로) —
- * 워시 배경 + 색 테두리 + 원형 아이콘(의미색 채움) + **제목 진한 글자(t1)** + 본문 t2 + shadow-sm.
- * 경고만 원 안 글리프가 남색(금색 위 흰색 대비 미달 실측 2.13:1).
- *
- * ★2026-08-25 사장님 결정 — **제목을 의미색에서 진한 글자로 바꿨다.**
- *  배경 워시가 깊어지면서(깊이 v3) 워시 위 의미색 제목 대비가 4.07 → 3.63 으로 떨어졌다.
- *  기준(4.5)은 바꾸기 전에도 못 넘던 자리였고, 되살리려면 의미색을 낮춰야 하는데
- *  정보색 #006AFF 는 로고에서 뽑은 브랜드색이라 못 낮춘다 → 구조로 푼다.
- *  이제 **색은 아이콘 원과 테두리가 맡고, 글자는 읽히는 것이 일이다**(t1 = 14.5:1).
- *  판정을 색만으로 전달하지 않는다는 부품 상태 계약과도 맞는다(아이콘 모양 + 글자).
+ * 상태 박스 v3 「아이콘 타일형」 (2026-08-25 사장님 확정 — 재공모 시안 E) —
+ * 흰 카드(테두리 + 층 그림자) + 의미색 아이콘 타일(h-9 w-9 rounded-lg) + 제목 t1 + 본문 t2.
+ * v2(워시 배경+색 테두리+원형 아이콘)는 「입체적이지 못하다」 지적으로 폐기.
+ * 색은 아이콘 타일이 전담하고 판정은 아이콘 모양+글자로 전달한다(색만으로 전달 금지 계약 유지).
+ * 경고만 타일 안 심볼이 남색 — 금색 위 흰 글리프는 대비 2.13:1 미달 실측(v2에서 승계).
+ * 값의 정본: 전역 wedly-design-system 스킬 §상태 박스 v3.
  */
 const TONES = {
-  success: { box: "bg-wedly-bg-green border-wedly-bd-green", circle: "bg-wedly-green", glyph: "text-white", title: "text-wedly-t1", Icon: CheckCircle2 },
-  warning: { box: "bg-wedly-bg-yellow border-[var(--wedly-gold)]/40", circle: "bg-wedly-gold", glyph: "text-wedly-navy", title: "text-wedly-t1", Icon: AlertTriangle },
-  error: { box: "bg-wedly-bg-red border-wedly-bd-red", circle: "bg-wedly-red", glyph: "text-white", title: "text-wedly-t1", Icon: XCircle },
-  info: { box: "bg-wedly-bg-blue border-wedly-bd-blue", circle: "bg-wedly-accent", glyph: "text-white", title: "text-wedly-t1", Icon: Info },
+  success: { tile: "bg-wedly-green", glyph: "text-white", Icon: CheckCircle2 },
+  warning: { tile: "bg-wedly-gold", glyph: "text-wedly-navy", Icon: AlertTriangle },
+  error: { tile: "bg-wedly-red", glyph: "text-white", Icon: XCircle },
+  info: { tile: "bg-wedly-accent", glyph: "text-white", Icon: Info },
 } as const;
 
 export function StatusBox({
@@ -34,12 +30,18 @@ export function StatusBox({
 }) {
   const t = TONES[tone];
   return (
-    <div role={tone === "error" ? "alert" : "status"} className={cn("flex items-start gap-3 rounded-xl border p-4 shadow-sm", t.box, className)}>
-      <span className={cn("mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full", t.circle)}>
-        <t.Icon className={cn("h-3.5 w-3.5", t.glyph)} aria-hidden="true" />
+    <div
+      role={tone === "error" ? "alert" : "status"}
+      className={cn(
+        "flex items-start gap-3 rounded-xl border border-wedly-bd bg-white p-4 shadow-[0_1px_2px_rgba(10,34,68,0.05),0_6px_18px_rgba(10,34,68,0.08)]",
+        className
+      )}
+    >
+      <span className={cn("inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-sm", t.tile)}>
+        <t.Icon className={cn("h-5 w-5", t.glyph)} aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <p className={cn("text-wedly-sub font-semibold break-keep", t.title)}>{title}</p>
+        <p className="text-wedly-sub font-semibold text-wedly-t1 break-keep">{title}</p>
         {children && <p className="mt-0.5 text-wedly-hint text-wedly-t2 break-keep">{children}</p>}
       </div>
     </div>
