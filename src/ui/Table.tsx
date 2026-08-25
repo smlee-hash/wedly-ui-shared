@@ -6,6 +6,11 @@ import { cn } from "./cn";
 
 /**
  * 표준 표 (2026-08-23 신설 — 사장님 「표 부품이 없다」 지적) — 바로 불러다 쓰는 정렬 가능한 표.
+ *
+ * ★머리 띠는 2026-08-25 에 남색 → 주 파랑(#006AFF)으로 바꿨다 (사장님 결정).
+ *  wedly.kr 홈페이지를 재 보니 **남색이 전 페이지에서 0회**였다 — 앱만 남색을 표 머리처럼
+ *  넓은 면에 써서 두 매체의 톤이 갈렸다. 흰 글자 대비 4.66 으로 기준(4.5)을 넘는다.
+ *  로고·문서 표지의 남색은 브랜드 자산이라 그대로 둔다.
  * 8개 시스템 중 5곳 보유 유형. 협업 화면의 대량 자료는 공용 DesktopTable, 그 외 일반 표는 이 부품.
  * 변형: 정렬(sortable 칸)·줄무늬(striped, 기본 켬)·오른쪽 정렬(align)·빈 상태 문구.
  * 머리 칸은 이 파일 전용 — 공용 머리 칸 클래스를 쓰면 다른 표까지 남색이 번진다.
@@ -63,7 +68,7 @@ export function Table<T>({
     <div className={cn("w-full overflow-x-auto", className)}>
       <div className="overflow-hidden rounded-lg border border-wedly-bd">
         <table className="w-full border-collapse text-left">
-          <thead className="bg-wedly-navy text-wedly-tablehead">
+          <thead className="bg-wedly-accent text-wedly-tablehead">
             <tr>
               {columns.map((col) => (
                 <th
