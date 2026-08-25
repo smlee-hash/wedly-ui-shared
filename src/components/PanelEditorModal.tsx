@@ -178,7 +178,7 @@ export function PanelEditorAddModal({
                     <div className="flex items-center gap-1.5">
                       <span className="text-[13px] font-medium text-wedly-t1">{opt.label}</span>
                       {!opt.supported && (
-                        <span className="text-[10px] font-semibold text-wedly-orange bg-wedly-bg-yellow/40 border border-wedly-orange/30 rounded px-1.5 py-0.5">곧 지원</span>
+                        <span className="text-[10px] font-semibold text-wedly-t1 bg-wedly-bg-yellow/40 border border-wedly-orange/30 rounded px-1.5 py-0.5">곧 지원</span>
                       )}
                     </div>
                     <div className="text-[11px] text-wedly-muted mt-0.5">{opt.description}</div>

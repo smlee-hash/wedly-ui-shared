@@ -184,7 +184,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
               })}
             </div>
             {modeHint && (
-              <p className="mt-2 rounded border border-wedly-orange/30 bg-wedly-bg-yellow/40 p-2 text-[11px] text-wedly-orange">
+              <p className="mt-2 rounded border border-wedly-orange/30 bg-wedly-bg-yellow/40 p-2 text-[11px] text-wedly-t1">
                 {modeHint}
               </p>
             )}
