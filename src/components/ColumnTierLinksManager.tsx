@@ -144,7 +144,7 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
             <div className="text-[13px] text-wedly-t1">
               <span className="font-semibold">{colLabelMap[l.columnKey] || l.columnKey}</span>
               <span className="text-wedly-muted"> ↔ {sectionLabel(l.section ?? adapter.ownDomain)} · {AREA_LABEL[l.area]} · {l.tierFieldKey}</span>
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-wedly-bg-blue text-wedly-accent">{l.readonly ? "최신차수(읽기전용)" : l.mode === "sum" ? "합계(읽기전용)" : "최신차수(편집)"}</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-wedly-bg-blue text-wedly-accent-ink">{l.readonly ? "최신차수(읽기전용)" : l.mode === "sum" ? "합계(읽기전용)" : "최신차수(편집)"}</span>
             </div>
             <button onClick={() => removeLink(l.columnKey)} disabled={saving} className="px-3 py-2 text-[13px] font-medium text-white bg-wedly-red rounded-lg hover:bg-wedly-red/90 transition-colors">해제</button>
           </div>
@@ -171,14 +171,14 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
           <label className="block text-[12px] text-wedly-muted mb-1">차수 카드</label>
           <div className="flex gap-2">
             {(["settlement", "contract", "refund"] as LinkArea[]).map((a) => (
-              <button key={a} onClick={() => setArea(a)} className={`px-3 py-2 rounded-lg text-[13px] border ${area === a ? "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>{AREA_LABEL[a]}</button>
+              <button key={a} onClick={() => setArea(a)} className={`px-3 py-2 rounded-lg text-[13px] border ${area === a ? "bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>{AREA_LABEL[a]}</button>
             ))}
           </div>
         </div>
 
         {/* 차수 칸 */}
         <div>
-          <label className="block text-[12px] text-wedly-muted mb-1">차수 칸{usingBase && <span className="ml-1 text-wedly-gold">(경정청구 기본 틀)</span>}</label>
+          <label className="block text-[12px] text-wedly-muted mb-1">차수 칸{usingBase && <span className="ml-1 text-wedly-gold-ink">(경정청구 기본 틀)</span>}</label>
           {fieldOptions.length > 0 ? (
             <CustomSelect value={fieldKey} onChange={setFieldKey} options={fieldOptions} size="sm" />
           ) : (
@@ -191,14 +191,14 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
           <label className="block text-[12px] text-wedly-muted mb-1">연결 종류</label>
           {tierFieldIsFormula ? (
             // 자동계산 칸: 사람이 못 고치는 칸 → 최신차수 읽기전용 고정(선택 불가)
-            <div className="inline-flex items-center px-3 py-2 rounded-lg text-[13px] border bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold">
+            <div className="inline-flex items-center px-3 py-2 rounded-lg text-[13px] border bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue font-semibold">
               최신차수(읽기전용)
               <span className="ml-2 text-[11px] font-normal text-wedly-muted">자동계산 칸은 표에서 편집할 수 없습니다.</span>
             </div>
           ) : (
             <div className="flex gap-2">
-              <button onClick={() => setMode("sum")} disabled={isLatestOnlyLinkType(selectedColType)} title={isLatestOnlyLinkType(selectedColType) ? "드롭다운·비율(%) 칸은 최신차수(편집)로만 연결됩니다." : undefined} className={`px-3 py-2 rounded-lg text-[13px] border disabled:opacity-40 disabled:cursor-not-allowed ${mode === "sum" ? "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>합계(읽기전용)</button>
-              <button onClick={() => setMode("latest")} className={`px-3 py-2 rounded-lg text-[13px] border ${mode === "latest" ? "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>최신차수(편집)</button>
+              <button onClick={() => setMode("sum")} disabled={isLatestOnlyLinkType(selectedColType)} title={isLatestOnlyLinkType(selectedColType) ? "드롭다운·비율(%) 칸은 최신차수(편집)로만 연결됩니다." : undefined} className={`px-3 py-2 rounded-lg text-[13px] border disabled:opacity-40 disabled:cursor-not-allowed ${mode === "sum" ? "bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>합계(읽기전용)</button>
+              <button onClick={() => setMode("latest")} className={`px-3 py-2 rounded-lg text-[13px] border ${mode === "latest" ? "bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>최신차수(편집)</button>
             </div>
           )}
         </div>

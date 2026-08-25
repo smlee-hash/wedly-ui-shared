@@ -113,7 +113,7 @@ export function CommonColumnManager({
   return (
     <div className="space-y-5">
       {error && (
-        <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-3 py-2 text-[12px] text-wedly-red" role="alert">
+        <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-3 py-2 text-[12px] text-wedly-red-ink" role="alert">
           {error}
         </div>
       )}
@@ -154,7 +154,7 @@ export function CommonColumnManager({
                       type="button"
                       disabled={busy}
                       onClick={() => handleDelete(d.key)}
-                      className="text-[11px] text-wedly-red hover:bg-wedly-bg-red/40 px-1.5 py-0.5 rounded border border-wedly-bd-red/60 disabled:opacity-50"
+                      className="text-[11px] text-wedly-red-ink hover:bg-wedly-bg-red/40 px-1.5 py-0.5 rounded border border-wedly-bd-red/60 disabled:opacity-50"
                     >
                       삭제
                     </button>

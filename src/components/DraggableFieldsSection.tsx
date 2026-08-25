@@ -100,7 +100,7 @@ export function DraggableFieldsSection<T extends OrderableField>({
           <button
             type="button"
             onClick={() => onAddColumn(sectionId, sectionLabel || sectionId)}
-            className="w-full py-2 rounded-lg border-2 border-dashed border-wedly-accent/40 text-[12px] font-bold text-wedly-accent hover:bg-wedly-bg-blue/30 transition-colors"
+            className="w-full py-2 rounded-lg border-2 border-dashed border-wedly-accent/40 text-[12px] font-bold text-wedly-accent-ink hover:bg-wedly-bg-blue/30 transition-colors"
           >
             + 새 컬럼 추가
           </button>
@@ -136,7 +136,7 @@ export function DraggableFieldsSection<T extends OrderableField>({
                   draggable
                   onDragStart={handleDragStart(field.key)}
                   onDragEnd={handleDragEnd}
-                  className="flex items-center justify-center w-10 sm:w-7 min-h-[40px] sm:min-h-0 flex-shrink-0 self-stretch text-wedly-accent bg-wedly-bg-blue/20 hover:bg-wedly-bg-blue/50 cursor-grab active:cursor-grabbing select-none rounded-md transition-colors"
+                  className="flex items-center justify-center w-10 sm:w-7 min-h-[40px] sm:min-h-0 flex-shrink-0 self-stretch text-wedly-accent-ink bg-wedly-bg-blue/20 hover:bg-wedly-bg-blue/50 cursor-grab active:cursor-grabbing select-none rounded-md transition-colors"
                   title="여기를 잡고 끌어서 컬럼 순서 변경"
                   aria-label="컬럼 순서 변경 핸들"
                 >

@@ -28,10 +28,10 @@ export const TAX_AMENDMENT_COLLAB_VISIBLE: string[] = [
 
 // 새 컬럼 값의 색 — 하이브식 배지. 환급금여부는 하이브 손입력값 O/X 가 본체.
 export const TAX_AMENDMENT_COLLAB_COLORS: Record<string, string> = {
-  "O": "bg-wedly-bg-green text-wedly-green",
-  "X": "bg-wedly-bg-red text-wedly-red",
-  "있음": "bg-wedly-bg-green text-wedly-green",   // 잔여 호환
-  "없음": "bg-wedly-bg-red text-wedly-red",       // 잔여 호환
-  "생성완료": "bg-wedly-bg-blue text-wedly-accent",
+  "O": "bg-wedly-bg-green text-wedly-green-ink",
+  "X": "bg-wedly-bg-red text-wedly-red-ink",
+  "있음": "bg-wedly-bg-green text-wedly-green-ink",   // 잔여 호환
+  "없음": "bg-wedly-bg-red text-wedly-red-ink",       // 잔여 호환
+  "생성완료": "bg-wedly-bg-blue text-wedly-accent-ink",
   "미생성": "bg-wedly-bg-gray text-wedly-muted",
 };

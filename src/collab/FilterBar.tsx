@@ -176,7 +176,7 @@ export function FilterBar({
               type="button"
               onClick={onReleaseDefault}
               disabled={savingDefault}
-              className="rounded-lg border border-wedly-bd-red px-2.5 py-1.5 text-[12px] text-wedly-red transition-colors hover:bg-wedly-bg-red disabled:opacity-50"
+              className="rounded-lg border border-wedly-bd-red px-2.5 py-1.5 text-[12px] text-wedly-red-ink transition-colors hover:bg-wedly-bg-red disabled:opacity-50"
               title="이 탭의 저장된 기본 필터를 해제(모든 사용자 화면에서 제거)"
             >
               기본 필터 해제
@@ -244,7 +244,7 @@ function FilterPopover({
             <button
               type="button"
               onClick={() => { onDelete(); onClose(); }}
-              className="rounded-lg border border-wedly-bd-red px-2.5 py-1 text-[12px] text-wedly-red hover:bg-wedly-bg-red"
+              className="rounded-lg border border-wedly-bd-red px-2.5 py-1 text-[12px] text-wedly-red-ink hover:bg-wedly-bg-red"
             >
               필터 삭제
             </button>
