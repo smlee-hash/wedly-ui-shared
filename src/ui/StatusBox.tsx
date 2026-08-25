@@ -8,7 +8,7 @@ import { cn } from "./cn";
  * v2(워시 배경+색 테두리+원형 아이콘)는 「입체적이지 못하다」 지적으로 폐기.
  * 색은 아이콘 타일이 전담하고 판정은 아이콘 모양+글자로 전달한다(색만으로 전달 금지 계약 유지).
  * 경고만 타일 안 심볼이 남색 — 금색 위 흰 글리프는 대비 2.13:1 미달 실측(v2에서 승계).
- * 값의 정본: 전역 wedly-design-system 스킬 §상태 박스 v3.
+ * 값의 정본: 전역 디자인 시스템 정본 스킬(wedly design system) §상태 박스 v3.
  */
 const TONES = {
   success: { tile: "bg-wedly-green", glyph: "text-white", Icon: CheckCircle2 },
