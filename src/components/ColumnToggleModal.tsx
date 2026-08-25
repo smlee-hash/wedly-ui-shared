@@ -269,7 +269,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
           {isOther && onPromoteToCommon && (
             <button
               onClick={() => onPromoteToCommon(col.key)}
-              className="text-[11px] px-1.5 py-0.5 rounded border border-wedly-accent/40 text-wedly-accent hover:bg-wedly-bg-blue/40 transition whitespace-nowrap"
+              className="text-[11px] px-1.5 py-0.5 rounded border border-wedly-accent/40 text-wedly-accent-ink hover:bg-wedly-bg-blue/40 transition whitespace-nowrap"
               title="상세창 기본정보에 포함(공통으로 승격)"
             >
               공통으로
@@ -385,7 +385,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
                   <button
                     key={key}
                     onClick={() => onRestoreColumn(key)}
-                    className="px-2 py-0.5 text-[12px] rounded-md border border-wedly-accent/40 text-wedly-accent hover:bg-wedly-bg-blue/40 transition"
+                    className="px-2 py-0.5 text-[12px] rounded-md border border-wedly-accent/40 text-wedly-accent-ink hover:bg-wedly-bg-blue/40 transition"
                     title="복원"
                   >
                     + {label}
@@ -425,7 +425,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
             ) : (
               <button
                 onClick={() => setShowAddColumn(true)}
-                className="w-full px-2 py-1.5 text-[13px] text-wedly-accent hover:bg-wedly-bg-blue rounded-lg transition-colors text-left flex items-center gap-1.5"
+                className="w-full px-2 py-1.5 text-[13px] text-wedly-accent-ink hover:bg-wedly-bg-blue rounded-lg transition-colors text-left flex items-center gap-1.5"
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

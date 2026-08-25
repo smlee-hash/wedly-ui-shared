@@ -174,7 +174,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
                     className={
                       "flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-[14px] font-medium transition-colors sm:min-h-[36px] sm:text-[13px] " +
                       (active
-                        ? "border-wedly-accent bg-wedly-bg-blue text-wedly-accent"
+                        ? "border-wedly-accent bg-wedly-bg-blue text-wedly-accent-ink"
                         : "border-wedly-bd bg-white text-wedly-t2 hover:bg-wedly-bg-gray")
                     }
                   >
@@ -208,7 +208,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
                 className={
                   "flex min-h-[40px] items-center justify-center rounded-lg border px-2 py-2 text-[13px] font-medium transition-colors sm:min-h-[34px] sm:text-[12px] " +
                   (active
-                    ? "border-wedly-accent bg-wedly-bg-blue text-wedly-accent"
+                    ? "border-wedly-accent bg-wedly-bg-blue text-wedly-accent-ink"
                     : "border-wedly-bd bg-white text-wedly-t2 hover:bg-wedly-bg-gray")
                 }
               >

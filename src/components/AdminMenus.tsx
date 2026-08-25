@@ -90,7 +90,7 @@ export function FieldRowAdminMenu({
                 key={s.id}
                 type="button"
                 onClick={() => { onMoveColumn(fieldKey, s.id); setOpen(false); }}
-                className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition"
+                className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition"
               >
                 {s.label}
               </button>
@@ -103,7 +103,7 @@ export function FieldRowAdminMenu({
                 <button
                   type="button"
                   onClick={() => { onChangeType(fieldKey); setOpen(false); }}
-                  className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition flex items-center gap-2"
+                  className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex items-center gap-2"
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                     <path d="M2 6h12M2 10h12M5 3l-3 3 3 3M11 7l3 3-3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
@@ -128,7 +128,7 @@ export function FieldRowAdminMenu({
                 <button
                   type="button"
                   onClick={() => { onDeleteColumn(fieldKey); setOpen(false); }}
-                  className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-red hover:bg-wedly-bg-red/40 transition flex items-center gap-2"
+                  className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-red-ink hover:bg-wedly-bg-red/40 transition flex items-center gap-2"
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                     <path d="M3 5h10M5 5V3a1 1 0 011-1h4a1 1 0 011 1v2M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
@@ -218,13 +218,13 @@ export function SectionAdminMenu({
           ? cn(
               "inline-flex items-center justify-center w-5 h-5 rounded transition-colors",
               open || deleteMode
-                ? "text-wedly-accent bg-wedly-bg-blue/60"
+                ? "text-wedly-accent-ink bg-wedly-bg-blue/60"
                 : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
             )
           : cn(
               "inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors",
               open
-                ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40"
+                ? "border-wedly-accent text-wedly-accent-ink bg-wedly-bg-blue/40"
                 : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"
             )
         }
@@ -258,7 +258,7 @@ export function SectionAdminMenu({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onAddColumn(sectionId, sectionLabel); setOpen(false); }}
-              className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition flex items-center gap-2"
+              className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex items-center gap-2"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -273,8 +273,8 @@ export function SectionAdminMenu({
               className={cn(
                 "w-full px-3 py-1.5 text-[12px] text-left transition flex items-center gap-2",
                 editMode
-                  ? "text-wedly-accent bg-wedly-bg-blue/40 font-semibold"
-                  : "text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent"
+                  ? "text-wedly-accent-ink bg-wedly-bg-blue/40 font-semibold"
+                  : "text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink"
               )}
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -303,8 +303,8 @@ export function SectionAdminMenu({
               className={cn(
                 "w-full px-3 py-1.5 text-[12px] text-left transition flex items-center gap-2",
                 deleteMode
-                  ? "text-wedly-red bg-wedly-bg-red/40 font-semibold"
-                  : "text-wedly-t2 hover:bg-wedly-bg-red/40 hover:text-wedly-red"
+                  ? "text-wedly-red-ink bg-wedly-bg-red/40 font-semibold"
+                  : "text-wedly-t2 hover:bg-wedly-bg-red/40 hover:text-wedly-red-ink"
               )}
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -340,7 +340,7 @@ export function SectionAdminMenu({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onManagePanels(); setOpen(false); }}
-                className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition flex items-center gap-2"
+                className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex items-center gap-2"
                 title="상위 패널 추가·이름수정·삭제"
               >
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -360,7 +360,7 @@ export function SectionAdminMenu({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onAddSection(); setOpen(false); }}
-              className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition flex items-center gap-2"
+              className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex items-center gap-2"
               title="새 하위 섹션을 추가합니다"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -377,8 +377,8 @@ export function SectionAdminMenu({
               className={cn(
                 "w-full px-3 py-1.5 text-[12px] text-left transition flex items-center gap-2",
                 showOtherSection
-                  ? "text-wedly-accent bg-wedly-bg-blue/40 font-semibold"
-                  : "text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent"
+                  ? "text-wedly-accent-ink bg-wedly-bg-blue/40 font-semibold"
+                  : "text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink"
               )}
               title={showOtherSection ? "기타 섹션을 숨깁니다" : "기타 섹션을 표시합니다"}
             >
@@ -402,7 +402,7 @@ export function SectionAdminMenu({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteSection(); setOpen(false); }}
-              className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-red hover:bg-wedly-bg-red/40 transition flex items-center gap-2"
+              className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-red-ink hover:bg-wedly-bg-red/40 transition flex items-center gap-2"
               title="이 섹션을 삭제합니다 (안 컬럼은 기타로 이동)"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

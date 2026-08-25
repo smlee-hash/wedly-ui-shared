@@ -29,12 +29,12 @@ export type HistoryCategoryDef = { id: string; label: string; color?: "blue" | "
 // 색상별 활성 탭 스타일 매핑 — 어드민이 색만 고르면 자동 적용
 export const CATEGORY_COLOR_CLASS: Record<NonNullable<HistoryCategoryDef["color"]>, string> = {
   gray: "bg-wedly-bg-gray text-wedly-navy border-wedly-bd",
-  blue: "bg-wedly-bg-blue text-wedly-accent border-wedly-bd-blue",
-  green: "bg-wedly-bg-green text-wedly-green border-wedly-bd-green",
-  purple: "bg-wedly-bg-purple text-wedly-purple border-[var(--wedly-purple)]/30",
+  blue: "bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue",
+  green: "bg-wedly-bg-green text-wedly-green-ink border-wedly-bd-green",
+  purple: "bg-wedly-bg-purple text-wedly-purple-ink border-[var(--wedly-purple)]/30",
   orange: "bg-wedly-bg-yellow text-wedly-orange border-wedly-orange/30",
-  red: "bg-wedly-bg-red text-wedly-red border-wedly-bd-red",
-  gold: "bg-wedly-bg-yellow text-wedly-gold border-wedly-gold/30",
+  red: "bg-wedly-bg-red text-wedly-red-ink border-wedly-bd-red",
+  gold: "bg-wedly-bg-yellow text-wedly-gold-ink border-wedly-gold/30",
 };
 
 export const DEFAULT_HISTORY_CATEGORIES: HistoryCategoryDef[] = [
@@ -570,7 +570,7 @@ export function HistoryPanel({
                     className={cn(
                       "px-3 py-1.5 text-[13px] font-semibold rounded-full transition-colors whitespace-nowrap inline-flex items-center gap-1.5",
                       isActive
-                        ? "bg-wedly-bg-blue text-wedly-accent"
+                        ? "bg-wedly-bg-blue text-wedly-accent-ink"
                         : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2",
                       canEdit && "ring-1 ring-wedly-accent/30"
                     )}
@@ -599,7 +599,7 @@ export function HistoryPanel({
               className={cn(
                 "inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors whitespace-nowrap",
                 showCategoryEditMenu
-                  ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40"
+                  ? "border-wedly-accent text-wedly-accent-ink bg-wedly-bg-blue/40"
                   : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"
               )}
               title="탭 편집 (카테고리)"
@@ -621,7 +621,7 @@ export function HistoryPanel({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onAddCategory(); setShowCategoryEditMenu(false); }}
-                  className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition flex items-center gap-2"
+                  className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex items-center gap-2"
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                     <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -635,8 +635,8 @@ export function HistoryPanel({
                     className={cn(
                       "w-full px-3 py-1.5 text-[12px] text-left transition flex items-center gap-2",
                       categoryRenameMode
-                        ? "text-wedly-accent bg-wedly-bg-blue/40 font-semibold"
-                        : "text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent"
+                        ? "text-wedly-accent-ink bg-wedly-bg-blue/40 font-semibold"
+                        : "text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink"
                     )}
                     title="사용자 정의 카테고리의 이름·순서 변경"
                   >
@@ -650,7 +650,7 @@ export function HistoryPanel({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setShowCategoryHideManager(true); setShowCategoryEditMenu(false); }}
-                    className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition flex items-center gap-2"
+                    className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex items-center gap-2"
                     title="카테고리 보임/숨김 토글 + 영구 삭제"
                   >
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -743,7 +743,7 @@ export function HistoryPanel({
                           onClick={() => startEdit(c)}
                           title="히스토리 수정"
                           aria-label="히스토리 수정"
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue transition"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] text-wedly-muted hover:text-wedly-accent-ink hover:bg-wedly-bg-blue transition"
                         >
                           <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                             <path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
@@ -754,7 +754,7 @@ export function HistoryPanel({
                           onClick={() => handleDeleteComment(c.id)}
                           title="히스토리 삭제"
                           aria-label="히스토리 삭제"
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] text-wedly-muted hover:text-wedly-red hover:bg-wedly-bg-red transition"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] text-wedly-muted hover:text-wedly-red-ink hover:bg-wedly-bg-red transition"
                         >
                           <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                             <path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 4l1 9a1 1 0 001 1h2a1 1 0 001-1l1-9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -772,8 +772,8 @@ export function HistoryPanel({
                         className={cn(
                           "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] transition",
                           isCopied
-                            ? "bg-wedly-bg-green text-wedly-green opacity-100"
-                            : "text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue"
+                            ? "bg-wedly-bg-green text-wedly-green-ink opacity-100"
+                            : "text-wedly-muted hover:text-wedly-accent-ink hover:bg-wedly-bg-blue"
                         )}
                       >
                         {isCopied ? (
@@ -956,7 +956,7 @@ export function HistoryPanel({
                               else onDeleteCategory?.(row.id);
                             }
                           }}
-                          className="px-3 py-1 text-[12px] font-semibold rounded-md border border-wedly-bd-red bg-white text-wedly-red hover:bg-wedly-bg-red/40 transition-colors"
+                          className="px-3 py-1 text-[12px] font-semibold rounded-md border border-wedly-bd-red bg-white text-wedly-red-ink hover:bg-wedly-bg-red/40 transition-colors"
                           title="카테고리 영구 삭제"
                         >
                           삭제

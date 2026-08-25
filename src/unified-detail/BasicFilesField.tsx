@@ -95,7 +95,7 @@ export default function BasicFilesField({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg border border-wedly-accent/40 hover:border-wedly-accent hover:bg-wedly-bg-blue/30 transition-colors text-[13px] text-wedly-accent font-medium"
+          className="inline-flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg border border-wedly-accent/40 hover:border-wedly-accent hover:bg-wedly-bg-blue/30 transition-colors text-[13px] text-wedly-accent-ink font-medium"
         >
           파일 추가
         </button>
@@ -114,7 +114,7 @@ export default function BasicFilesField({
                 <span className="truncate">{f.name}</span>
               </a>
               {dl && f.url && (
-                <a href={dlHref(f)} download={f.name || "파일"} onClick={(e) => e.stopPropagation()} className="w-7 h-7 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-wedly-muted hover:bg-wedly-bg-blue/40 hover:text-wedly-accent inline-flex items-center justify-center flex-shrink-0 transition" title="다운로드" aria-label={`${f.name} 다운로드`}>
+                <a href={dlHref(f)} download={f.name || "파일"} onClick={(e) => e.stopPropagation()} className="w-7 h-7 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-wedly-muted hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink inline-flex items-center justify-center flex-shrink-0 transition" title="다운로드" aria-label={`${f.name} 다운로드`}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v8M5 7.5l3 3 3-3M3 13.5h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </a>
               )}
@@ -124,7 +124,7 @@ export default function BasicFilesField({
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg border border-wedly-accent/40 bg-wedly-bg-blue/30 text-[13px] text-wedly-accent font-medium hover:border-wedly-accent hover:bg-wedly-bg-blue/50 transition-colors"
+              className="flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg border border-wedly-accent/40 bg-wedly-bg-blue/30 text-[13px] text-wedly-accent-ink font-medium hover:border-wedly-accent hover:bg-wedly-bg-blue/50 transition-colors"
               title={`첨부파일 전체 ${files.length}개 보기`}
             >
               <span aria-hidden className="flex-shrink-0">📎</span>

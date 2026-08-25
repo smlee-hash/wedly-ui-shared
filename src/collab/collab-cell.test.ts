@@ -7,8 +7,8 @@ function col(type: ColumnDef["type"], extra: Partial<ColumnDef> = {}): ColumnDef
   return { key: "k", label: "L", type, defaultVisible: true, ...extra };
 }
 
-const STATUS = { 인용완료: "bg-wedly-bg-purple text-wedly-purple", 계약완료: "bg-wedly-bg-green text-wedly-green" };
-const BADGE = { 개인사업자: "bg-wedly-bg-blue text-wedly-accent", 있음: "bg-wedly-bg-green text-wedly-green" };
+const STATUS = { 인용완료: "bg-wedly-bg-purple text-wedly-purple-ink", 계약완료: "bg-wedly-bg-green text-wedly-green-ink" };
+const BADGE = { 개인사업자: "bg-wedly-bg-blue text-wedly-accent-ink", 있음: "bg-wedly-bg-green text-wedly-green-ink" };
 
 describe("cellChips — 하이브 표 셀과 동일한 표시 판정", () => {
   it("빈 값은 하이브와 동일하게 '-'", () => {
@@ -23,7 +23,7 @@ describe("cellChips — 하이브 표 셀과 동일한 표시 판정", () => {
     if (r.kind === "chips") {
       expect(r.chips).toHaveLength(1);
       expect(r.chips[0].label).toBe("인용완료");
-      expect(r.chips[0].className).toBe("bg-wedly-bg-purple text-wedly-purple");
+      expect(r.chips[0].className).toBe("bg-wedly-bg-purple text-wedly-purple-ink");
     }
   });
 
@@ -42,7 +42,7 @@ describe("cellChips — 하이브 표 셀과 동일한 표시 판정", () => {
   it("badgeColors 도 색칠에 쓰인다(환급금여부 '있음'=초록 등)", () => {
     const r = cellChips(col("select"), "있음", { statusColors: STATUS, badgeColors: BADGE });
     expect(r.kind).toBe("chips");
-    if (r.kind === "chips") expect(r.chips[0].className).toBe("bg-wedly-bg-green text-wedly-green");
+    if (r.kind === "chips") expect(r.chips[0].className).toBe("bg-wedly-bg-green text-wedly-green-ink");
   });
 
   it("multi_select 은 콤마로 쪼개 딱지 여러 개", () => {

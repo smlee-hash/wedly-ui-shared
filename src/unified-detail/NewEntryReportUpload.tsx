@@ -90,7 +90,7 @@ export default function NewEntryReportUpload({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
-        className="inline-flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg border border-wedly-accent/40 hover:border-wedly-accent hover:bg-wedly-bg-blue/30 transition-colors text-[13px] text-wedly-accent font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+        className="inline-flex w-fit items-center gap-1.5 px-3 py-1.5 rounded-lg border border-wedly-accent/40 hover:border-wedly-accent hover:bg-wedly-bg-blue/30 transition-colors text-[13px] text-wedly-accent-ink font-medium disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {uploading ? "업로드 중…" : "파일 추가"}
       </button>

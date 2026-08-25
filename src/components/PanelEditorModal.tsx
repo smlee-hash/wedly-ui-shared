@@ -357,7 +357,7 @@ export function PanelManagerModal({
                           {p.label}
                         </button>
                       )}
-                      <span className="text-[10px] text-wedly-accent bg-wedly-bg-blue/40 rounded px-1.5 py-0.5 flex-shrink-0">
+                      <span className="text-[10px] text-wedly-accent-ink bg-wedly-bg-blue/40 rounded px-1.5 py-0.5 flex-shrink-0">
                         {KIND_LABEL[p.kind]}
                       </span>
                       {!isEditing && (
@@ -376,7 +376,7 @@ export function PanelManagerModal({
                       <button
                         type="button"
                         onClick={() => onDelete(p.id)}
-                        className="w-6 h-6 rounded hover:bg-wedly-bg-red text-wedly-muted hover:text-wedly-red flex items-center justify-center flex-shrink-0"
+                        className="w-6 h-6 rounded hover:bg-wedly-bg-red text-wedly-muted hover:text-wedly-red-ink flex items-center justify-center flex-shrink-0"
                         title="패널 삭제"
                         aria-label="패널 삭제"
                       >
