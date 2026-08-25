@@ -104,7 +104,7 @@ export function Table<T>({
                           <ArrowDown className="h-3 w-3" aria-hidden="true" />
                         )
                       ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-40" aria-hidden="true" />
+                        <ArrowUpDown className="h-3 w-3 opacity-70" aria-hidden="true" />
                       )}
                     </button>
                   ) : (
