@@ -8,10 +8,10 @@ import { cn } from "./cn";
  * 경고만 원 안 글리프가 남색(금색 위 흰색 대비 미달 실측 2.13:1).
  */
 const TONES = {
-  success: { box: "bg-wedly-bg-green border-wedly-bd-green", circle: "bg-wedly-green", glyph: "text-white", title: "text-wedly-green", Icon: CheckCircle2 },
-  warning: { box: "bg-wedly-bg-yellow border-[var(--wedly-gold)]/40", circle: "bg-wedly-gold", glyph: "text-wedly-navy", title: "text-wedly-gold", Icon: AlertTriangle },
-  error: { box: "bg-wedly-bg-red border-wedly-bd-red", circle: "bg-wedly-red", glyph: "text-white", title: "text-wedly-red", Icon: XCircle },
-  info: { box: "bg-wedly-bg-blue border-wedly-bd-blue", circle: "bg-wedly-accent", glyph: "text-white", title: "text-wedly-navy", Icon: Info },
+  success: { box: "bg-wedly-bg-green border-wedly-bd-green", circle: "bg-wedly-green", glyph: "text-white", title: "text-wedly-t1", Icon: CheckCircle2 },
+  warning: { box: "bg-wedly-bg-yellow border-[var(--wedly-gold)]/40", circle: "bg-wedly-gold", glyph: "text-wedly-navy", title: "text-wedly-t1", Icon: AlertTriangle },
+  error: { box: "bg-wedly-bg-red border-wedly-bd-red", circle: "bg-wedly-red", glyph: "text-white", title: "text-wedly-t1", Icon: XCircle },
+  info: { box: "bg-wedly-bg-blue border-wedly-bd-blue", circle: "bg-wedly-accent", glyph: "text-white", title: "text-wedly-t1", Icon: Info },
 } as const;
 
 export function StatusBox({

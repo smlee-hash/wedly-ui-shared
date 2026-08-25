@@ -40,7 +40,7 @@ const TD_CELL = "border-b border-wedly-bd/50 px-3 py-2 text-wedly-sub text-wedly
  * 글자 크기는 이 파일이 아니라 `label` 층(10.5px→12px)에서 함께 올라간다 —
  * 앱 안의 손으로 짠 표 머리글 149곳이 같은 층을 쓰므로, 여기만 키우면 표마다 크기가 갈린다.
  */
-const TABLE_TH = "px-3 py-2 text-wedly-label font-semibold text-white";
+const TABLE_TH = "px-3 py-2 text-wedly-tablehead font-semibold text-white";
 
 export function Table<T>({
   columns,
@@ -75,7 +75,7 @@ export function Table<T>({
     <div className={cn("w-full overflow-x-auto", className)}>
       <div className="overflow-hidden rounded-lg border border-wedly-bd">
         <table className="w-full border-collapse text-left">
-          <thead className="bg-wedly-navy text-wedly-label">
+          <thead className="bg-wedly-navy text-wedly-tablehead">
             <tr>
               {columns.map((col) => (
                 <th
