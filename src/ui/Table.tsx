@@ -37,10 +37,12 @@ const TD_CELL = "border-b border-wedly-bd/50 px-3 py-2 text-wedly-sub text-wedly
  *    통째로 칸 사이로 벌어졌다(3칸 예시에서 금액 칸만 303px).
  *
  * 좌우 여백 `px-3` 을 넣어 글자를 칸 안으로 들이고, 상하도 6px→8px 로 넓혔다.
- * 글자 크기는 이 파일이 아니라 `label` 층(10.5px→12px)에서 함께 올라간다 —
- * 앱 안의 손으로 짠 표 머리글 149곳이 같은 층을 쓰므로, 여기만 키우면 표마다 크기가 갈린다.
+ * 글자 크기는 이 파일이 아니라 **표 머리글 전용 층 `tablehead`(12px)**에서 온다 —
+ * 앱 안의 손으로 짠 표 머리글 158곳이 같은 층을 쓰므로, 여기만 키우면 표마다 크기가 갈린다.
+ * (처음엔 `label` 층을 올렸는데, 그 층은 배지·이름표 206곳도 함께 쓰고 라벨=label·값=hint 로
+ *  쓰는 화면에서 라벨이 값보다 커져 버려 층을 새로 나눴다 — 2026-08-25 적대적 리뷰.)
  */
-const TABLE_TH = "px-3 py-2 text-wedly-label font-semibold text-white";
+const TABLE_TH = "px-3 py-2 text-wedly-tablehead font-semibold text-white";
 
 export function Table<T>({
   columns,
@@ -75,7 +77,7 @@ export function Table<T>({
     <div className={cn("w-full overflow-x-auto", className)}>
       <div className="overflow-hidden rounded-lg border border-wedly-bd">
         <table className="w-full border-collapse text-left">
-          <thead className="bg-wedly-navy text-wedly-label">
+          <thead className="bg-wedly-navy text-wedly-tablehead">
             <tr>
               {columns.map((col) => (
                 <th
