@@ -137,7 +137,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
         <ol className="mb-5 flex gap-2 text-sm">
           {["파일 올리기", "열 매핑", "미리보기·등록"].map((label, i) => {
             const s = i + 1;
-            const cls = s === step ? "bg-wedly-navy text-white" : s < step ? "bg-wedly-bg-blue text-wedly-accent-ink" : "bg-wedly-bg-gray text-wedly-muted";
+            const cls = s === step ? "bg-wedly-navy text-white" : s < step ? "bg-wedly-bg-blue text-wedly-accent-ink" : "bg-wedly-bg-gray text-wedly-t2";
             return <li key={s} className={`flex-1 rounded-lg py-2 text-center font-medium ${cls}`}>{s} · {label}</li>;
           })}
         </ol>

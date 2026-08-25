@@ -33,5 +33,5 @@ export const TAX_AMENDMENT_COLLAB_COLORS: Record<string, string> = {
   "있음": "bg-wedly-bg-green text-wedly-green-ink",   // 잔여 호환
   "없음": "bg-wedly-bg-red text-wedly-red-ink",       // 잔여 호환
   "생성완료": "bg-wedly-bg-blue text-wedly-accent-ink",
-  "미생성": "bg-wedly-bg-gray text-wedly-muted",
+  "미생성": "bg-wedly-bg-gray text-wedly-t2",
 };

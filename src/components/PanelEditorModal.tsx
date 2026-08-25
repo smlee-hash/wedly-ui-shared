@@ -364,7 +364,7 @@ export function PanelManagerModal({
                         <button
                           type="button"
                           onClick={() => { setEditingId(p.id); setDraft(p.label); }}
-                          className="w-6 h-6 rounded hover:bg-wedly-bg-gray text-wedly-muted hover:text-wedly-t2 flex items-center justify-center flex-shrink-0"
+                          className="w-6 h-6 rounded hover:bg-wedly-bg-gray text-wedly-t2 hover:text-wedly-t2 flex items-center justify-center flex-shrink-0"
                           title="이름 수정"
                           aria-label="이름 수정"
                         >
@@ -376,7 +376,7 @@ export function PanelManagerModal({
                       <button
                         type="button"
                         onClick={() => onDelete(p.id)}
-                        className="w-6 h-6 rounded hover:bg-wedly-bg-red text-wedly-muted hover:text-wedly-red-ink flex items-center justify-center flex-shrink-0"
+                        className="w-6 h-6 rounded hover:bg-wedly-bg-red text-wedly-t2 hover:text-wedly-red-ink flex items-center justify-center flex-shrink-0"
                         title="패널 삭제"
                         aria-label="패널 삭제"
                       >

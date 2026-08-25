@@ -67,7 +67,7 @@ export function FilterBar({
         type="button"
         onClick={onToggleVisible}
         aria-label={visible ? "필터 접기" : "필터 펼치기"}
-        className="flex h-8 w-8 items-center justify-center rounded-lg text-wedly-muted transition-colors hover:bg-wedly-bg-blue/40 hover:text-wedly-navy"
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-wedly-t2 transition-colors hover:bg-wedly-bg-blue/40 hover:text-wedly-navy"
         title={visible ? "필터 접기" : "필터 펼치기"}
       >
         {visible ? <EyeIcon /> : <EyeOffIcon />}
@@ -154,7 +154,7 @@ export function FilterBar({
             onClick={onReset}
             aria-label="필터 초기화"
             title="필터 초기화"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-wedly-muted transition-colors hover:bg-wedly-bg-gray hover:text-wedly-navy"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-wedly-t2 transition-colors hover:bg-wedly-bg-gray hover:text-wedly-navy"
           >
             <RefreshIcon />
           </button>
@@ -217,7 +217,7 @@ function FilterPopover({
             const ncat = nf ? filterCategory(nf.type) : "text";
             onPatch({ field: e.target.value, operator: defaultOperator(ncat), value: undefined });
           }}
-          className="mb-2 w-full rounded-lg border border-wedly-bd px-2 py-1.5 text-[13px] disabled:bg-wedly-bg-gray disabled:text-wedly-muted"
+          className="mb-2 w-full rounded-lg border border-wedly-bd px-2 py-1.5 text-[13px] disabled:bg-wedly-bg-gray disabled:text-wedly-t2"
         >
           {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
         </select>

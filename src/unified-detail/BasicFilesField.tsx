@@ -116,7 +116,7 @@ export default function BasicFilesField({
                 <span className="truncate">{f.name}</span>
               </a>
               {dl && f.url && (
-                <a href={dlHref(f)} download={f.name || "파일"} onClick={(e) => e.stopPropagation()} className="w-7 h-7 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-wedly-muted hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink inline-flex items-center justify-center flex-shrink-0 transition" title="다운로드" aria-label={`${f.name} 다운로드`}>
+                <a href={dlHref(f)} download={f.name || "파일"} onClick={(e) => e.stopPropagation()} className="w-7 h-7 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink inline-flex items-center justify-center flex-shrink-0 transition" title="다운로드" aria-label={`${f.name} 다운로드`}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2.5v8M5 7.5l3 3 3-3M3 13.5h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </a>
               )}
@@ -170,7 +170,7 @@ export default function BasicFilesField({
                 <button
                   type="button"
                   onClick={closePopup}
-                  className="w-7 h-7 flex items-center justify-center rounded text-wedly-muted hover:text-wedly-t1 hover:bg-wedly-bg-gray text-lg leading-none"
+                  className="w-7 h-7 flex items-center justify-center rounded text-wedly-t2 hover:text-wedly-t1 hover:bg-wedly-bg-gray text-lg leading-none"
                   aria-label="닫기"
                 >
                   ×

@@ -225,7 +225,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
 
         <div className="space-y-2">
           {draft.filters.length === 0 && (
-            <p className="rounded-lg bg-wedly-bg-gray/60 px-3 py-2 text-[13px] text-wedly-muted">
+            <p className="rounded-lg bg-wedly-bg-gray/60 px-3 py-2 text-[13px] text-wedly-t2">
               조건이 없으면 전체 항목을 보여줍니다.
             </p>
           )}
