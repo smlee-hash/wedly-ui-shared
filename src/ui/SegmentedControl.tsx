@@ -29,7 +29,7 @@ export function SegmentedControl({
             onClick={() => onChange(opt.value)}
             className={cn(
               "rounded-full px-4 py-1 text-wedly-sub transition",
-              on ? "bg-white font-semibold text-wedly-t1 shadow-sm" : "text-wedly-muted hover:text-wedly-t2",
+              on ? "bg-white font-semibold text-wedly-t1 shadow-sm" : "text-wedly-t2 hover:text-wedly-t1",
             )}
           >
             {opt.label}
