@@ -82,7 +82,7 @@ export function Table<T>({
                       onClick={() =>
                         setSort((s) => (s?.key === col.key ? (s.dir === "asc" ? { key: col.key, dir: "desc" } : null) : { key: col.key, dir: "asc" }))
                       }
-                      className={cn("inline-flex items-center gap-1 text-white hover:text-white/80", col.align === "right" && "flex-row-reverse")}
+                      className={cn("inline-flex items-center gap-1 text-white underline-offset-4 hover:underline", col.align === "right" && "flex-row-reverse")}
                     >
                       {col.header}
                       {sort?.key === col.key ? (
