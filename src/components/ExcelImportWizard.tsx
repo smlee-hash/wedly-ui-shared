@@ -146,7 +146,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <button onClick={() => inputRef.current?.click()} className="w-full rounded-xl border border-dashed border-wedly-bd px-4 py-8 text-center hover:bg-wedly-bg-gray">
-                <div className="text-wedly-accent">⬆️</div>
+                <div className="text-wedly-accent-ink">⬆️</div>
                 <div className="mt-2 text-sm text-wedly-t2">엑셀·CSV 파일 선택 (xlsx · xls · csv)</div>
               </button>
               <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden"

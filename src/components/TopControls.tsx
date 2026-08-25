@@ -314,7 +314,7 @@ export function TopControls({
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="flex-shrink-0 min-w-[40px] md:min-w-[36px] h-[36px] md:h-[28px] px-2 text-[22px] md:text-[18px] leading-none text-wedly-t2 rounded-full hover:bg-wedly-bg-gray hover:text-wedly-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-bold inline-flex items-center justify-center"
+                className="flex-shrink-0 min-w-[40px] md:min-w-[36px] h-[36px] md:h-[28px] px-2 text-[22px] md:text-[18px] leading-none text-wedly-t2 rounded-full hover:bg-wedly-bg-gray hover:text-wedly-accent-ink disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-bold inline-flex items-center justify-center"
                 title="이전 페이지"
               >
                 ‹
@@ -329,7 +329,7 @@ export function TopControls({
               <button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="flex-shrink-0 min-w-[40px] md:min-w-[36px] h-[36px] md:h-[28px] px-2 text-[22px] md:text-[18px] leading-none text-wedly-t2 rounded-full hover:bg-wedly-bg-gray hover:text-wedly-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-bold inline-flex items-center justify-center"
+                className="flex-shrink-0 min-w-[40px] md:min-w-[36px] h-[36px] md:h-[28px] px-2 text-[22px] md:text-[18px] leading-none text-wedly-t2 rounded-full hover:bg-wedly-bg-gray hover:text-wedly-accent-ink disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-bold inline-flex items-center justify-center"
                 title="다음 페이지"
               >
                 ›

@@ -653,8 +653,8 @@ function ConfirmEditDialog({
         {/* 본문 — 이전 값(빨강) → 변경 값(초록) */}
         <div className="space-y-1.5 px-5 pb-2">
           <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-3.5 py-2.5">
-            <div className="mb-0.5 text-[11px] font-semibold text-wedly-red">이전 값</div>
-            <div className="break-words text-[14px] font-medium text-wedly-red line-through decoration-wedly-red/40">{fmt(oldVal)}</div>
+            <div className="mb-0.5 text-[11px] font-semibold text-wedly-red-ink">이전 값</div>
+            <div className="break-words text-[14px] font-medium text-wedly-red-ink line-through decoration-wedly-red/40">{fmt(oldVal)}</div>
           </div>
           <div className="flex justify-center text-wedly-muted">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -662,8 +662,8 @@ function ConfirmEditDialog({
             </svg>
           </div>
           <div className="rounded-xl border border-wedly-bd-green bg-wedly-bg-green px-3.5 py-2.5">
-            <div className="mb-0.5 text-[11px] font-semibold text-wedly-green">변경 값</div>
-            <div className="break-words text-[14px] font-bold text-wedly-green">{fmt(newVal)}</div>
+            <div className="mb-0.5 text-[11px] font-semibold text-wedly-green-ink">변경 값</div>
+            <div className="break-words text-[14px] font-bold text-wedly-green-ink">{fmt(newVal)}</div>
           </div>
         </div>
         {/* 버튼 */}

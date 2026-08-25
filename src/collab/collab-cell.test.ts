@@ -51,7 +51,7 @@ describe("cellChips — 하이브 표 셀과 동일한 표시 판정", () => {
     if (r.kind === "chips") {
       expect(r.chips.map((c) => c.label)).toEqual(["인용완료", "계약완료"]);
       expect(r.chips[0].className).toContain("text-wedly-purple");
-      expect(r.chips[1].className).toContain("text-wedly-green");
+      expect(r.chips[1].className).toContain("text-wedly-green-ink");
     }
   });
 
@@ -113,7 +113,7 @@ describe("cellChips — 팀장/팀원 사람 칩(점+알약)", () => {
       expect(r.chips).toHaveLength(1);
       expect(r.chips[0].label).toBe("이상민");
       expect(r.chips[0].className).toContain("bg-wedly-bg-blue");
-      expect(r.chips[0].className).toContain("text-wedly-accent");
+      expect(r.chips[0].className).toContain("text-wedly-accent-ink");
       expect(r.chips[0].dot).toBe("bg-wedly-accent");
     }
   });
