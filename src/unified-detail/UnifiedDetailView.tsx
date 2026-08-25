@@ -276,7 +276,7 @@ function TaxAmendmentPanel({
                   title="이름 변경"
                   className="w-[72px] text-[13px] font-semibold text-wedly-t1 bg-transparent outline-none text-center"
                 />
-                <button type="button" onClick={() => moveSubTab(i, 1)} disabled={i === orderedSubTabs.length - 1} title="오른쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">▶</button>
+                <button type="button" onClick={() => moveSubTab(i, 1)} disabled={i === orderedSubTabs.length - 1} title="오른쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent-ink">▶</button>
               </div>
             ) : (
               <button
@@ -751,7 +751,7 @@ function SectionDetailPanel({
 // 사업자번호 없는 행 안내 — 공용 보관함을 쓸 수 없어 이 화면(ERP)에만 저장됨을 알린다.
 function NoBiznoNotice() {
   return (
-    <div className="mb-3 rounded-xl border border-[var(--wedly-gold)]/30 bg-wedly-bg-yellow px-3 py-2 text-[12px] text-wedly-gold-ink">
+    <div className="mb-3 rounded-xl border border-[var(--wedly-gold)]/30 bg-wedly-bg-yellow px-3 py-2 text-[12px] text-wedly-t1">
       이 회사는 사업자번호가 없어 지금은 이 화면에만 저장됩니다. 사업자번호를 입력하면 하이브·일루아에서도 함께 보고 편집할 수 있어요.
     </div>
   );
@@ -809,7 +809,7 @@ function AddBasicColumnModal({ title = "기본정보에 칸 추가", onClose, on
                   className={`w-full text-left px-3 py-1.5 text-[13px] flex items-center justify-between gap-2 hover:bg-wedly-bg-gray transition-colors ${o.value === type ? "bg-wedly-bg-blue text-wedly-accent-ink font-medium" : "text-wedly-t1"}`}
                 >
                   <span>{o.label}</span>
-                  {o.value === type && <span className="text-wedly-accent text-xs">✓</span>}
+                  {o.value === type && <span className="text-wedly-accent-ink text-xs">✓</span>}
                 </button>
               ))}
             </div>

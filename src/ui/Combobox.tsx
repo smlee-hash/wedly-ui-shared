@@ -141,7 +141,7 @@ export function Combobox({
               className={cn(
                 "cursor-pointer px-3 py-1.5 text-wedly-sub break-keep",
                 i === activeSafe ? "bg-wedly-bg-blue text-wedly-t1" : "text-wedly-t2",
-                opt === value && "font-semibold text-wedly-accent",
+                opt === value && "font-semibold text-wedly-accent-ink",
               )}
             >
               {opt}

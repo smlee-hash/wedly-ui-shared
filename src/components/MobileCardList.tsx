@@ -221,7 +221,7 @@ export function MobileCardList({
                       const isMember = norm === "팀원" || norm === "담당팀원";
                       if (isLeader || isMember) {
                         const chipBg = isLeader ? "bg-wedly-bg-blue" : "bg-wedly-bg-green";
-                        const chipText = isLeader ? "text-wedly-accent" : "text-wedly-green";
+                        const chipText = isLeader ? "text-wedly-accent-ink" : "text-wedly-green-ink";
                         const dotColor = isLeader ? "bg-wedly-accent" : "bg-wedly-green";
                         const names = String(v.display).split(",").map((s) => s.trim()).filter(Boolean);
                         return (

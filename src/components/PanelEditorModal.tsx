@@ -351,7 +351,7 @@ export function PanelManagerModal({
                         <button
                           type="button"
                           onClick={() => { setEditingId(p.id); setDraft(p.label); }}
-                          className="flex-1 min-w-0 text-left text-[13px] font-medium text-wedly-t1 truncate hover:text-wedly-accent transition-colors"
+                          className="flex-1 min-w-0 text-left text-[13px] font-medium text-wedly-t1 truncate hover:text-wedly-accent-ink transition-colors"
                           title="클릭해서 이름 수정"
                         >
                           {p.label}

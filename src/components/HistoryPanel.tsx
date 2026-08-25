@@ -34,7 +34,7 @@ export const CATEGORY_COLOR_CLASS: Record<NonNullable<HistoryCategoryDef["color"
   purple: "bg-wedly-bg-purple text-wedly-purple-ink border-[var(--wedly-purple)]/30",
   orange: "bg-wedly-bg-yellow text-wedly-orange border-wedly-orange/30",
   red: "bg-wedly-bg-red text-wedly-red-ink border-wedly-bd-red",
-  gold: "bg-wedly-bg-yellow text-wedly-gold-ink border-wedly-gold/30",
+  gold: "bg-wedly-bg-yellow text-wedly-t1 border-wedly-gold/30",
 };
 
 export const DEFAULT_HISTORY_CATEGORIES: HistoryCategoryDef[] = [
