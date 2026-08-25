@@ -32,7 +32,7 @@ export const CATEGORY_COLOR_CLASS: Record<NonNullable<HistoryCategoryDef["color"
   blue: "bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue",
   green: "bg-wedly-bg-green text-wedly-green-ink border-wedly-bd-green",
   purple: "bg-wedly-bg-purple text-wedly-purple-ink border-[var(--wedly-purple)]/30",
-  orange: "bg-wedly-bg-yellow text-wedly-orange border-wedly-orange/30",
+  orange: "bg-wedly-bg-yellow text-wedly-t1 border-wedly-orange/30",
   red: "bg-wedly-bg-red text-wedly-red-ink border-wedly-bd-red",
   gold: "bg-wedly-bg-yellow text-wedly-t1 border-wedly-gold/30",
 };
@@ -670,15 +670,15 @@ export function HistoryPanel({
       {/* External memo */}
       {latestMemo && (
         <details className="border-b border-wedly-bd/60 bg-wedly-bg-yellow/30 group flex-shrink-0">
-          <summary className="px-4 py-2 text-[11px] font-medium text-wedly-muted cursor-pointer flex items-center justify-between">
+          <summary className="px-4 py-2 text-[11px] font-medium text-wedly-t2 cursor-pointer flex items-center justify-between">
             <span>외부 시스템 메모 (총 {memoCount}건) — 펼치기</span>
-            <span className="text-wedly-muted group-open:rotate-180 transition-transform">▾</span>
+            <span className="text-wedly-t2 group-open:rotate-180 transition-transform">▾</span>
           </summary>
           <div className="px-4 pb-3 max-h-[140px] overflow-y-auto">
             <p className="text-[13px] text-wedly-t2 whitespace-pre-wrap leading-relaxed">
               {latestMemo}
             </p>
-            <p className="text-[10px] text-wedly-muted mt-1">
+            <p className="text-[10px] text-wedly-t2 mt-1">
               * 가장 최근 메모만 표시됩니다.
             </p>
           </div>
@@ -926,7 +926,7 @@ export function HistoryPanel({
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[13px] font-medium text-wedly-t1 truncate">{row.label}</span>
                         {row.isFallback && <span className="text-[10px] text-wedly-t2 bg-wedly-bg-gray rounded px-1.5 py-0.5">기본</span>}
-                        {isHidden && <span className="text-[10px] text-wedly-orange bg-wedly-bg-yellow/40 border border-wedly-orange/30 rounded px-1.5 py-0.5">숨김</span>}
+                        {isHidden && <span className="text-[10px] text-wedly-t1 bg-wedly-bg-yellow/40 border border-wedly-orange/30 rounded px-1.5 py-0.5">숨김</span>}
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
