@@ -305,7 +305,7 @@ export function DesktopTable({
                               removeColFromTab(col.key);
                               setColMenuKey(null);
                             }}
-                            className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red hover:bg-wedly-bg-red flex items-center gap-2"
+                            className="w-full text-left px-3 py-1.5 text-[12px] text-wedly-red-ink hover:bg-wedly-bg-red flex items-center gap-2"
                           >
                             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                               <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

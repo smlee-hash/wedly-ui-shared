@@ -96,7 +96,7 @@ export type CollabTableProps = {
    */
   onSearchChange?: (search: string) => void;
   /**
-   * 줄 전체 색칠(조건부 서식). 그 줄의 데이터로 색 클래스(예: "bg-wedly-bg-red text-wedly-red")를 돌려주면
+   * 줄 전체 색칠(조건부 서식). 그 줄의 데이터로 색 클래스(예: "bg-wedly-bg-red text-wedly-red-ink")를 돌려주면
    * 그 줄에 칠한다. 생략하거나 null을 돌려주면 색 없음 — 기존과 100% 동일(ERP 무영향).
    * 체크된 줄은 파란 강조가 이겨 이 색은 빠진다(하이브·일루아와 동일 규칙).
    */
@@ -447,7 +447,7 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
                     {canSetColor && (
                       <button
                         type="button"
-                        className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-blue/40 hover:text-wedly-accent transition flex-shrink-0"
+                        className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex-shrink-0"
                         title="색상 변경"
                         onClick={(e) => { e.stopPropagation(); setColorPickerOpt(isPickerOpen ? null : opt); }}
                       >
@@ -462,7 +462,7 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
                     {canDelete && (
                       <button
                         type="button"
-                        className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-red/40 hover:text-wedly-red transition flex-shrink-0"
+                        className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-red/40 hover:text-wedly-red-ink transition flex-shrink-0"
                         title="옵션 삭제"
                         onClick={(e) => { e.stopPropagation(); handleDeleteOption(opt); }}
                       >
@@ -517,7 +517,7 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
                 <button
                   type="button"
                   onClick={() => setAddingNew(true)}
-                  className="w-full rounded-lg border border-wedly-bd-blue bg-wedly-bg-blue px-2 py-1 text-[12px] text-wedly-accent hover:bg-wedly-bg-blue/70 transition-colors text-left"
+                  className="w-full rounded-lg border border-wedly-bd-blue bg-wedly-bg-blue px-2 py-1 text-[12px] text-wedly-accent-ink hover:bg-wedly-bg-blue/70 transition-colors text-left"
                 >
                   + 새 옵션
                 </button>
@@ -1229,7 +1229,7 @@ export function CollabTable({
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); setEditingCell({ id: renderKey, key: col.key }); }}
-                      className="inline-flex items-center px-1.5 py-0.5 rounded text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue transition-colors"
+                      className="inline-flex items-center px-1.5 py-0.5 rounded text-wedly-muted hover:text-wedly-accent-ink hover:bg-wedly-bg-blue transition-colors"
                       title="상호명 수정"
                     >
                       <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -1239,7 +1239,7 @@ export function CollabTable({
                   )}
                   <button
                     onClick={(e) => { e.stopPropagation(); onOpenRow(row, "history"); }}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue transition-colors text-[11px]"
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-wedly-muted hover:text-wedly-accent-ink hover:bg-wedly-bg-blue transition-colors text-[11px]"
                     title="히스토리"
                   >
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none">

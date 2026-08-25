@@ -247,7 +247,7 @@ export function TopControls({
               onClick={() => setMobileView("card")}
               className={cn(
                 "flex-1 md:flex-initial h-[28px] md:h-[24px] inline-flex items-center justify-center px-2.5 rounded-full text-[12px] leading-none font-semibold transition-colors whitespace-nowrap",
-                mobileViewMode === "card" ? "bg-wedly-bg-blue text-wedly-accent" : "text-wedly-t2 hover:bg-wedly-bg-gray",
+                mobileViewMode === "card" ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray",
               )}
             >
               카드
@@ -256,7 +256,7 @@ export function TopControls({
               onClick={() => setMobileView("table")}
               className={cn(
                 "flex-1 md:flex-initial h-[28px] md:h-[24px] inline-flex items-center justify-center px-2.5 rounded-full text-[12px] leading-none font-semibold transition-colors whitespace-nowrap",
-                mobileViewMode === "table" ? "bg-wedly-bg-blue text-wedly-accent" : "text-wedly-t2 hover:bg-wedly-bg-gray",
+                mobileViewMode === "table" ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray",
               )}
             >
               표
@@ -277,7 +277,7 @@ export function TopControls({
                 onClick={() => setPageSizeAndStore(n)}
                 className={cn(
                   "flex-1 md:flex-initial h-[28px] md:h-[24px] inline-flex items-center justify-center px-2 rounded-full text-[12px] leading-none font-semibold transition-colors whitespace-nowrap md:min-w-[32px]",
-                  pageSize === n ? "bg-wedly-bg-blue text-wedly-accent" : "text-wedly-t2 hover:bg-wedly-bg-gray",
+                  pageSize === n ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray",
                 )}
               >
                 {n}
@@ -287,7 +287,7 @@ export function TopControls({
               onClick={() => setPageSizeAndStore(Infinity)}
               className={cn(
                 "flex-1 md:flex-initial h-[28px] md:h-[24px] inline-flex items-center justify-center px-2 rounded-full text-[12px] leading-none font-semibold transition-colors whitespace-nowrap md:min-w-[36px]",
-                pageSize === Infinity ? "bg-wedly-bg-blue text-wedly-accent" : "text-wedly-t2 hover:bg-wedly-bg-gray",
+                pageSize === Infinity ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray",
               )}
             >
               전체
@@ -321,7 +321,7 @@ export function TopControls({
               </button>
             </div>
             <div className="flex-1 flex justify-center min-w-0 mx-4 md:mx-3">
-              <span className="min-w-[60px] md:min-w-[56px] h-[36px] md:h-[28px] text-[12px] font-bold text-wedly-accent bg-wedly-bg-blue rounded-full tabular-nums text-center inline-flex items-center justify-center px-2.5 whitespace-nowrap">
+              <span className="min-w-[60px] md:min-w-[56px] h-[36px] md:h-[28px] text-[12px] font-bold text-wedly-accent-ink bg-wedly-bg-blue rounded-full tabular-nums text-center inline-flex items-center justify-center px-2.5 whitespace-nowrap">
                 {currentPage}/{totalPages}
               </span>
             </div>

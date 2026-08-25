@@ -147,7 +147,7 @@ export default function AutoFillRulesModal({
         {/* 헤더 */}
         <div className="flex items-start justify-between gap-3 border-b border-wedly-bd px-5 py-4 bg-gradient-to-b from-white to-wedly-bg-gray/30">
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-wedly-bg-blue text-wedly-accent">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-wedly-bg-blue text-wedly-accent-ink">
               <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
                 <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -191,7 +191,7 @@ export default function AutoFillRulesModal({
                         <p className="text-[11px] font-semibold text-wedly-muted">규칙 {idx + 1}</p>
                         <button
                           onClick={() => removeRule(r.id)}
-                          className="text-[11px] text-wedly-red hover:bg-wedly-bg-red px-2 py-1 rounded transition-colors"
+                          className="text-[11px] text-wedly-red-ink hover:bg-wedly-bg-red px-2 py-1 rounded transition-colors"
                         >
                           ✕ 삭제
                         </button>
@@ -260,7 +260,7 @@ export default function AutoFillRulesModal({
               )}
               <button
                 onClick={addRule}
-                className="mt-3 w-full py-2.5 text-[13px] font-medium text-wedly-accent border border-dashed border-wedly-accent/40 rounded-lg hover:bg-wedly-bg-blue/30 transition-colors"
+                className="mt-3 w-full py-2.5 text-[13px] font-medium text-wedly-accent-ink border border-dashed border-wedly-accent/40 rounded-lg hover:bg-wedly-bg-blue/30 transition-colors"
               >
                 + 규칙 추가
               </button>
@@ -315,7 +315,7 @@ export default function AutoFillRulesModal({
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => { setSuccessMsg(null); onClose(); }}>
           <div className="w-full max-w-sm rounded-2xl border border-wedly-bd bg-white shadow-2xl animate-modal-in" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-wedly-bg-green text-wedly-green">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-wedly-bg-green text-wedly-green-ink">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>

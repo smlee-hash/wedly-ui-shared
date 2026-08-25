@@ -129,7 +129,7 @@ function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onEdi
           type="button"
           disabled={busy}
           onClick={onDelete}
-          className="flex-shrink-0 rounded border border-wedly-bd-red/60 px-1.5 py-0.5 text-[11px] text-wedly-red hover:bg-wedly-bg-red/40 transition-colors disabled:opacity-50"
+          className="flex-shrink-0 rounded border border-wedly-bd-red/60 px-1.5 py-0.5 text-[11px] text-wedly-red-ink hover:bg-wedly-bg-red/40 transition-colors disabled:opacity-50"
         >
           삭제
         </button>
@@ -431,7 +431,7 @@ export function CommonFieldsAdmin({
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-3 py-2 text-[12px] text-wedly-red" role="alert">
+        <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-3 py-2 text-[12px] text-wedly-red-ink" role="alert">
           {error}
         </div>
       )}

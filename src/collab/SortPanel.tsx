@@ -46,7 +46,7 @@ export function SortPanel({ sort, onSortChange, columns }: Props) {
         className={cn(
           "inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition-colors",
           rules.length > 0
-            ? "border-wedly-accent bg-wedly-bg-blue text-wedly-accent"
+            ? "border-wedly-accent bg-wedly-bg-blue text-wedly-accent-ink"
             : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray",
         )}
       >
@@ -107,7 +107,7 @@ export function SortPanel({ sort, onSortChange, columns }: Props) {
               <button
                 type="button"
                 onClick={() => onSortChange(rules.filter((_, i) => i !== idx))}
-                className="rounded-lg border border-wedly-bd px-1.5 py-1 text-[12px] text-wedly-muted hover:bg-wedly-bg-red hover:text-wedly-red transition-colors"
+                className="rounded-lg border border-wedly-bd px-1.5 py-1 text-[12px] text-wedly-muted hover:bg-wedly-bg-red hover:text-wedly-red-ink transition-colors"
                 title="이 기준 삭제"
               >
                 ✕
@@ -125,7 +125,7 @@ export function SortPanel({ sort, onSortChange, columns }: Props) {
                 if (!next) return;
                 onSortChange([...rules, { key: next.key, direction: "asc" }]);
               }}
-              className="w-full rounded-lg border border-wedly-bd-blue bg-wedly-bg-blue px-3 py-1.5 text-[12px] text-wedly-accent hover:bg-wedly-bg-blue/70 transition-colors text-left"
+              className="w-full rounded-lg border border-wedly-bd-blue bg-wedly-bg-blue px-3 py-1.5 text-[12px] text-wedly-accent-ink hover:bg-wedly-bg-blue/70 transition-colors text-left"
             >
               + 기준 추가
             </button>

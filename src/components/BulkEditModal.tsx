@@ -187,7 +187,7 @@ export default function BulkEditModal({
         {/* 헤더 */}
         <div className="flex items-start justify-between gap-3 border-b border-wedly-bd px-5 py-4 bg-gradient-to-b from-white to-wedly-bg-gray/30">
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-wedly-bg-blue text-wedly-accent">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-wedly-bg-blue text-wedly-accent-ink">
               <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
                 <path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -253,7 +253,7 @@ export default function BulkEditModal({
               </div>
 
               <div className="flex items-start gap-2 rounded-xl border border-[var(--wedly-gold)]/30 bg-wedly-bg-yellow px-3 py-2.5 text-[12px] text-wedly-t2">
-                <svg className="mt-0.5 shrink-0 text-wedly-gold" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <svg className="mt-0.5 shrink-0 text-wedly-gold-ink" width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M8 1l7 13H1L8 1z M8 6v3 M8 11.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <span>한 번 적용하면 되돌릴 수 없습니다. 선택한 행이 맞는지 다시 확인하세요.</span>
@@ -338,7 +338,7 @@ export default function BulkEditModal({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-wedly-bg-red text-wedly-red">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-wedly-bg-red text-wedly-red-ink">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M8 1l7 13H1L8 1zM8 6v3M8 11.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>

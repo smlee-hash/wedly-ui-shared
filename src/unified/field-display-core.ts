@@ -111,8 +111,8 @@ export function detectPersonChipRole(label: string | undefined): "leader" | "mem
 /** 팀장/팀원 색 칩 색상(WEDLY 토큰) — 표 셀·상세창 공용. */
 export function personChipClasses(role: "leader" | "member"): { bg: string; text: string; dot: string } {
   return role === "leader"
-    ? { bg: "bg-wedly-bg-blue", text: "text-wedly-accent", dot: "bg-wedly-accent" }
-    : { bg: "bg-wedly-bg-green", text: "text-wedly-green", dot: "bg-wedly-green" };
+    ? { bg: "bg-wedly-bg-blue", text: "text-wedly-accent-ink", dot: "bg-wedly-accent" }
+    : { bg: "bg-wedly-bg-green", text: "text-wedly-green-ink", dot: "bg-wedly-green" };
 }
 
 /**

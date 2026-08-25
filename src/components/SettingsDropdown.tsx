@@ -142,7 +142,7 @@ export function SettingsDropdown({
         className={cn(
           "w-full inline-flex items-center justify-center gap-1.5 h-[44px] md:h-[36px] px-3 text-[13px] font-semibold border rounded-lg transition-colors whitespace-nowrap",
           open
-            ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40"
+            ? "border-wedly-accent text-wedly-accent-ink bg-wedly-bg-blue/40"
             : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1",
         )}
         title="관리 도구"
@@ -175,7 +175,7 @@ export function SettingsDropdown({
               }}
               className={cn(
                 "px-2 py-0.5 rounded text-[11px] font-semibold transition-colors",
-                editingMode ? "bg-wedly-bg-blue text-wedly-accent" : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t1",
+                editingMode ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t1",
               )}
             >
               {editingMode ? "완료" : "편집"}
@@ -278,7 +278,7 @@ export function SettingsDropdown({
                     <span className="text-[14px] leading-none">{m.icon}</span>
                     {displayLabel}
                     {m.id === "conditional-format" && cfActiveCount > 0 && (
-                      <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-wedly-bg-blue text-wedly-accent text-[10.5px] font-bold tabular-nums">
+                      <span className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-wedly-bg-blue text-wedly-accent-ink text-[10.5px] font-bold tabular-nums">
                         {cfActiveCount}
                       </span>
                     )}
@@ -294,7 +294,7 @@ export function SettingsDropdown({
                         setEditingItemLabel(displayLabel);
                       }}
                       title="제목 수정"
-                      className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-muted hover:text-wedly-accent hover:bg-wedly-bg-blue/40"
+                      className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-muted hover:text-wedly-accent-ink hover:bg-wedly-bg-blue/40"
                     >
                       <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                         <path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -308,7 +308,7 @@ export function SettingsDropdown({
                           persistSettingsMenuCustom((prev) => prev.filter((x) => x.id !== m.id));
                         }}
                         title="삭제"
-                        className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-muted hover:text-wedly-red hover:bg-wedly-bg-red/40"
+                        className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-muted hover:text-wedly-red-ink hover:bg-wedly-bg-red/40"
                       >
                         <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                           <path d="M3 4h10M6 4V3h4v1M5 4v8a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -419,7 +419,7 @@ export function SettingsDropdown({
                 <button
                   type="button"
                   onClick={() => setAddingItem(true)}
-                  className="w-full px-3 py-1.5 text-[12px] text-wedly-accent hover:bg-wedly-bg-blue/30 transition-colors flex items-center gap-1.5"
+                  className="w-full px-3 py-1.5 text-[12px] text-wedly-accent-ink hover:bg-wedly-bg-blue/30 transition-colors flex items-center gap-1.5"
                 >
                   <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                     <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

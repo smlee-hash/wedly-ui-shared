@@ -137,7 +137,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
         <ol className="mb-5 flex gap-2 text-sm">
           {["파일 올리기", "열 매핑", "미리보기·등록"].map((label, i) => {
             const s = i + 1;
-            const cls = s === step ? "bg-wedly-navy text-white" : s < step ? "bg-wedly-bg-blue text-wedly-accent" : "bg-wedly-bg-gray text-wedly-muted";
+            const cls = s === step ? "bg-wedly-navy text-white" : s < step ? "bg-wedly-bg-blue text-wedly-accent-ink" : "bg-wedly-bg-gray text-wedly-muted";
             return <li key={s} className={`flex-1 rounded-lg py-2 text-center font-medium ${cls}`}>{s} · {label}</li>;
           })}
         </ol>
@@ -164,7 +164,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
         {step === 2 && parsed && (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              {autoMatchedName && <div className="mb-2 rounded-md bg-wedly-bg-blue px-3 py-2 text-xs text-wedly-accent">저장된 매핑 &apos;{autoMatchedName}&apos;을 자동 적용했어요. 확인만 하세요.</div>}
+              {autoMatchedName && <div className="mb-2 rounded-md bg-wedly-bg-blue px-3 py-2 text-xs text-wedly-accent-ink">저장된 매핑 &apos;{autoMatchedName}&apos;을 자동 적용했어요. 확인만 하세요.</div>}
               <p className="mb-2 text-xs text-wedly-muted">체크를 끄면 그 열은 올리지 않습니다.</p>
               <div className="max-h-72 overflow-auto">
                 {parsed.headers.map((h) => {
@@ -267,7 +267,7 @@ export function ExcelImportWizard(props: ExcelImportWizardProps) {
               </label>
               {savePresetChecked && <input type="text" value={presetName} onChange={(e) => setPresetName(e.target.value)} placeholder="매핑 이름 (예: 경정청구 통합DB)" className="w-full rounded-md border border-wedly-bd px-2 py-1 text-sm" />}
               <p className="mt-2 text-xs text-wedly-muted">다음에 같은 형식 파일을 올리면 2단계(열 매핑)를 자동으로 건너뜁니다.</p>
-              {result && <div className="mt-3 rounded-md bg-wedly-bg-green px-3 py-2 text-sm text-wedly-green">새로 등록 {result.created} · 기존 갱신 {result.updated} · 건너뜀 {result.skipped}</div>}
+              {result && <div className="mt-3 rounded-md bg-wedly-bg-green px-3 py-2 text-sm text-wedly-green-ink">새로 등록 {result.created} · 기존 갱신 {result.updated} · 건너뜀 {result.skipped}</div>}
             </div>
             <PreviewTable fields={usedTargets} rows={previewRows} />
           </div>

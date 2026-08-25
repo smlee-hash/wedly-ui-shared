@@ -332,7 +332,7 @@ function TaxAmendmentPanel({
                 onClick={() => onSubTabChange(key)}
                 className={`px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap transition-colors ${
                   shownSubTab === key
-                    ? "bg-wedly-bg-blue text-wedly-accent"
+                    ? "bg-wedly-bg-blue text-wedly-accent-ink"
                     : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
                 }`}
               >
@@ -353,7 +353,7 @@ function TaxAmendmentPanel({
               title="탭 편집 — 순서·이름 변경"
               className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors whitespace-nowrap ${
                 tabEditMode
-                  ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40"
+                  ? "border-wedly-accent text-wedly-accent-ink bg-wedly-bg-blue/40"
                   : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"
               }`}
             >
@@ -734,7 +734,7 @@ function SectionDetailPanel({
               onClick={() => onSubTabChange(key)}
               className={`px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap transition-colors ${
                 shownSubTab === key
-                  ? "bg-wedly-bg-blue text-wedly-accent"
+                  ? "bg-wedly-bg-blue text-wedly-accent-ink"
                   : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
               }`}
             >
@@ -857,7 +857,7 @@ function SectionDetailPanel({
 // 사업자번호 없는 행 안내 — 공용 보관함을 쓸 수 없어 이 화면(ERP)에만 저장됨을 알린다.
 function NoBiznoNotice() {
   return (
-    <div className="mb-3 rounded-xl border border-[var(--wedly-gold)]/30 bg-wedly-bg-yellow px-3 py-2 text-[12px] text-wedly-gold">
+    <div className="mb-3 rounded-xl border border-[var(--wedly-gold)]/30 bg-wedly-bg-yellow px-3 py-2 text-[12px] text-wedly-gold-ink">
       이 회사는 사업자번호가 없어 지금은 이 화면에만 저장됩니다. 사업자번호를 입력하면 하이브·일루아에서도 함께 보고 편집할 수 있어요.
     </div>
   );
@@ -912,7 +912,7 @@ function AddBasicColumnModal({ title = "기본정보에 칸 추가", onClose, on
                   key={o.value}
                   type="button"
                   onClick={() => { setType(o.value); setTypeOpen(false); }}
-                  className={`w-full text-left px-3 py-1.5 text-[13px] flex items-center justify-between gap-2 hover:bg-wedly-bg-gray transition-colors ${o.value === type ? "bg-wedly-bg-blue text-wedly-accent font-medium" : "text-wedly-t1"}`}
+                  className={`w-full text-left px-3 py-1.5 text-[13px] flex items-center justify-between gap-2 hover:bg-wedly-bg-gray transition-colors ${o.value === type ? "bg-wedly-bg-blue text-wedly-accent-ink font-medium" : "text-wedly-t1"}`}
                 >
                   <span>{o.label}</span>
                   {o.value === type && <span className="text-wedly-accent text-xs">✓</span>}
@@ -985,7 +985,7 @@ function BasicEditRow({ field, editMode, isCustom, onRename, onChangeType, onHid
       {isCustom && (
         <button
           onClick={() => onDelete(field.key)}
-          className="text-[11px] text-wedly-red hover:bg-wedly-bg-red/40 px-1.5 py-0.5 rounded border border-wedly-red/40 flex-shrink-0"
+          className="text-[11px] text-wedly-red-ink hover:bg-wedly-bg-red/40 px-1.5 py-0.5 rounded border border-wedly-red/40 flex-shrink-0"
         >
           삭제
         </button>
@@ -1526,7 +1526,7 @@ function BasicInfoPanel({
                   <button
                     key={f.key}
                     onClick={() => handleUnhide(f.key)}
-                    className="px-2 py-0.5 text-[12px] rounded-md border border-wedly-accent/40 text-wedly-accent hover:bg-wedly-bg-blue/40 transition"
+                    className="px-2 py-0.5 text-[12px] rounded-md border border-wedly-accent/40 text-wedly-accent-ink hover:bg-wedly-bg-blue/40 transition"
                   >
                     + {f.label}
                   </button>
@@ -1779,7 +1779,7 @@ function BasicInfoPanel({
                       </td>
                       <td className="px-3 py-2.5">
                         {status ? (
-                          <span className="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium bg-wedly-bg-blue text-wedly-accent">
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium bg-wedly-bg-blue text-wedly-accent-ink">
                             {status}
                           </span>
                         ) : (
@@ -2114,9 +2114,9 @@ function CustomDomainPanel({
           <span className="text-[12px] font-semibold text-wedly-t2 truncate">{label}</span>
           {isAdmin && (
             <div className="flex items-center gap-1 flex-shrink-0">
-              <button type="button" onClick={() => setAddOpen(true)} className={`${btnBase} border-wedly-accent/50 text-wedly-accent hover:bg-wedly-bg-blue/40`}>＋ 칸 추가</button>
-              <button type="button" onClick={() => { setEditMode((v) => !v); setDeleteMode(false); }} className={`${btnBase} ${editMode ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40" : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"}`}>{editMode ? "완료" : "이름·형식"}</button>
-              <button type="button" onClick={() => { setDeleteMode((v) => !v); setEditMode(false); }} className={`${btnBase} ${deleteMode ? "border-wedly-red text-wedly-red bg-wedly-bg-red/30" : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"}`}>{deleteMode ? "완료" : "삭제"}</button>
+              <button type="button" onClick={() => setAddOpen(true)} className={`${btnBase} border-wedly-accent/50 text-wedly-accent-ink hover:bg-wedly-bg-blue/40`}>＋ 칸 추가</button>
+              <button type="button" onClick={() => { setEditMode((v) => !v); setDeleteMode(false); }} className={`${btnBase} ${editMode ? "border-wedly-accent text-wedly-accent-ink bg-wedly-bg-blue/40" : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"}`}>{editMode ? "완료" : "이름·형식"}</button>
+              <button type="button" onClick={() => { setDeleteMode((v) => !v); setEditMode(false); }} className={`${btnBase} ${deleteMode ? "border-wedly-red text-wedly-red-ink bg-wedly-bg-red/30" : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"}`}>{deleteMode ? "완료" : "삭제"}</button>
             </div>
           )}
         </div>
@@ -2904,7 +2904,7 @@ export default function UnifiedDetailView({
             <button
               onClick={() => setActiveTab("__basic__")}
               className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors ${
-                !onHistoryTab ? "bg-wedly-bg-blue text-wedly-accent" : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                !onHistoryTab ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
               }`}
             >
               기본정보
@@ -2912,7 +2912,7 @@ export default function UnifiedDetailView({
             <button
               onClick={() => setActiveTab("__history__")}
               className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors ${
-                onHistoryTab ? "bg-wedly-bg-blue text-wedly-accent" : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                onHistoryTab ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
               }`}
             >
               히스토리
@@ -2984,7 +2984,7 @@ export default function UnifiedDetailView({
         type="button"
         onClick={() => setWideSide(key)}
         className={wideSide === key
-          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
+          ? "bg-wedly-bg-blue text-wedly-accent-ink font-semibold rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
           : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"}
       >
         {label}
@@ -3052,7 +3052,7 @@ export default function UnifiedDetailView({
                   onClick={() => setNarrowPane(key)}
                   className={`flex-1 rounded-xl px-2 py-2 text-[13px] font-semibold break-keep ${
                     narrowPane === key
-                      ? "bg-wedly-bg-blue text-wedly-accent"
+                      ? "bg-wedly-bg-blue text-wedly-accent-ink"
                       : "text-wedly-muted hover:bg-wedly-bg-gray"
                   }`}
                 >
@@ -3086,7 +3086,7 @@ export default function UnifiedDetailView({
               <div className="flex-1 min-h-0 overflow-y-auto">
                 {error && (
                   <div className="p-6">
-                    <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-4 py-3 text-[13px] text-wedly-red">
+                    <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-4 py-3 text-[13px] text-wedly-red-ink">
                       {error}
                       <div className="mt-3 border-t border-wedly-bd-red/60 pt-3 text-wedly-t2">
                         <span className="font-medium">경정청구 기본 정보:</span> {company}
@@ -3217,7 +3217,7 @@ export default function UnifiedDetailView({
                         onClick={() => setActiveTab(group.key)}
                         className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
                           active
-                            ? "bg-wedly-bg-blue text-wedly-accent"
+                            ? "bg-wedly-bg-blue text-wedly-accent-ink"
                             : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
                         }`}
                       >
@@ -3231,7 +3231,7 @@ export default function UnifiedDetailView({
                       type="button"
                       onClick={addCustomDomain}
                       title="새 분야 탭 추가"
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap border border-dashed border-wedly-accent/50 text-wedly-accent hover:bg-wedly-bg-blue/40 transition-colors flex-shrink-0"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap border border-dashed border-wedly-accent/50 text-wedly-accent-ink hover:bg-wedly-bg-blue/40 transition-colors flex-shrink-0"
                     >
                       ＋ 새 분야
                     </button>
@@ -3248,7 +3248,7 @@ export default function UnifiedDetailView({
                       title="탭 편집 — 분야 탭 순서·이름 변경"
                       className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors whitespace-nowrap ${
                         topTabEditMode
-                          ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40"
+                          ? "border-wedly-accent text-wedly-accent-ink bg-wedly-bg-blue/40"
                           : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"
                       }`}
                     >
@@ -3275,7 +3275,7 @@ export default function UnifiedDetailView({
                       }}
                       className={
                         wideSide === "info" && subTab === key
-                          ? "bg-wedly-bg-blue text-wedly-accent font-semibold rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
+                          ? "bg-wedly-bg-blue text-wedly-accent-ink font-semibold rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
                           : "text-wedly-muted hover:bg-wedly-bg-gray rounded-lg px-2 py-1.5 text-[12px] whitespace-nowrap flex-shrink-0"
                       }
                     >
@@ -3427,7 +3427,7 @@ export default function UnifiedDetailView({
               onClick={() => setActiveTab("__basic__")}
               className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors flex-shrink-0 ${
                 activeTab === "__basic__"
-                  ? "bg-wedly-bg-blue text-wedly-accent"
+                  ? "bg-wedly-bg-blue text-wedly-accent-ink"
                   : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
               }`}
             >
@@ -3470,7 +3470,7 @@ export default function UnifiedDetailView({
                   onClick={() => setActiveTab(group.key)}
                   className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
                     active
-                      ? "bg-wedly-bg-blue text-wedly-accent"
+                      ? "bg-wedly-bg-blue text-wedly-accent-ink"
                       : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
                   }`}
                 >
@@ -3486,7 +3486,7 @@ export default function UnifiedDetailView({
                 type="button"
                 onClick={addCustomDomain}
                 title="새 분야 탭 추가"
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap border border-dashed border-wedly-accent/50 text-wedly-accent hover:bg-wedly-bg-blue/40 transition-colors flex-shrink-0"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap border border-dashed border-wedly-accent/50 text-wedly-accent-ink hover:bg-wedly-bg-blue/40 transition-colors flex-shrink-0"
               >
                 ＋ 새 분야
               </button>
@@ -3505,7 +3505,7 @@ export default function UnifiedDetailView({
                 title="탭 편집 — 분야 탭 순서·이름 변경"
                 className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors whitespace-nowrap ${
                   topTabEditMode
-                    ? "border-wedly-accent text-wedly-accent bg-wedly-bg-blue/40"
+                    ? "border-wedly-accent text-wedly-accent-ink bg-wedly-bg-blue/40"
                     : "border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1"
                 }`}
               >
@@ -3523,7 +3523,7 @@ export default function UnifiedDetailView({
           {/* 오류 */}
           {error && (
             <div className="p-6">
-              <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-4 py-3 text-[13px] text-wedly-red">
+              <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-4 py-3 text-[13px] text-wedly-red-ink">
                 {error}
                 <div className="mt-3 border-t border-wedly-bd-red/60 pt-3 text-wedly-t2">
                   <span className="font-medium">경정청구 기본 정보:</span> {company}
