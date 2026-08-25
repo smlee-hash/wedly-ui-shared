@@ -212,7 +212,7 @@ export function TopControls({
             <button
               onClick={onRefresh}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-2 text-[13px] text-wedly-muted border border-wedly-bd rounded-lg hover:bg-wedly-bg-gray transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-2 text-[13px] text-wedly-t2 border border-wedly-bd rounded-lg hover:bg-wedly-bg-gray transition-colors disabled:opacity-50"
               title="데이터 새로고침"
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={loading ? "animate-spin" : ""}>

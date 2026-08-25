@@ -92,7 +92,7 @@ function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onEdi
           type="button"
           disabled={busy}
           onClick={() => onMove(!common)}
-          className={`flex-shrink-0 inline-flex items-center gap-1 rounded-md border border-wedly-bd px-2 py-1 text-[11px] hover:bg-wedly-bg-gray transition-colors disabled:opacity-50 ${common ? "text-wedly-muted" : "text-wedly-accent"}`}
+          className={`flex-shrink-0 inline-flex items-center gap-1 rounded-md border border-wedly-bd px-2 py-1 text-[11px] hover:bg-wedly-bg-gray transition-colors disabled:opacity-50 ${common ? "text-wedly-t2" : "text-wedly-accent"}`}
           title={common ? "커스텀으로 옮기기 — 이 앱에서만 보이게" : "공통으로 옮기기 — 3개 앱이 값을 함께 쓰게"}
         >
           <span aria-hidden>{common ? "↓" : "↑"}</span>
@@ -104,7 +104,7 @@ function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onEdi
           type="button"
           disabled={item.hideLocked || busy}
           onClick={() => onToggleHidden(!item.hidden)}
-          className={`flex-shrink-0 rounded-md p-1 hover:bg-wedly-bg-gray transition-colors disabled:opacity-30 ${item.hidden ? "text-wedly-red" : "text-wedly-muted"}`}
+          className={`flex-shrink-0 rounded-md p-1 hover:bg-wedly-bg-gray transition-colors disabled:opacity-30 ${item.hidden ? "text-wedly-red" : "text-wedly-t2"}`}
           title={item.hideLocked ? "이 칸은 숨길 수 없습니다" : item.hidden ? "이 앱에서 숨김 (눌러서 다시 보임)" : "이 앱에서 숨기기"}
           aria-label="이 앱에서 숨김"
           aria-pressed={item.hidden}
@@ -117,7 +117,7 @@ function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onEdi
           type="button"
           disabled={busy}
           onClick={onEdit}
-          className="flex-shrink-0 rounded-md p-1 text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-accent transition-colors disabled:opacity-50"
+          className="flex-shrink-0 rounded-md p-1 text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-accent transition-colors disabled:opacity-50"
           title="컬럼 수정"
           aria-label="컬럼 수정"
         >

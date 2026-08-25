@@ -21,7 +21,7 @@ export function Stepper({ steps, current, className }: { steps: string[]; curren
                   "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-wedly-label font-semibold",
                   done && "bg-wedly-green text-white",
                   active && "bg-wedly-accent text-white",
-                  !done && !active && "bg-wedly-bg-sidebar text-wedly-muted",
+                  !done && !active && "bg-wedly-bg-sidebar text-wedly-t2",
                 )}
                 aria-current={active ? "step" : undefined}
               >

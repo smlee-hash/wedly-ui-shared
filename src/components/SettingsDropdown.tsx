@@ -169,7 +169,7 @@ export function SettingsDropdown({
               }}
               className={cn(
                 "px-2 py-0.5 rounded text-[11px] font-semibold transition-colors",
-                editingMode ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t1",
+                editingMode ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1",
               )}
             >
               {editingMode ? "완료" : "편집"}
@@ -287,7 +287,7 @@ export function SettingsDropdown({
                         setEditingItemLabel(displayLabel);
                       }}
                       title="제목 수정"
-                      className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-muted hover:text-wedly-accent-ink hover:bg-wedly-bg-blue/40"
+                      className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-t2 hover:text-wedly-accent-ink hover:bg-wedly-bg-blue/40"
                     >
                       <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                         <path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -301,7 +301,7 @@ export function SettingsDropdown({
                           persistSettingsMenuCustom((prev) => prev.filter((x) => x.id !== m.id));
                         }}
                         title="삭제"
-                        className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-muted hover:text-wedly-red-ink hover:bg-wedly-bg-red/40"
+                        className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-t2 hover:text-wedly-red-ink hover:bg-wedly-bg-red/40"
                       >
                         <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                           <path d="M3 4h10M6 4V3h4v1M5 4v8a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -318,7 +318,7 @@ export function SettingsDropdown({
                           persistSettingsMenuHidden(next);
                         }}
                         title={isHidden ? "보이기" : "숨김"}
-                        className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-muted hover:text-wedly-t1 hover:bg-wedly-bg-gray"
+                        className="w-6 h-6 inline-flex items-center justify-center rounded text-wedly-t2 hover:text-wedly-t1 hover:bg-wedly-bg-gray"
                       >
                         {isHidden ? (
                           <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -402,7 +402,7 @@ export function SettingsDropdown({
                         setNewLabel("");
                         setNewUrl("");
                       }}
-                      className="px-2 py-1 text-[11.5px] text-wedly-muted border border-wedly-bd rounded hover:bg-wedly-bg-gray"
+                      className="px-2 py-1 text-[11.5px] text-wedly-t2 border border-wedly-bd rounded hover:bg-wedly-bg-gray"
                     >
                       취소
                     </button>

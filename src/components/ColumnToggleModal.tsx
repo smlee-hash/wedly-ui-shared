@@ -279,7 +279,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
           {!isOther && onDemoteFromCommon && (canDemoteFromCommon ? canDemoteFromCommon(col.key) : true) && (
             <button
               onClick={() => onDemoteFromCommon(col.key)}
-              className="text-[11px] px-1.5 py-0.5 rounded border border-wedly-bd text-wedly-muted hover:bg-wedly-bg-gray transition whitespace-nowrap"
+              className="text-[11px] px-1.5 py-0.5 rounded border border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray transition whitespace-nowrap"
               title="상세창 기본정보에서 빼고 그 외 칸으로 이동"
             >
               그 외로
@@ -332,7 +332,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
           <h3 className="text-wedly-sub font-bold text-wedly-navy">컬럼 설정</h3>
           <button
             onClick={onClose}
-            className="text-wedly-muted hover:text-wedly-t1 w-7 h-7 flex items-center justify-center rounded hover:bg-wedly-bg-gray"
+            className="text-wedly-t2 hover:text-wedly-t1 w-7 h-7 flex items-center justify-center rounded hover:bg-wedly-bg-gray"
             aria-label="닫기"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -497,7 +497,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
             </button>
             <button
               onClick={onClose}
-              className="flex-1 py-2 text-[13px] text-wedly-muted border border-wedly-bd rounded-lg hover:bg-wedly-bg-gray transition-colors"
+              className="flex-1 py-2 text-[13px] text-wedly-t2 border border-wedly-bd rounded-lg hover:bg-wedly-bg-gray transition-colors"
             >
               취소
             </button>
