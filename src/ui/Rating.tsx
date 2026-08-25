@@ -30,7 +30,7 @@ export function Rating({
         const filled = i < filledCount;
         const star = (
           <Star
-            className={cn("h-5 w-5", filled ? "fill-[var(--wedly-gold)] text-[var(--wedly-gold)]" : "text-wedly-bd")}
+            className={cn("h-5 w-5", filled ? "fill-[var(--wedly-gold-ink)] text-[var(--wedly-gold-ink)]" : "text-wedly-bd")}
             aria-hidden="true"
           />
         );

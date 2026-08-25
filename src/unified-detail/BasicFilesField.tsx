@@ -107,7 +107,7 @@ export default function BasicFilesField({
                 href={selfHostedFileUrl(f.url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex flex-1 items-center gap-2 px-3 py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[13px] text-wedly-t1 hover:text-wedly-accent min-w-0"
+                className="flex flex-1 items-center gap-2 px-3 py-1.5 rounded-lg border border-wedly-bd bg-wedly-bg-gray/30 text-[13px] text-wedly-t1 hover:text-wedly-accent-ink min-w-0"
                 title={f.name}
               >
                 <span className="flex-shrink-0">📎</span>
@@ -132,7 +132,7 @@ export default function BasicFilesField({
             </button>
           )}
           <div className="flex w-fit items-center gap-2 px-1 text-[12px]">
-            <button type="button" onClick={() => setOpen(true)} className="text-wedly-accent font-medium hover:underline">파일 추가</button>
+            <button type="button" onClick={() => setOpen(true)} className="text-wedly-accent-ink font-medium hover:underline">파일 추가</button>
             {dl && files.length >= 2 && (
               <>
                 <span className="text-wedly-muted">|</span>

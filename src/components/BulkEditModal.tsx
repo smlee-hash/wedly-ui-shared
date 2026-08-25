@@ -195,7 +195,7 @@ export default function BulkEditModal({
             <div>
               <h2 className="text-wedly-section font-semibold text-wedly-t1">선택 항목 일괄 수정</h2>
               <p className="mt-0.5 text-[12px] text-wedly-muted">
-                선택한 <span className="font-semibold text-wedly-accent">{selectedIds.length}</span>개 행의 한 컬럼 값을 한 번에 바꿉니다.
+                선택한 <span className="font-semibold text-wedly-accent-ink">{selectedIds.length}</span>개 행의 한 컬럼 값을 한 번에 바꿉니다.
               </p>
             </div>
           </div>
@@ -214,7 +214,7 @@ export default function BulkEditModal({
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           {result ? (
             <div className="rounded-xl border border-wedly-bd-green bg-wedly-bg-green p-4">
-              <div className="flex items-center gap-2 text-wedly-green">
+              <div className="flex items-center gap-2 text-wedly-green-ink">
                 <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
                   <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -223,7 +223,7 @@ export default function BulkEditModal({
               <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                 <div className="rounded-lg border border-wedly-bd-green/60 bg-white px-3 py-2">
                   <p className="text-[11px] text-wedly-muted">성공</p>
-                  <p className="text-base font-bold text-wedly-green tabular-nums">{result.updated.toLocaleString("ko-KR")}건</p>
+                  <p className="text-base font-bold text-wedly-green-ink tabular-nums">{result.updated.toLocaleString("ko-KR")}건</p>
                 </div>
                 <div className="rounded-lg border border-wedly-bd/60 bg-white px-3 py-2">
                   <p className="text-[11px] text-wedly-muted">실패</p>
@@ -253,7 +253,7 @@ export default function BulkEditModal({
               </div>
 
               <div className="flex items-start gap-2 rounded-xl border border-[var(--wedly-gold)]/30 bg-wedly-bg-yellow px-3 py-2.5 text-[12px] text-wedly-t2">
-                <svg className="mt-0.5 shrink-0 text-wedly-gold-ink" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <svg className="mt-0.5 shrink-0 text-wedly-t1" width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M8 1l7 13H1L8 1z M8 6v3 M8 11.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <span>한 번 적용하면 되돌릴 수 없습니다. 선택한 행이 맞는지 다시 확인하세요.</span>

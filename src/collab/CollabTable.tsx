@@ -1067,7 +1067,7 @@ export function CollabTable({
             type="checkbox"
             checked={checkedIds.has(id)}
             onChange={() => toggleCheck(id)}
-            className="rounded border-wedly-bd text-wedly-accent focus:ring-wedly-accent/20"
+            className="rounded border-wedly-bd text-wedly-accent-ink focus:ring-wedly-accent/20"
           />
         </td>
         {activeColumns.map((col) => {
