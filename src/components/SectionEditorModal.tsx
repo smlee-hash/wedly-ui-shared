@@ -203,7 +203,7 @@ export function SectionEditorDeleteConfirm({
             <span className="font-semibold text-wedly-t1">&apos;{sectionLabel}&apos;</span> 섹션을 삭제하시겠습니까?
           </p>
           {hasContent && (
-            <p className="text-[12px] text-wedly-orange bg-wedly-bg-yellow/50 border border-wedly-orange/30 rounded-lg p-2">
+            <p className="text-[12px] text-wedly-t1 bg-wedly-bg-yellow/50 border border-wedly-orange/30 rounded-lg p-2">
               이 섹션 안 컬럼들은 자동으로 &apos;기타&apos; 섹션으로 옮겨집니다.
               {otherSectionHidden && (
                 <span className="block mt-1 text-wedly-red font-medium">
