@@ -332,7 +332,7 @@ function MultiSelectEditor({
               </button>
               <button
                 type="button"
-                className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex-shrink-0"
+                className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex-shrink-0"
                 title="색상 변경"
                 onClick={(e) => { e.stopPropagation(); setColorPickerOpt(isPickerOpen ? null : opt); }}
               >
@@ -346,7 +346,7 @@ function MultiSelectEditor({
               {canDelete && !!fieldKey && (
                 <button
                   type="button"
-                  className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-muted hover:bg-wedly-bg-red/40 hover:text-wedly-red-ink transition flex-shrink-0"
+                  className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-t2 hover:bg-wedly-bg-red/40 hover:text-wedly-red-ink transition flex-shrink-0"
                   title="옵션 삭제"
                   onClick={(e) => { e.stopPropagation(); handleDeleteOption(opt); }}
                 >
@@ -587,7 +587,7 @@ function FileEditor({
           </a>
           <button
             onClick={() => handleDelete(i)}
-            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-wedly-muted hover:text-wedly-red-ink hover:bg-wedly-bg-red transition opacity-0 group-hover/file:opacity-100"
+            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-wedly-t2 hover:text-wedly-red-ink hover:bg-wedly-bg-red transition opacity-0 group-hover/file:opacity-100"
             title="파일 삭제"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
@@ -695,7 +695,7 @@ export function BasicScopeBadge({ label, override }: { label: string; override?:
     <>
       <span
         className={`flex-shrink-0 rounded px-1 text-[9px] leading-[15px] font-medium ${
-          isCommon ? "bg-wedly-accent/10 text-wedly-accent" : "bg-wedly-bg-gray text-wedly-muted"
+          isCommon ? "bg-wedly-accent/10 text-wedly-accent" : "bg-wedly-bg-gray text-wedly-t2"
         }`}
         title={isCommon ? "공통 칸 — 3개 앱이 값을 함께 씁니다" : "커스텀 칸 — 이 앱에서만 보입니다"}
       >

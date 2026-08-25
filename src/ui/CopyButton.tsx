@@ -37,7 +37,7 @@ export function CopyButton({ text, className }: { text: string; className?: stri
         );
       }}
       className={cn(
-        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t1",
+        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1",
         state === "ok" && "text-wedly-green hover:text-wedly-green",
         state === "fail" && "text-wedly-red hover:text-wedly-red",
         className,

@@ -285,7 +285,7 @@ function TaxAmendmentPanel({
                 className={`px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap transition-colors ${
                   subTab === key
                     ? "bg-wedly-bg-blue text-wedly-accent-ink"
-                    : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                    : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
                 }`}
               >
                 {label}
@@ -297,7 +297,7 @@ function TaxAmendmentPanel({
         {isAdmin && (
           <div className="flex-shrink-0 flex items-center gap-1 ml-2">
             {tabEditMode && (
-              <button type="button" onClick={resetTabs} className="px-2 py-1 text-[11px] rounded-md border border-wedly-bd text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors whitespace-nowrap">초기화</button>
+              <button type="button" onClick={resetTabs} className="px-2 py-1 text-[11px] rounded-md border border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors whitespace-nowrap">초기화</button>
             )}
             <button
               type="button"
@@ -659,7 +659,7 @@ function SectionDetailPanel({
               className={`px-3 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap transition-colors ${
                 subTab === key
                   ? "bg-wedly-bg-blue text-wedly-accent-ink"
-                  : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                  : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
               }`}
             >
               {label}
@@ -2486,7 +2486,7 @@ export default function UnifiedDetailView({
               </button>
               <button
                 onClick={onClose}
-                className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-wedly-bg-gray text-wedly-muted hover:text-wedly-t2 transition-colors flex-shrink-0"
+                className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-wedly-bg-gray text-wedly-t2 hover:text-wedly-t2 transition-colors flex-shrink-0"
                 aria-label="닫기"
               >
                 <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
@@ -2517,7 +2517,7 @@ export default function UnifiedDetailView({
             <button
               onClick={() => setActiveTab("__basic__")}
               className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors ${
-                !onHistoryTab ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                !onHistoryTab ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
               }`}
             >
               기본정보
@@ -2525,7 +2525,7 @@ export default function UnifiedDetailView({
             <button
               onClick={() => setActiveTab("__history__")}
               className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors ${
-                onHistoryTab ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                onHistoryTab ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
               }`}
             >
               히스토리
@@ -2621,7 +2621,7 @@ export default function UnifiedDetailView({
           </div>
           <button
             onClick={handleClose}
-            className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-wedly-bg-gray text-wedly-muted hover:text-wedly-t2 transition-colors flex-shrink-0"
+            className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-wedly-bg-gray text-wedly-t2 hover:text-wedly-t2 transition-colors flex-shrink-0"
             aria-label="닫기"
           >
             <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
@@ -2639,7 +2639,7 @@ export default function UnifiedDetailView({
               className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors flex-shrink-0 ${
                 activeTab === "__basic__"
                   ? "bg-wedly-bg-blue text-wedly-accent-ink"
-                  : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                  : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
               }`}
             >
               기본정보
@@ -2682,7 +2682,7 @@ export default function UnifiedDetailView({
                   className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
                     active
                       ? "bg-wedly-bg-blue text-wedly-accent-ink"
-                      : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                      : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
                   }`}
                 >
                   <StatusDot status={hasData ? status : undefined} />
@@ -2708,7 +2708,7 @@ export default function UnifiedDetailView({
           {isAdmin && (
             <div className="flex-shrink-0 flex items-center gap-1 ml-2">
               {topTabEditMode && (
-                <button type="button" onClick={resetTopTabs} className="px-2 py-1 text-[11px] rounded-md border border-wedly-bd text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors whitespace-nowrap">초기화</button>
+                <button type="button" onClick={resetTopTabs} className="px-2 py-1 text-[11px] rounded-md border border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors whitespace-nowrap">초기화</button>
               )}
               <button
                 type="button"

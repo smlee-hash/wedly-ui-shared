@@ -107,7 +107,7 @@ export function SortPanel({ sort, onSortChange, columns }: Props) {
               <button
                 type="button"
                 onClick={() => onSortChange(rules.filter((_, i) => i !== idx))}
-                className="rounded-lg border border-wedly-bd px-1.5 py-1 text-[12px] text-wedly-muted hover:bg-wedly-bg-red hover:text-wedly-red-ink transition-colors"
+                className="rounded-lg border border-wedly-bd px-1.5 py-1 text-[12px] text-wedly-t2 hover:bg-wedly-bg-red hover:text-wedly-red-ink transition-colors"
                 title="이 기준 삭제"
               >
                 ✕

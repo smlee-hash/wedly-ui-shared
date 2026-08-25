@@ -52,7 +52,7 @@ export function CommonFieldsLauncher({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md px-2 py-0.5 text-[13px] text-wedly-muted hover:bg-wedly-bg-gray transition-colors"
+                className="rounded-md px-2 py-0.5 text-[13px] text-wedly-t2 hover:bg-wedly-bg-gray transition-colors"
               >
                 닫기
               </button>

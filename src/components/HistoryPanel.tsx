@@ -571,7 +571,7 @@ export function HistoryPanel({
                       "px-3 py-1.5 text-[13px] font-semibold rounded-full transition-colors whitespace-nowrap inline-flex items-center gap-1.5",
                       isActive
                         ? "bg-wedly-bg-blue text-wedly-accent-ink"
-                        : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2",
+                        : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2",
                       canEdit && "ring-1 ring-wedly-accent/30"
                     )}
                     title={canEdit ? "클릭해서 이름 수정 · 잡고 끌어서 순서 변경" : undefined}
@@ -726,7 +726,7 @@ export function HistoryPanel({
                   {/* R8: sourceBadge.isForeign + sourceBadge.label, same CSS classes */}
                   {sourceBadge.isForeign(c.source) && (
                     <span
-                      className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-wedly-bg-gray text-wedly-muted border border-wedly-bd"
+                      className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-wedly-bg-gray text-wedly-t2 border border-wedly-bd"
                       title={`${sourceBadge.label}에서 작성된 기록입니다. 여기서는 읽기 전용입니다.`}
                     >
                       {sourceBadge.label}
@@ -743,7 +743,7 @@ export function HistoryPanel({
                           onClick={() => startEdit(c)}
                           title="히스토리 수정"
                           aria-label="히스토리 수정"
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] text-wedly-muted hover:text-wedly-accent-ink hover:bg-wedly-bg-blue transition"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] text-wedly-t2 hover:text-wedly-accent-ink hover:bg-wedly-bg-blue transition"
                         >
                           <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                             <path d="M11.5 1.5l3 3-9 9H2.5v-3l9-9z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
@@ -754,7 +754,7 @@ export function HistoryPanel({
                           onClick={() => handleDeleteComment(c.id)}
                           title="히스토리 삭제"
                           aria-label="히스토리 삭제"
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] text-wedly-muted hover:text-wedly-red-ink hover:bg-wedly-bg-red transition"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] text-wedly-t2 hover:text-wedly-red-ink hover:bg-wedly-bg-red transition"
                         >
                           <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                             <path d="M3 4h10M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1M5 4l1 9a1 1 0 001 1h2a1 1 0 001-1l1-9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -773,7 +773,7 @@ export function HistoryPanel({
                           "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] transition",
                           isCopied
                             ? "bg-wedly-bg-green text-wedly-green-ink opacity-100"
-                            : "text-wedly-muted hover:text-wedly-accent-ink hover:bg-wedly-bg-blue"
+                            : "text-wedly-t2 hover:text-wedly-accent-ink hover:bg-wedly-bg-blue"
                         )}
                       >
                         {isCopied ? (
@@ -925,7 +925,7 @@ export function HistoryPanel({
                     <div key={row.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-wedly-bd">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-[13px] font-medium text-wedly-t1 truncate">{row.label}</span>
-                        {row.isFallback && <span className="text-[10px] text-wedly-muted bg-wedly-bg-gray rounded px-1.5 py-0.5">기본</span>}
+                        {row.isFallback && <span className="text-[10px] text-wedly-t2 bg-wedly-bg-gray rounded px-1.5 py-0.5">기본</span>}
                         {isHidden && <span className="text-[10px] text-wedly-orange bg-wedly-bg-yellow/40 border border-wedly-orange/30 rounded px-1.5 py-0.5">숨김</span>}
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">

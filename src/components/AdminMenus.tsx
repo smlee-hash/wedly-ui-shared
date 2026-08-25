@@ -67,7 +67,7 @@ export function FieldRowAdminMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center justify-center w-6 h-6 rounded text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2 opacity-60 hover:opacity-100 transition"
+        className="inline-flex items-center justify-center w-6 h-6 rounded text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2 opacity-60 hover:opacity-100 transition"
         title={`${fieldLabel} 관리`}
         aria-label="컬럼 관리"
       >
@@ -219,7 +219,7 @@ export function SectionAdminMenu({
               "inline-flex items-center justify-center w-5 h-5 rounded transition-colors",
               open || deleteMode
                 ? "text-wedly-accent-ink bg-wedly-bg-blue/60"
-                : "text-wedly-muted hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
             )
           : cn(
               "inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border transition-colors",
