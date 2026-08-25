@@ -1620,7 +1620,7 @@ function BasicInfoPanel({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[13px] min-w-[480px]">
-              <thead className="text-wedly-label">
+              <thead className="text-wedly-tablehead">
                 <tr className="border-b border-wedly-bd/60">
                   <th className="px-3 py-2 text-left font-semibold text-wedly-muted">영역</th>
                   <th className="px-3 py-2 text-left font-semibold text-wedly-muted">담당 파트너</th>

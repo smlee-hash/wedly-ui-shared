@@ -140,10 +140,10 @@ export function DesktopTable({
           <colgroup>
             <col style={{ width: 40 }} />
             {activeColumns.map((col) => (
-              <col key={col.key} style={{ width: colWidths[col.key] || 100 }} />
+              <col key={col.key} style={{ width: colWidths[col.key] || 112 }} />
             ))}
           </colgroup>
-          <thead className="text-wedly-label sticky top-0 z-20">
+          <thead className="text-wedly-tablehead sticky top-0 z-20">
             <tr className="bg-wedly-bg-gray">
               {/* Checkbox header */}
               <th className="py-2.5 px-3 w-10 text-center sticky left-0 z-30 bg-wedly-bg-gray">
@@ -197,7 +197,7 @@ export function DesktopTable({
                       setDragOverColKey(null);
                     }}
                     className={cn(
-                      "py-2.5 px-4 text-left font-semibold text-wedly-muted uppercase tracking-wider whitespace-nowrap select-none relative group",
+                      "py-2.5 px-4 text-left font-semibold text-wedly-muted whitespace-nowrap select-none relative group",
                       isSticky && "sticky z-10",
                       // 고정 칸 배경은 항상 불투명이어야 아래로 지나가는 칸이 비치지 않는다.
                       // 끌어놓기 대상일 때는 아래 파란 배경이 대신 들어간다 —

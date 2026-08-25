@@ -26,9 +26,9 @@ export type TableColumn<T> = {
  * 옮겨 오기 전에는 그 파일에서 가져다 썼는데, 공용 꾸러미에서는 앱 전용 경로를 부를 수 없다.
  * 값이 어긋나면 ERP 배포 전 시험(`__tests__/shared-shell.test.ts`)이 잡는다.
  */
-const TD_CELL = "border-b border-wedly-bd/50 py-1.5 text-wedly-sub text-wedly-t1";
+const TD_CELL = "border-b border-wedly-bd/50 px-3 py-2 text-wedly-sub text-wedly-t1";
 
-const TABLE_TH = "py-1.5 text-wedly-label font-semibold text-white";
+const TABLE_TH = "px-3 py-2 text-wedly-tablehead font-semibold text-white";
 
 export function Table<T>({
   columns,
@@ -63,7 +63,7 @@ export function Table<T>({
     <div className={cn("w-full overflow-x-auto", className)}>
       <div className="overflow-hidden rounded-lg border border-wedly-bd">
         <table className="w-full border-collapse text-left">
-          <thead className="bg-wedly-navy text-wedly-label">
+          <thead className="bg-wedly-navy text-wedly-tablehead">
             <tr>
               {columns.map((col) => (
                 <th
