@@ -154,6 +154,18 @@ export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPan
 
 // 분야(섹션)별 히스토리 래퍼 — 공용 보관함(secstore) 저장. 앱별 출처/작성자/업로드경로 주입.
 export { default as SectionHistoryPanel } from "./components/SectionHistoryPanel";
+export {
+  checkApiResult,
+  classifyHttpStatus,
+  makePersistError,
+  persistKindOf,
+  failureReason,
+  saveFailureMessage,
+  loadFailureMessage,
+} from "./lib/persist-failure";
+export type { PersistFailureKind, PersistError } from "./lib/persist-failure";
+export { DetailLoadStateProvider, useDetailLoadState } from "./unified-detail/detail-load-state";
+export type { DetailLoadState } from "./unified-detail/detail-load-state";
 
 // 업체 상세창 "맨 위 상호명" 공용 편집 부품 — 하이브·ERP·일루아 모든 상세 모달 공유 (클릭 → 그 자리 수정)
 export { EditableTitle } from "./components/EditableTitle";
