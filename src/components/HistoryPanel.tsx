@@ -835,6 +835,10 @@ export function HistoryPanel({
           <div className="flex items-center justify-center py-10">
             <div className="w-5 h-5 border-2 border-wedly-accent/30 border-t-wedly-accent rounded-full animate-spin" />
           </div>
+        ) : sorted.length === 0 && shownLoadError ? (
+          /* ★못 불러온 것을 "아직 없습니다"로 위장하지 않는다(2026-08-26 배포본 확인에서 발견).
+             그 문구가 뜨면 사용자는 기록이 0건이라고 읽는다 — 아래 오류 상자만 남긴다. */
+          null
         ) : sorted.length === 0 ? (
           <div className="text-center py-10">
             <div className="w-10 h-10 rounded-full bg-wedly-bg-gray flex items-center justify-center mx-auto mb-2">
