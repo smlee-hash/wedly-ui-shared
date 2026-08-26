@@ -42,8 +42,9 @@ export default function SectionHistoryPanel({
   loadError?: string | null;
   /** 다시 시도 단추를 눌렀을 때 부모가 할 일(선택). 없으면 부품이 스스로 다시 불러온다. */
   onRetryLoad?: () => void;
-  /** 화면을 떠날 때 치던 글을 살려 보내는 통로(선택). 성공 여부는 알 수 없다. */
-  sendOnLeave?: (text: string) => void;
+  /** 화면을 떠날 때 치던 글을 살려 보내는 통로(선택). 성공 여부는 알 수 없다.
+   *  ★완성된 목록을 받는다 — 작성자 이름·출처는 이 부품만 알기 때문이다(2026-08-26). */
+  sendOnLeave?: (next: UnifiedComment[]) => void;
 }) {
   const [list, setList] = useState<UnifiedComment[]>(() => initial);
   const lastSigRef = useRef<string>(signatureOf(initial));
@@ -73,6 +74,28 @@ export default function SectionHistoryPanel({
     [onPersist],
   );
 
+  /** 새 글 한 건을 만든다 — 작성자 이름·출처를 한 곳에서만 정한다. */
+  const makeComment = useCallback(
+    (text: string, category?: string): UnifiedComment => ({
+      id: `c_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+      name: currentUserName || "나",
+      text,
+      createdAt: new Date().toISOString(),
+      source: ownSource,
+      category,
+    }),
+    [currentUserName, ownSource],
+  );
+
+  // 떠날 때 보내기 — 부품이 글을 만들어 완성된 목록으로 넘긴다.
+  const handleSendOnLeave = useCallback(
+    (text: string) => {
+      if (!sendOnLeave) return;
+      sendOnLeave([...list, makeComment(text)]);
+    },
+    [sendOnLeave, list, makeComment],
+  );
+
   const adapter = useMemo<HistoryAdapter>(
     () => ({
       // ★자동 다시읽기는 **서버를 부르지 않는다**(2026-08-26 적대적 검토에서 잡음).
@@ -80,17 +103,7 @@ export default function SectionHistoryPanel({
       //  이 도구 새로 만듦 → 위 부품이 "다시 읽어라"를 또 실행 → 끝없는 되풀이가 된다.
       //  진짜 서버 다시 읽기는 사용자가 "다시 시도"를 누를 때 부모(onRetryLoad)가 한다.
       fetch: async () => ({ comments: list }),
-      create: async ({ text, category }) => {
-        const c: UnifiedComment = {
-          id: `c_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
-          name: currentUserName || "나",
-          text,
-          createdAt: new Date().toISOString(),
-          source: ownSource,
-          category,
-        };
-        return commit([...list, c], list);
-      },
+      create: async ({ text, category }) => commit([...list, makeComment(text, category)], list),
       edit: async ({ commentId, text }) =>
         commit(
           list.map((c) => (c.id === commentId ? { ...c, text } : c)),
@@ -107,7 +120,7 @@ export default function SectionHistoryPanel({
         return json.data.url as string;
       },
     }),
-    [list, currentUserName, ownSource, uploadPath, commit],
+    [list, uploadPath, commit, makeComment],
   );
 
   return (
@@ -124,7 +137,7 @@ export default function SectionHistoryPanel({
       loadError={loadError}
       onRetryLoad={onRetryLoad}
       draftId={storageId}
-      sendOnLeave={sendOnLeave}
+      sendOnLeave={sendOnLeave ? handleSendOnLeave : undefined}
     />
   );
 }

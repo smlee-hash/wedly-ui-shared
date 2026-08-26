@@ -757,18 +757,13 @@ function SectionDetailPanel({
 
   // 화면을 떠날 때 치던 글을 살려 보낸다(keepalive). 성공 여부는 알 수 없어 "보냈다"를 믿지 않는다 —
   // 다시 열 때 담아 둔 글을 서버 목록과 대조해 판정한다.
+  // ★글은 부품이 만들어 완성된 목록으로 넘겨 준다 — 작성자 이름·출처(erp/hive/illua)를
+  //  아는 곳이 부품이기 때문이다. 여기서 만들면 이름이 "나"로, 출처가 항상 erp 로 굳어
+  //  하이브·일루아에서 남의 앱 글로 표시되고 본인이 고치지도 못한다(2026-08-26 점검에서 잡음).
   const sendHistoryOnLeave = useCallback(
-    (text: string) => {
+    (next: UnifiedComment[]) => {
       if (!shared) return;
       const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
-      const c: UnifiedComment = {
-        id: `c_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
-        name: "나",
-        text,
-        createdAt: new Date().toISOString(),
-        source: "erp",
-      };
-      const next = [...(secHistory ?? []), c];
       void fetch(`${base}?kind=history`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -778,7 +773,7 @@ function SectionDetailPanel({
         /* 떠나는 중이라 결과를 알 수 없다 — 담아 둔 글로 다시 열 때 판정한다 */
       });
     },
-    [shared, bizno, sectionKey, secHistory],
+    [shared, bizno, sectionKey],
   );
 
   const SUB_TABS: { key: SubTab; label: string }[] = [
@@ -2375,17 +2370,10 @@ function WideSectionHistory({
     return list;
   }, [base, historyInitial]);
 
+  // ★좁은 모드와 같은 이유 — 글은 부품이 만들어 완성된 목록으로 넘겨 준다.
   const sendHistoryOnLeave = useCallback(
-    (text: string) => {
+    (next: UnifiedComment[]) => {
       if (!shared) return;
-      const c: UnifiedComment = {
-        id: `c_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
-        name: "나",
-        text,
-        createdAt: new Date().toISOString(),
-        source: "erp",
-      };
-      const next = [...(secHistory ?? []), c];
       void fetch(`${base}?kind=history`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -2395,7 +2383,7 @@ function WideSectionHistory({
         /* 떠나는 중이라 결과를 알 수 없다 — 다시 열 때 대조해 판정한다 */
       });
     },
-    [shared, base, secHistory],
+    [shared, base],
   );
 
   return (
