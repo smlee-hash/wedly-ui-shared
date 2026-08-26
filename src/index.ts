@@ -137,6 +137,9 @@ export {
 export type { FilterItem, FilterCategory, OperatorOption } from "./collab/filter-items";
 // 공용 탭 편집창 — 이름 + 표시형식(표/캘린더) + 거르기 조건. 하이브 편집창과 같은 방식.
 export { default as TabEditorModal } from "./collab/TabEditorModal";
+export { fieldSelectOptions, GROUP_VALUE_PREFIX } from "./collab/tab-field-options";
+export type { TabFieldDef, TabFieldOption } from "./collab/tab-field-options";
+
 
 // 색깔 딱지 셀 — 순수 판정(cellChips) + 표시 부품/렌더러(상태·분류 색상)
 export { cellChips } from "./collab/collab-cell";

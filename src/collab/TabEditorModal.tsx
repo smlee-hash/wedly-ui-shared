@@ -4,8 +4,9 @@ import { useState } from "react";
 import { CustomSelect } from "@wedly/detail-modal-shared";
 import { buildTabFromDraft, EMPTY_OPTION_VALUE } from "./collab-filters";
 import type { ViewTab, FilterCondition, FilterOperator, TabFilterMatch } from "./collab-filters";
+import { fieldSelectOptions, type TabFieldDef } from "./tab-field-options";
 
-type FieldDef = { key: string; label: string; type: string };
+type FieldDef = TabFieldDef;
 /** 표시 형식 선택지(예: 표/캘린더). */
 type ViewModeOption = { value: string; label: string; hint?: string };
 
@@ -244,7 +245,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
                       value={filter.field}
                       onChange={(v) => changeField(idx, v)}
                       placeholder="항목 선택…"
-                      options={[{ value: "", label: "항목 선택…" }, ...fields.map((f) => ({ value: f.key, label: f.label }))]}
+                      options={fieldSelectOptions(fields)}
                     />
                   </div>
                   <div className="w-[124px] flex-shrink-0">
