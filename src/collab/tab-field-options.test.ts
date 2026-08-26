@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { fieldSelectOptions, GROUP_VALUE_PREFIX, type TabFieldDef } from "./tab-field-options";
+import {
+  fieldSelectOptions,
+  GROUP_VALUE_PREFIX,
+  isGroupHeaderValue,
+  type TabFieldDef,
+} from "./tab-field-options";
 
 const plain: TabFieldDef[] = [
   { key: "등록일시", label: "등록일시", type: "date" },
@@ -77,5 +82,64 @@ describe("fieldSelectOptions", () => {
       { key: "b", label: "나", type: "text", group: "묶음" },
     ]);
     expect(out.filter((o) => o.isHeader).map((o) => o.label)).toEqual(["묶음"]);
+  });
+
+  it("묶음 있는 항목 뒤에 묶음 없는 항목이 와도, 묶음 없는 항목은 어떤 소제목보다 앞에 온다", () => {
+    const out = fieldSelectOptions([
+      { key: "a", label: "가", type: "text", group: "묶음1" },
+      { key: "b", label: "나", type: "text" },
+    ]);
+    expect(out.map((o) => o.value)).toEqual(["", "b", `${GROUP_VALUE_PREFIX}0:묶음1`, "a"]);
+    expect(out.map((o) => o.label)).toEqual(["항목 선택…", "나", "묶음1", "가"]);
+    expect(out[2].isHeader).toBe(true);
+  });
+
+  it("묶음 없는 항목이 여럿이면 그들끼리의 원래 차례가 지켜진다", () => {
+    const out = fieldSelectOptions([
+      { key: "x", label: "엑스", type: "text" },
+      { key: "a", label: "가", type: "text", group: "묶음1" },
+      { key: "y", label: "와이", type: "text" },
+      { key: "b", label: "나", type: "text", group: "묶음1" },
+    ]);
+    expect(out.map((o) => o.value)).toEqual([
+      "",
+      "x",
+      "y",
+      `${GROUP_VALUE_PREFIX}0:묶음1`,
+      "a",
+      "b",
+    ]);
+  });
+
+  it("모든 항목에 묶음이 있으면 결과가 예전과 완전히 같다", () => {
+    expect(fieldSelectOptions(grouped)).toEqual([
+      { value: "", label: "항목 선택…" },
+      { value: `${GROUP_VALUE_PREFIX}0:기본 칸`, label: "기본 칸", isHeader: true },
+      { value: "등록일시", label: "등록일시" },
+      { value: "대표자명", label: "대표자명" },
+      { value: `${GROUP_VALUE_PREFIX}1:정부지원금 · 계약정보`, label: "정부지원금 · 계약정보", isHeader: true },
+      { value: "tier:government-subsidy:계약:컨설팅담당", label: "컨설팅 담당" },
+      { value: "tier:government-subsidy:계약:계약일", label: "계약일" },
+      { value: `${GROUP_VALUE_PREFIX}2:경정청구 · 정산정보`, label: "경정청구 · 정산정보", isHeader: true },
+      { value: "tier:tax-amendment:정산:인용확인일", label: "인용확인일" },
+    ]);
+  });
+
+  it("group 을 빈 글자로 명시한 항목도 묶음 없음과 똑같이 다뤄진다", () => {
+    const out = fieldSelectOptions([
+      { key: "a", label: "가", type: "text", group: "묶음1" },
+      { key: "b", label: "나", type: "text", group: "" },
+    ]);
+    expect(out.map((o) => o.value)).toEqual(["", "b", `${GROUP_VALUE_PREFIX}0:묶음1`, "a"]);
+    expect(out.some((o) => o.isHeader && o.label === "")).toBe(false);
+  });
+});
+
+describe("isGroupHeaderValue", () => {
+  it("소제목 값이면 참, 실제 항목 키면 거짓", () => {
+    expect(isGroupHeaderValue(`${GROUP_VALUE_PREFIX}0:정부지원금 · 계약정보`)).toBe(true);
+    expect(isGroupHeaderValue("custom_123")).toBe(false);
+    expect(isGroupHeaderValue("tier:government-subsidy:계약:컨설팅담당")).toBe(false);
+    expect(isGroupHeaderValue("")).toBe(false);
   });
 });

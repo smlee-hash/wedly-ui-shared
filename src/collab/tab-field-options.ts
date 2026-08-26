@@ -16,22 +16,35 @@ export type TabFieldOption = { value: string; label: string; isHeader?: boolean 
 /** 소제목 줄의 이름표 값 앞머리 — 실제 항목 이름표와 절대 안 겹치게 하는 표식. */
 export const GROUP_VALUE_PREFIX = "__group__:";
 
+/** 소제목 줄의 값인가 — 조건 항목으로 저장되면 안 되는 값. */
+export function isGroupHeaderValue(value: string): boolean {
+  return value.startsWith(GROUP_VALUE_PREFIX);
+}
+
 /** 맨 앞 안내 줄(아무것도 안 고른 상태). */
 const HEAD: TabFieldOption = { value: "", label: "항목 선택…" };
 
 /**
  * 항목 목록 → 드롭다운 줄 목록.
- * 묶음 이름이 바뀌는 자리마다 소제목 줄을 끼운다(같은 이름이 떨어져 두 번 나오면 두 번 끼운다 —
- * 목록 차례를 임의로 바꾸지 않기 위해). 소제목 이름표 값은 번호를 붙여 서로 겹치지 않게 한다.
+ * 묶음이 하나라도 있으면 묶음 없는 항목을 안내 줄 바로 뒤에 원래 차례로 모은 뒤,
+ * 묶음 있는 항목을 원래 차례대로 놓고 묶음이 바뀌는 자리마다 소제목을 끼운다
+ * (같은 이름이 떨어져 두 번 나오면 두 번 끼운다). 소제목 이름표 값은 번호를 붙여 서로 겹치지 않게 한다.
+ * 묶음이 하나도 없으면 예전과 같은 평면 목록.
  */
 export function fieldSelectOptions(fields: TabFieldDef[]): TabFieldOption[] {
   if (!fields.some((f) => f.group)) {
     return [HEAD, ...fields.map((f) => ({ value: f.key, label: f.label }))];
   }
-  const out: TabFieldOption[] = [HEAD];
+  const ungrouped: TabFieldDef[] = [];
+  const grouped: TabFieldDef[] = [];
+  for (const f of fields) {
+    if (f.group) grouped.push(f);
+    else ungrouped.push(f);
+  }
+  const out: TabFieldOption[] = [HEAD, ...ungrouped.map((f) => ({ value: f.key, label: f.label }))];
   let last: string | undefined;
   let seq = 0;
-  for (const f of fields) {
+  for (const f of grouped) {
     const group = f.group ?? "";
     if (group !== last) {
       if (group) out.push({ value: `${GROUP_VALUE_PREFIX}${seq++}:${group}`, label: group, isHeader: true });

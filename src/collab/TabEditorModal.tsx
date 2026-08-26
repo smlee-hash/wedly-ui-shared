@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CustomSelect } from "@wedly/detail-modal-shared";
 import { buildTabFromDraft, EMPTY_OPTION_VALUE } from "./collab-filters";
 import type { ViewTab, FilterCondition, FilterOperator, TabFilterMatch } from "./collab-filters";
-import { fieldSelectOptions, type TabFieldDef } from "./tab-field-options";
+import { fieldSelectOptions, isGroupHeaderValue, type TabFieldDef } from "./tab-field-options";
 
 type FieldDef = TabFieldDef;
 /** 표시 형식 선택지(예: 표/캘린더). */
@@ -96,6 +96,7 @@ export default function TabEditorModal({ tab, fields, getFieldOptions, viewModes
     }));
 
   const changeField = (idx: number, fieldKey: string) => {
+    if (isGroupHeaderValue(fieldKey)) return;
     const fieldDef = fields.find((f) => f.key === fieldKey);
     const firstOp = operatorsForType(fieldDef?.type)[0]?.value ?? "equals";
     updateFilter(idx, { field: fieldKey, operator: firstOp, value: undefined });
