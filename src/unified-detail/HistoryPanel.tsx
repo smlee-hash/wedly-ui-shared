@@ -122,6 +122,7 @@ export default function HistoryPanel({
       seedComments={seed}
       shareEnabled={false}
       hideCategories
+      draftId={pageId}
     />
   );
 }
