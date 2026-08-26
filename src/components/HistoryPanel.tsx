@@ -10,6 +10,9 @@ import { cn } from "../lib/cn";
 import { useAutoResizeTextarea } from "../hooks/useAutoResizeTextarea";
 import { timeAgo as defaultTimeAgo } from "../lib/utils";
 import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
+import { AlertTriangle, RotateCw } from "lucide-react";
+import { saveFailureMessage, loadFailureMessage } from "../lib/persist-failure";
+import { readDraft, writeDraft, clearDraft, shouldRestoreDraft, isDraftExpired } from "../lib/history-draft";
 import {
   parseCommentBody,
   appendImageLines,
@@ -99,6 +102,10 @@ export function HistoryPanel({
   alertDialog,
   seedComments,
   readOnly = false,
+  loadError = null,
+  onRetryLoad,
+  draftId,
+  sendOnLeave,
   // Hive compat — pageId kept for share URL generation
   pageId,
 }: {
@@ -131,6 +138,14 @@ export function HistoryPanel({
   seedComments?: UnifiedComment[];
   /** 보기전용(하이브 정부지원금 등): 작성칸·수정·삭제 차단. 기본 false. */
   readOnly?: boolean;
+  /** 부모가 첫 불러오기에 실패했으면 그 안내 문구. 주면 입력이 잠기고 다시 시도 단추가 뜬다. */
+  loadError?: string | null;
+  /** 다시 시도 단추를 눌렀을 때 부모가 할 일. 없으면 부품이 스스로 다시 불러온다. */
+  onRetryLoad?: () => void;
+  /** 치던 글을 브라우저에 담아 둘 때 쓸 이름표. 없으면 담아 두기를 하지 않는다. */
+  draftId?: string;
+  /** 화면을 떠날 때 치던 글을 살려 보내는 통로(선택). 성공 여부는 알 수 없다. */
+  sendOnLeave?: (text: string) => void;
 }) {
   // helper — relative time (R6)
   const tf = timeFormatter ?? defaultTimeAgo;
@@ -171,6 +186,18 @@ export function HistoryPanel({
   const [loading, setLoading] = useState(!seedComments);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  // ★불러오기 실패를 성공으로 위장하지 않는다 — 전에는 실패해도 조용히 빈 목록을 그렸다.
+  const [selfLoadError, setSelfLoadError] = useState<string | null>(null);
+  // 한 번이라도 제대로 불러온 적이 있나 — 자동 새로고침이 한 번 삐끗했다고 입력칸을 없애면
+  // 치던 글이 통째로 날아간다(적대적 검토 지적). 첫 불러오기 실패만 잠근다.
+  const [everLoaded, setEverLoaded] = useState(false);
+  // ★부모가 준 목록이 실제로 바뀌면 따라간다(2026-08-26). 내용이 같으면 흔들지 않는다.
+  //  전에는 첫 그림 때 한 번만 쓰여서, 저장 실패로 부모가 목록을 되돌려도 화면엔 글이 남았다.
+  const seedSig = useMemo(
+    () => (seedComments ? seedComments.map((c) => `${c.id} ${c.text}`).join("") : ""),
+    [seedComments],
+  );
+  const lastSeedSigRef = useRef(seedSig);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   useAutoResizeTextarea(textareaRef, draft);
@@ -205,6 +232,13 @@ export function HistoryPanel({
     else window.alert(msg);
   }, [alertDialog]);
 
+  // 부모가 알려 준 실패가 우선(부모가 첫 불러오기를 맡은 구조), 없으면 부품이 스스로 겪은 실패.
+  const shownLoadError = loadError ?? selfLoadError;
+  // 못 불러온 상태에서 쓰면 "화면엔 있는데 서버엔 없는" 글이 생기고, 통째로 저장하는 구조라
+  // 서버의 기존 기록을 덮을 위험이 있다. 그래서 못 불러오면 입력·수정·삭제를 모두 잠근다.
+  //  ★단, 이미 제대로 불러온 적이 있으면(자동 새로고침이 잠깐 실패한 것) 잠그지 않는다.
+  const locked = readOnly || loadError !== null || (selfLoadError !== null && !everLoaded);
+
   // ─── 히스토리 수정·삭제 동작 ───
   // R7: use canEditOrDelete from core
   const canEditOrDelete = useCallback((c: UnifiedComment) => {
@@ -230,7 +264,8 @@ export function HistoryPanel({
       setComments(updated);
       cancelEdit();
     } catch (err) {
-      doAlert(err instanceof Error ? err.message : "수정 실패", { title: "오류" });
+      // 수정 모드를 닫지 않는다 — 고치던 글이 사라지지 않게.
+      doAlert(saveFailureMessage(err, "히스토리 수정"), { title: "저장 실패" });
     } finally {
       setEditSaving(false);
     }
@@ -244,7 +279,7 @@ export function HistoryPanel({
       setComments(updated);
       onCountChange?.(updated.length);
     } catch (err) {
-      doAlert(err instanceof Error ? err.message : "삭제 실패", { title: "오류" });
+      doAlert(saveFailureMessage(err, "히스토리 삭제"), { title: "삭제 실패" });
     }
   };
 
@@ -292,8 +327,12 @@ export function HistoryPanel({
       if (r.latestMemo !== undefined) setLatestMemo(r.latestMemo);
       if (r.memoCount !== undefined) setMemoCount(r.memoCount);
       onCountChange?.(r.comments.length);
+      setSelfLoadError(null);
+      setEverLoaded(true);
     } catch (err) {
+      // ★전에는 여기서 기록만 남기고 빈 목록을 그대로 뒀다 — 사용자는 "기록 0건"으로 읽었다.
       console.error("Failed to fetch comments:", err);
+      setSelfLoadError(loadFailureMessage(err));
     } finally {
       setLoading(false);
     }
@@ -308,6 +347,102 @@ export function HistoryPanel({
     }
     return undefined;
   }, [fetchComments, pollingIntervalMs]);
+
+  useEffect(() => {
+    if (!seedComments) return;
+    if (lastSeedSigRef.current === seedSig) return;
+    lastSeedSigRef.current = seedSig;
+    setComments(seedComments);
+    onCountChange?.(seedComments.length);
+  }, [seedSig, seedComments, onCountChange]);
+
+  // ─── 치던 글 지키기 (2026-08-26) ───────────────────────────────────────────
+  // ★"보냈다"를 믿지 않는다 — 떠나는 순간 보낸 요청의 성공 여부는 알 수 없으므로,
+  //   다시 열 때 **서버 목록과 대조해** 되살릴지 버릴지 판정한다.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const restoredRef = useRef(false);
+  /** 떠날 때 보내기를 이미 걸었나 — 브라우저가 떠남 신호를 두 번 줘도 한 번만 보낸다. */
+  const sentOnLeaveRef = useRef(false);
+
+  // ① 다시 열었을 때: 담아 둔 글이 서버에 없으면 입력칸에 되살린다.
+  useEffect(() => {
+    if (!draftId || restoredRef.current || loading) return;
+    // ★못 불러온 상태의 빈 목록을 "서버에 없다"로 믿으면, 이미 등록된 글을 또 되살려
+    //  사용자가 보내기를 누르는 순간 같은 글이 2건이 된다(적대적 검토 지적).
+    if (shownLoadError) return;
+    restoredRef.current = true;
+    const saved = readDraft(draftId);
+    if (!saved) return;
+    if (isDraftExpired(saved, Date.now())) {
+      clearDraft(draftId);
+      return;
+    }
+    if (!shouldRestoreDraft(saved.text, comments.map((c) => c.text))) {
+      clearDraft(draftId); // 떠날 때 보낸 것이 실제로 들어갔다 — 담아 둔 것을 버린다
+      return;
+    }
+    setDraft((cur) => (cur.trim() ? cur : saved.text));
+  }, [draftId, loading, comments, shownLoadError]);
+
+  // ② 치는 동안 계속 담아 둔다(잠깐 쉬었다 담아 두어 글자마다 저장하지 않게).
+  useEffect(() => {
+    if (!draftId) return;
+    // 되살리기 판정 전에 빈 값으로 덮으면 담아 둔 글이 판정도 못 받고 지워진다.
+    if (!restoredRef.current && !draft.trim()) return;
+    sentOnLeaveRef.current = false; // 글이 바뀌었으니 떠날 때 다시 보낼 수 있다
+    const t = window.setTimeout(() => writeDraft(draftId, draft), 400);
+    return () => window.clearTimeout(t);
+  }, [draftId, draft]);
+
+  // ③ 화면을 벗어날 때.
+  //    ★탭 전환·화면 잠금(hidden)에서는 **담아 두기만** 한다(적대적 검토 지적).
+  //      여기서 보내면 다른 탭을 잠깐 본 것만으로 반쯤 친 글이 진짜 기록으로 등록되고,
+  //      서버의 보호 규칙(화면이 못 본 글은 되살린다)이 그 반쪽 글을 영영 남긴다.
+  //    ★진짜 떠날 때만 보내되 **딱 한 번**만 보낸다 — 브라우저가 떠남 신호를 두 번 주기 때문에
+  //      막지 않으면 같은 글이 2건 등록된다.
+  useEffect(() => {
+    if (!draftId) return;
+    const stash = () => {
+      const text = draftRef.current;
+      if (text.trim()) writeDraft(draftId, text);
+    };
+    /** 돌려주는 값: true 면 "떠나도 괜찮냐" 경고를 띄워야 한다. */
+    const leave = (): boolean => {
+      const text = draftRef.current;
+      if (!text.trim()) return false;
+      writeDraft(draftId, text);            // ㉠ 먼저 확실히 담아 둔다
+      if (!sendOnLeave) return true;        // ㉢ 보낼 통로가 없다 → 경고
+      if (sentOnLeaveRef.current) return false; // 이미 보냈다
+      try {
+        sendOnLeave(text);                  // ㉡ 성공 여부는 알 수 없다 — 다시 열 때 대조해 판정
+        sentOnLeaveRef.current = true;
+        return false;
+      } catch {
+        return true;                        // 보내기 자체를 못 걸었다 → 경고
+      }
+    };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") stash();
+    };
+    const onPageHide = () => {
+      leave();
+    };
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!leave()) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      stash(); // 화면에서 사라질 때(상세창 닫기 등)도 담아 둔다 — 보내지는 않는다
+    };
+  }, [draftId, sendOnLeave]);
 
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -356,8 +491,11 @@ export function HistoryPanel({
     // R9: allow send when image present even if draft empty
     const hasText = draft.trim().length > 0;
     const hasImages = enableImagePaste && pastedImages.length > 0;
-    if ((!hasText && !hasImages) || sending || uploading) return;
+    if ((!hasText && !hasImages) || sending || uploading || locked) return;
     setSending(true);
+    // ★올린 이미지 주소까지 합친 본문. 저장이 실패하면 이걸 통째로 입력칸에 되살린다
+    //  (이미지는 이미 올라가 미리보기가 지워졌으므로, 본문만 되살리면 이미지 줄이 사라진다).
+    let composed = "";
     try {
       const imageUrls: string[] = [];
       if (hasImages) {
@@ -382,18 +520,24 @@ export function HistoryPanel({
         }
       }
       // R9: appendImageLines from core (이미지 줄이 있으면 본문과 합침)
-      const text = imageUrls.length > 0 ? appendImageLines(draft, imageUrls) : draft.trim();
-      if (!text) return;
+      composed = imageUrls.length > 0 ? appendImageLines(draft, imageUrls) : draft.trim();
+      if (!composed) return;
+      // 이미지가 붙었으면 입력칸도 합친 본문으로 맞춰 둔다 — 실패해도 이미지 줄이 남게.
+      if (imageUrls.length > 0) setDraft(composed);
 
       const submitCategory: CommentCategory = activeCategory === "all" ? "general" : activeCategory;
       // R4: use adapter.create
-      const updated = await adapter.create({ text, category: submitCategory });
+      const updated = await adapter.create({ text: composed, category: submitCategory });
       setComments(updated);
       onCountChange?.(updated.length);
       setDraft("");
+      if (draftId) clearDraft(draftId);
       textareaRef.current?.focus();
     } catch (err) {
+      // ★전에는 기록만 남기고 사용자에게 아무 안내가 없었다 — 저장된 줄 알고 창을 닫았다.
       console.error("Failed to send comment:", err);
+      if (composed) setDraft(composed);
+      doAlert(saveFailureMessage(err, "히스토리"), { title: "저장 실패" });
     } finally {
       setSending(false);
       setUploading(false);
@@ -737,7 +881,7 @@ export function HistoryPanel({
                     {tf(c.createdAt)}
                   </span>
                   <div className="ml-auto inline-flex items-center gap-1 opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 transition">
-                    {!readOnly && canEditOrDelete(c) && editingCommentId !== c.id && (
+                    {!locked && canEditOrDelete(c) && editingCommentId !== c.id && (
                       <>
                         <button
                           onClick={() => startEdit(c)}
@@ -848,8 +992,44 @@ export function HistoryPanel({
         <div ref={bottomRef} />
       </div>
 
+      {/* ★못 불러왔을 때 — 옛 값으로 위장하지 않고 사실대로 알리고 입력을 잠근다.
+          여기서 글을 쓰면 "화면엔 있는데 서버엔 없는" 어긋남이 생기고, 목록을 통째로
+          저장하는 구조라 서버의 기존 기록을 덮을 위험이 있다. */}
+      {shownLoadError && (
+        <div className="mx-3 mb-2 flex items-start gap-2.5 rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-3 py-2.5">
+          <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-wedly-red">
+            <AlertTriangle className="h-4 w-4 text-white" strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold text-wedly-red-ink break-keep">기록을 불러오지 못했어요</p>
+            <p className="mt-0.5 text-[12px] leading-relaxed text-wedly-t2 break-keep">{shownLoadError}</p>
+            {locked && (
+              <p className="mt-1 text-[12px] leading-relaxed text-wedly-t2 break-keep">
+                지금 쓰면 이미 있던 기록이 지워질 수 있어 입력을 잠갔습니다.
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (onRetryLoad) {
+                onRetryLoad();
+                return;
+              }
+              setLoading(true);
+              setSelfLoadError(null);
+              fetchComments();
+            }}
+            className="flex flex-shrink-0 items-center gap-1 self-center rounded-lg border border-wedly-bd bg-white px-2.5 py-1.5 text-[12px] font-semibold text-wedly-t1 hover:bg-wedly-bg-gray"
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+            다시 시도
+          </button>
+        </div>
+      )}
+
       {/* Composer — readOnly(보기전용)이면 작성칸 숨김 (노션 3867b6a9·하이브 정부지원금) */}
-      {!readOnly && (
+      {!locked && (
       <div className="border-t border-wedly-bd/60 px-4 py-3">
         {/* R9: image preview strip — only when enableImagePaste and images present */}
         {enableImagePaste && pastedImages.length > 0 && (
