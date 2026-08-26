@@ -29,7 +29,7 @@ export default function SectionHistoryPanel(props: {
   onPersist: (next: UnifiedComment[]) => void | Promise<void>;
   loadError?: string | null;
   onRetryLoad?: () => void;
-  sendOnLeave?: (text: string) => void;
+  sendOnLeave?: (next: UnifiedComment[]) => void;
 }) {
   const [userName, setUserName] = useState("나");
   useEffect(() => {
