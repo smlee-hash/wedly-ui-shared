@@ -25,7 +25,11 @@ async function getAuthUserName(): Promise<string> {
 export default function SectionHistoryPanel(props: {
   storageId: string;
   initial: UnifiedComment[];
-  onPersist: (next: UnifiedComment[]) => void;
+  /** ★기다릴 수 있는 모양으로 넓혔다(2026-08-26) — 여기가 좁으면 실패가 위로 못 올라간다. */
+  onPersist: (next: UnifiedComment[]) => void | Promise<void>;
+  loadError?: string | null;
+  onRetryLoad?: () => void;
+  sendOnLeave?: (text: string) => void;
 }) {
   const [userName, setUserName] = useState("나");
   useEffect(() => {
