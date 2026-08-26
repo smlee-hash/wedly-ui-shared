@@ -21,11 +21,14 @@ export function StatusBox({
   tone,
   title,
   children,
+  actions,
   className,
 }: {
   tone: keyof typeof TONES;
   title: string;
   children?: ReactNode;
+  /** 상자 안에 놓을 행동 단추(다시 시도·닫기 등). 없으면 아무것도 안 그린다. */
+  actions?: ReactNode;
   className?: string;
 }) {
   const t = TONES[tone];
@@ -43,6 +46,7 @@ export function StatusBox({
       <div className="min-w-0">
         <p className="text-wedly-sub font-semibold text-wedly-t1 break-keep">{title}</p>
         {children && <p className="mt-0.5 text-wedly-hint text-wedly-t2 break-keep">{children}</p>}
+        {actions && <div className="mt-2 flex flex-wrap items-center justify-end gap-2">{actions}</div>}
       </div>
     </div>
   );
