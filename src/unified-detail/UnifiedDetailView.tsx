@@ -9,6 +9,8 @@ import {
   type CustomerDetailLite,
   type DomainRowLite,
 } from "./lib/customer-detail";
+import { checkApiResult, makePersistError, failureReason, saveFailureMessage } from "../lib/persist-failure";
+import { DetailLoadStateProvider } from "./detail-load-state";
 import { DOMAIN_GROUPS, type DomainGroup } from "./lib/domain-config";
 import { getStatusDotClass } from "./lib/status-dot";
 import { normalizeBizno } from "./lib/secstore";
@@ -452,6 +454,8 @@ function SectionDetailPanel({
   const [secHistory, setSecHistory] = useState<UnifiedComment[] | undefined>(
     shared ? undefined : [],
   );
+  // ★불러오기 실패를 "행에 있던 옛 값"으로 덮지 않는다(2026-08-26). 값이 없는 것과 못 불러온 것은 다르다.
+  const [secHistoryError, setSecHistoryError] = useState<string | null>(null);
   const [secContract, setSecContract] = useState<unknown>(shared ? undefined : null);
   const [secRefund, setSecRefund] = useState<unknown>(shared ? undefined : null);
 
@@ -471,9 +475,24 @@ function SectionDetailPanel({
     [primaryId, onSaved, saveOwnField],
   );
 
+  // ★저장 실패를 **다시 던진다** — 전에는 handleUpdate 가 삼키고 자기가 알림창을 띄워,
+  //  히스토리 부품은 실패를 몰랐고(친 글이 사라짐) 알림창이 두 번 뜰 수도 있었다.
   const onPersistHistory = useCallback(
-    (next: UnifiedComment[]) => handleUpdate(nk("_history"), JSON.stringify(next)),
-    [handleUpdate, nk],
+    async (next: UnifiedComment[]) => {
+      if (!primaryId) throw makePersistError("server", "저장 대상을 찾지 못했습니다.");
+      const key = nk("_history");
+      const prev = localRowRef.current[key];
+      const val = JSON.stringify(next);
+      setLocalRow((r) => ({ ...r, [key]: val }));
+      try {
+        await saveOwnField(primaryId, key, val);
+        onSaved?.();
+      } catch (e) {
+        setLocalRow((r) => ({ ...r, [key]: prev }));
+        throw e;
+      }
+    },
+    [primaryId, nk, onSaved, saveOwnField],
   );
 
   const historyInitial = useMemo<UnifiedComment[]>(() => {
@@ -497,6 +516,7 @@ function SectionDetailPanel({
     if (!shared) {
       setSecSettlement(null);
       setSecHistory([]);
+      setSecHistoryError(null);
       setSecContract(null);
       setSecRefund(null);
       return;
@@ -504,6 +524,7 @@ function SectionDetailPanel({
     let alive = true;
     setSecSettlement(undefined);
     setSecHistory(undefined);
+    setSecHistoryError(null);
     setSecContract(undefined);
     setSecRefund(undefined);
     const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
@@ -538,14 +559,25 @@ function SectionDetailPanel({
         if (alive) setSecRefund(localRowRef.current[nk("환불정보_차수")] ?? null);
       });
     fetch(`${base}?kind=history`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((j) => {
+      .then(async (r) => {
+        const j = await r.json().catch(() => null);
         if (!alive) return;
-        const v = j?.success ? j.data : null;
+        const kind = checkApiResult(r, j);
+        if (kind !== "none") {
+          // 못 불러왔다 — 옛 값으로 위장하지 않는다. 부품이 입력을 잠그고 다시 시도를 띄운다.
+          setSecHistoryError(failureReason(kind));
+          setSecHistory([]);
+          return;
+        }
+        setSecHistoryError(null);
+        const v = j?.data ?? null;
+        // ★값이 없는 것(아직 공용 보관함에 저장 안 함)은 실패가 아니다 — 기존 이사 통로 유지.
         setSecHistory(Array.isArray(v) ? (v as UnifiedComment[]) : historyInitial);
       })
       .catch(() => {
-        if (alive) setSecHistory(historyInitial);
+        if (!alive) return;
+        setSecHistoryError(failureReason("network"));
+        setSecHistory([]);
       });
     return () => {
       alive = false;
@@ -557,15 +589,21 @@ function SectionDetailPanel({
   const saveSecstore = useCallback(
     async (kind: "settlement" | "history" | "contract" | "refund", value: unknown) => {
       const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
-      const res = await fetch(`${base}?kind=${kind}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value }),
-      });
-      if (!res.ok) {
-        if (res.status === 401) throw new Error("로그인이 필요합니다. 다시 로그인해 주세요.");
-        throw new Error("저장 실패");
+      let res: Response;
+      try {
+        res = await fetch(`${base}?kind=${kind}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value }),
+        });
+      } catch {
+        // 통신 자체가 끊긴 경우 — 브라우저가 던지는 영어 문구가 그대로 안내에 새지 않게 감싼다.
+        throw makePersistError("network", failureReason("network"));
       }
+      const j = await res.json().catch(() => null);
+      const bad = checkApiResult(res, j);
+      // ★로그인 만료는 405 로도 온다(로그인 화면으로 넘겨져서) — 상태코드 한 곳에서 판정한다.
+      if (bad !== "none") throw makePersistError(bad, failureReason(bad));
       onSaved?.();
     },
     [bizno, sectionKey, onSaved],
@@ -581,8 +619,7 @@ function SectionDetailPanel({
       setSecSettlement(json);
       saveSecstore("settlement", json).catch((e: unknown) => {
         setSecSettlement(prev);
-        const m = e instanceof Error ? e.message : "";
-        alert(m.includes("로그인") ? m : "'정산정보' 저장에 실패했습니다. 다시 시도해 주세요.");
+        alert(saveFailureMessage(e, "정산정보"));
       });
     },
     [shared, handleUpdate, nk, secSettlement, saveSecstore],
@@ -598,8 +635,7 @@ function SectionDetailPanel({
       setSecContract(json);
       saveSecstore("contract", json).catch((e: unknown) => {
         setSecContract(prev);
-        const m = e instanceof Error ? e.message : "";
-        alert(m.includes("로그인") ? m : "'계약정보' 저장에 실패했습니다. 다시 시도해 주세요.");
+        alert(saveFailureMessage(e, "계약정보"));
       });
     },
     [shared, handleUpdate, nk, secContract, saveSecstore],
@@ -615,28 +651,74 @@ function SectionDetailPanel({
       setSecRefund(json);
       saveSecstore("refund", json).catch((e: unknown) => {
         setSecRefund(prev);
-        const m = e instanceof Error ? e.message : "";
-        alert(m.includes("로그인") ? m : "'환불정보' 저장에 실패했습니다. 다시 시도해 주세요.");
+        alert(saveFailureMessage(e, "환불정보"));
       });
     },
     [shared, handleUpdate, nk, secRefund, saveSecstore],
   );
 
+  // ★되돌리기만 하고 **다시 던진다** — 안내는 히스토리 부품 한 곳에서만(알림창 두 번 방지).
   const onPersistHistoryRouted = useCallback(
-    (next: UnifiedComment[]) => {
+    async (next: UnifiedComment[]) => {
       if (!shared) {
-        onPersistHistory(next);
+        await onPersistHistory(next);
         return;
       }
       const prev = secHistory;
       setSecHistory(next);
-      saveSecstore("history", next).catch((e: unknown) => {
+      try {
+        await saveSecstore("history", next);
+      } catch (e) {
         setSecHistory(prev);
-        const m = e instanceof Error ? e.message : "";
-        alert(m.includes("로그인") ? m : "히스토리 저장에 실패했습니다. 다시 시도해 주세요.");
-      });
+        throw e;
+      }
     },
     [shared, onPersistHistory, secHistory, saveSecstore],
+  );
+
+  // "다시 불러오기"가 진짜 서버를 보게 한다(전에는 부품이 자기 목록을 돌려줬다).
+  const reloadHistory = useCallback(async (): Promise<UnifiedComment[]> => {
+    const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
+    let res: Response;
+    try {
+      res = await fetch(`${base}?kind=history`, { cache: "no-store" });
+    } catch {
+      throw makePersistError("network", failureReason("network"));
+    }
+    const j = await res.json().catch(() => null);
+    const bad = checkApiResult(res, j);
+    if (bad !== "none") throw makePersistError(bad, failureReason(bad));
+    const v = j?.data ?? null;
+    // 값이 없으면 처음 불러올 때와 같은 규칙(옛 값 폴백)을 쓴다 — 다시 시도가 목록을 비우면 안 된다.
+    const list = Array.isArray(v) ? (v as UnifiedComment[]) : historyInitial;
+    setSecHistory(list);
+    setSecHistoryError(null);
+    return list;
+  }, [bizno, sectionKey, historyInitial]);
+
+  // 화면을 떠날 때 치던 글을 살려 보낸다(keepalive). 성공 여부는 알 수 없어 "보냈다"를 믿지 않는다 —
+  // 다시 열 때 담아 둔 글을 서버 목록과 대조해 판정한다.
+  // ★글은 부품이 만들어 완성된 목록으로 넘겨 준다 — 작성자 이름·출처(erp/hive/illua)를
+  //  아는 곳이 부품이기 때문이다. 여기서 만들면 이름이 "나"로, 출처가 항상 erp 로 굳어
+  //  하이브·일루아에서 남의 앱 글로 표시되고 본인이 고치지도 못한다(2026-08-26 점검에서 잡음).
+  const sendHistoryOnLeave = useCallback(
+    (next: UnifiedComment[]) => {
+      if (!shared) return;
+      const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
+      const body = JSON.stringify({ value: next });
+      // 떠나면서 보내는 요청은 64KB 상한이 있다 — 넘으면 브라우저가 조용히 거부한다.
+      // 그럴 땐 오류를 던져 위쪽 부품이 "떠나도 괜찮냐" 경고를 띄우게 한다(글은 담아 둔 것으로 지킨다).
+      if (new Blob([body]).size > 60_000) throw makePersistError("network", failureReason("network"));
+      void fetch(`${base}?kind=history`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true,
+      }).catch(() => {
+        /* 떠나는 중이라 결과를 알 수 없다 — 담아 둔 글로 다시 열 때 판정한다 */
+      });
+    },
+    [shared, bizno, sectionKey],
   );
 
   const SUB_TABS: { key: SubTab; label: string }[] = [
@@ -682,6 +764,9 @@ function SectionDetailPanel({
                   storageId={`${bizno || primaryId}:${sectionKey}`}
                   initial={shared ? (secHistory ?? []) : historyInitial}
                   onPersist={onPersistHistoryRouted}
+                  loadError={shared ? secHistoryError : null}
+                  onRetryLoad={shared ? () => { void reloadHistory().catch(() => {}); } : undefined}
+                  sendOnLeave={shared ? sendHistoryOnLeave : undefined}
                 />
               </>
             )}
@@ -2168,6 +2253,9 @@ export default function UnifiedDetailView({
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // ★"행이 0건"과 "못 불러왔다"는 다르다 — 못 불러온 상태에서 첫 메모 입력칸이 열리면
+  //  거기 저장할 때 새 계약 줄이 생긴다(자료 어긋남). 아래 부품이 이 값을 보고 그 통로를 닫는다.
+  const [rowsLoadFailed, setRowsLoadFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<TopTab>("__basic__");
   const [subTab, setSubTab] = useState<SubTab>("history");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -2263,10 +2351,13 @@ export default function UnifiedDetailView({
       .then((data) => {
         if (!mountedRef.current) return;
         if (data) setDetail(data);
+        setRowsLoadFailed(false);
         if (!silent) setLoading(false);
       })
       .catch(() => {
         if (!mountedRef.current) return;
+        // 조용한 새로고침이어도 "못 불러왔다"는 기억한다 — 이후 판정이 이 값을 본다.
+        setRowsLoadFailed(true);
         if (!silent) {
           setError("정보를 불러오지 못했습니다. 다시 시도해 주세요.");
           setLoading(false);
@@ -2592,6 +2683,7 @@ export default function UnifiedDetailView({
 
   // ── 렌더 ──
   return (
+    <DetailLoadStateProvider rowsLoadFailed={rowsLoadFailed}>
     <FieldOptionsProvider value={adapter.fieldOptions}>
     <div
       className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center"
@@ -2816,5 +2908,6 @@ export default function UnifiedDetailView({
       </div>
     </div>
     </FieldOptionsProvider>
+    </DetailLoadStateProvider>
   );
 }
