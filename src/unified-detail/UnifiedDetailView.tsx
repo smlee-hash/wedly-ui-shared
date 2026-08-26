@@ -659,11 +659,17 @@ function SectionDetailPanel({
   const saveSecstore = useCallback(
     async (kind: "settlement" | "history" | "contract" | "refund", value: unknown) => {
       const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
-      const res = await fetch(`${base}?kind=${kind}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${base}?kind=${kind}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value }),
+        });
+      } catch {
+        // 통신 자체가 끊긴 경우 — 브라우저가 던지는 영어 문구가 그대로 안내에 새지 않게 감싼다.
+        throw makePersistError("network", failureReason("network"));
+      }
       const j = await res.json().catch(() => null);
       const bad = checkApiResult(res, j);
       // ★로그인 만료는 405 로도 온다(로그인 화면으로 넘겨져서) — 상태코드 한 곳에서 판정한다.
@@ -743,7 +749,12 @@ function SectionDetailPanel({
   // "다시 불러오기"가 진짜 서버를 보게 한다(전에는 부품이 자기 목록을 돌려줬다).
   const reloadHistory = useCallback(async (): Promise<UnifiedComment[]> => {
     const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
-    const res = await fetch(`${base}?kind=history`, { cache: "no-store" });
+    let res: Response;
+    try {
+      res = await fetch(`${base}?kind=history`, { cache: "no-store" });
+    } catch {
+      throw makePersistError("network", failureReason("network"));
+    }
     const j = await res.json().catch(() => null);
     const bad = checkApiResult(res, j);
     if (bad !== "none") throw makePersistError(bad, failureReason(bad));
@@ -764,10 +775,14 @@ function SectionDetailPanel({
     (next: UnifiedComment[]) => {
       if (!shared) return;
       const base = `/api/section-store/${encodeURIComponent(bizno)}/${encodeURIComponent(sectionKey)}`;
+      const body = JSON.stringify({ value: next });
+      // 떠나면서 보내는 요청은 64KB 상한이 있다 — 넘으면 브라우저가 조용히 거부한다.
+      // 그럴 땐 오류를 던져 위쪽 부품이 "떠나도 괜찮냐" 경고를 띄우게 한다(글은 담아 둔 것으로 지킨다).
+      if (new Blob([body]).size > 60_000) throw makePersistError("network", failureReason("network"));
       void fetch(`${base}?kind=history`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: next }),
+        body,
         keepalive: true,
       }).catch(() => {
         /* 떠나는 중이라 결과를 알 수 없다 — 담아 둔 글로 다시 열 때 판정한다 */
@@ -2341,11 +2356,16 @@ function WideSectionHistory({
       const prev = secHistory;
       setSecHistory(next);
       try {
-        const res = await fetch(`${base}?kind=history`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ value: next }),
-        });
+        let res: Response;
+        try {
+          res = await fetch(`${base}?kind=history`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ value: next }),
+          });
+        } catch {
+          throw makePersistError("network", failureReason("network"));
+        }
         const j = await res.json().catch(() => null);
         const bad = checkApiResult(res, j);
         if (bad !== "none") throw makePersistError(bad, failureReason(bad));
@@ -2359,7 +2379,12 @@ function WideSectionHistory({
   );
 
   const reloadHistory = useCallback(async (): Promise<UnifiedComment[]> => {
-    const res = await fetch(`${base}?kind=history`, { cache: "no-store" });
+    let res: Response;
+    try {
+      res = await fetch(`${base}?kind=history`, { cache: "no-store" });
+    } catch {
+      throw makePersistError("network", failureReason("network"));
+    }
     const j = await res.json().catch(() => null);
     const bad = checkApiResult(res, j);
     if (bad !== "none") throw makePersistError(bad, failureReason(bad));
@@ -2374,10 +2399,14 @@ function WideSectionHistory({
   const sendHistoryOnLeave = useCallback(
     (next: UnifiedComment[]) => {
       if (!shared) return;
+      const body = JSON.stringify({ value: next });
+      // 떠나면서 보내는 요청은 64KB 상한이 있다 — 넘으면 브라우저가 조용히 거부한다.
+      // 그럴 땐 오류를 던져 위쪽 부품이 "떠나도 괜찮냐" 경고를 띄우게 한다(글은 담아 둔 것으로 지킨다).
+      if (new Blob([body]).size > 60_000) throw makePersistError("network", failureReason("network"));
       void fetch(`${base}?kind=history`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: next }),
+        body,
         keepalive: true,
       }).catch(() => {
         /* 떠나는 중이라 결과를 알 수 없다 — 다시 열 때 대조해 판정한다 */

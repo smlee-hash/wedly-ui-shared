@@ -188,6 +188,9 @@ export function HistoryPanel({
   const [sending, setSending] = useState(false);
   // ★불러오기 실패를 성공으로 위장하지 않는다 — 전에는 실패해도 조용히 빈 목록을 그렸다.
   const [selfLoadError, setSelfLoadError] = useState<string | null>(null);
+  // 한 번이라도 제대로 불러온 적이 있나 — 자동 새로고침이 한 번 삐끗했다고 입력칸을 없애면
+  // 치던 글이 통째로 날아간다(적대적 검토 지적). 첫 불러오기 실패만 잠근다.
+  const [everLoaded, setEverLoaded] = useState(false);
   // ★부모가 준 목록이 실제로 바뀌면 따라간다(2026-08-26). 내용이 같으면 흔들지 않는다.
   //  전에는 첫 그림 때 한 번만 쓰여서, 저장 실패로 부모가 목록을 되돌려도 화면엔 글이 남았다.
   const seedSig = useMemo(
@@ -233,7 +236,8 @@ export function HistoryPanel({
   const shownLoadError = loadError ?? selfLoadError;
   // 못 불러온 상태에서 쓰면 "화면엔 있는데 서버엔 없는" 글이 생기고, 통째로 저장하는 구조라
   // 서버의 기존 기록을 덮을 위험이 있다. 그래서 못 불러오면 입력·수정·삭제를 모두 잠근다.
-  const locked = readOnly || shownLoadError !== null;
+  //  ★단, 이미 제대로 불러온 적이 있으면(자동 새로고침이 잠깐 실패한 것) 잠그지 않는다.
+  const locked = readOnly || loadError !== null || (selfLoadError !== null && !everLoaded);
 
   // ─── 히스토리 수정·삭제 동작 ───
   // R7: use canEditOrDelete from core
@@ -324,6 +328,7 @@ export function HistoryPanel({
       if (r.memoCount !== undefined) setMemoCount(r.memoCount);
       onCountChange?.(r.comments.length);
       setSelfLoadError(null);
+      setEverLoaded(true);
     } catch (err) {
       // ★전에는 여기서 기록만 남기고 빈 목록을 그대로 뒀다 — 사용자는 "기록 0건"으로 읽었다.
       console.error("Failed to fetch comments:", err);
@@ -357,10 +362,15 @@ export function HistoryPanel({
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const restoredRef = useRef(false);
+  /** 떠날 때 보내기를 이미 걸었나 — 브라우저가 떠남 신호를 두 번 줘도 한 번만 보낸다. */
+  const sentOnLeaveRef = useRef(false);
 
   // ① 다시 열었을 때: 담아 둔 글이 서버에 없으면 입력칸에 되살린다.
   useEffect(() => {
     if (!draftId || restoredRef.current || loading) return;
+    // ★못 불러온 상태의 빈 목록을 "서버에 없다"로 믿으면, 이미 등록된 글을 또 되살려
+    //  사용자가 보내기를 누르는 순간 같은 글이 2건이 된다(적대적 검토 지적).
+    if (shownLoadError) return;
     restoredRef.current = true;
     const saved = readDraft(draftId);
     if (!saved) return;
@@ -373,48 +383,64 @@ export function HistoryPanel({
       return;
     }
     setDraft((cur) => (cur.trim() ? cur : saved.text));
-  }, [draftId, loading, comments]);
+  }, [draftId, loading, comments, shownLoadError]);
 
   // ② 치는 동안 계속 담아 둔다(잠깐 쉬었다 담아 두어 글자마다 저장하지 않게).
   useEffect(() => {
     if (!draftId) return;
+    // 되살리기 판정 전에 빈 값으로 덮으면 담아 둔 글이 판정도 못 받고 지워진다.
+    if (!restoredRef.current && !draft.trim()) return;
+    sentOnLeaveRef.current = false; // 글이 바뀌었으니 떠날 때 다시 보낼 수 있다
     const t = window.setTimeout(() => writeDraft(draftId, draft), 400);
     return () => window.clearTimeout(t);
   }, [draftId, draft]);
 
-  // ③ 떠나려 할 때: ㉠ 먼저 확실히 담아 두고 ㉡ 떠나면서도 살아남는 방식으로 보내기를 시도하고
-  //    ㉢ 보내기 통로가 없으면 떠남 경고를 띄운다.
+  // ③ 화면을 벗어날 때.
+  //    ★탭 전환·화면 잠금(hidden)에서는 **담아 두기만** 한다(적대적 검토 지적).
+  //      여기서 보내면 다른 탭을 잠깐 본 것만으로 반쯤 친 글이 진짜 기록으로 등록되고,
+  //      서버의 보호 규칙(화면이 못 본 글은 되살린다)이 그 반쪽 글을 영영 남긴다.
+  //    ★진짜 떠날 때만 보내되 **딱 한 번**만 보낸다 — 브라우저가 떠남 신호를 두 번 주기 때문에
+  //      막지 않으면 같은 글이 2건 등록된다.
   useEffect(() => {
     if (!draftId) return;
-    const flush = () => {
+    const stash = () => {
+      const text = draftRef.current;
+      if (text.trim()) writeDraft(draftId, text);
+    };
+    /** 돌려주는 값: true 면 "떠나도 괜찮냐" 경고를 띄워야 한다. */
+    const leave = (): boolean => {
       const text = draftRef.current;
       if (!text.trim()) return false;
-      writeDraft(draftId, text); // ㉠
-      if (sendOnLeave) {
-        try {
-          sendOnLeave(text); // ㉡ 성공 여부는 알 수 없다 — 다시 열 때 대조해 판정한다
-          return false;
-        } catch {
-          /* 보내기 자체를 못 걸었다 → 아래 경고로 */
-        }
+      writeDraft(draftId, text);            // ㉠ 먼저 확실히 담아 둔다
+      if (!sendOnLeave) return true;        // ㉢ 보낼 통로가 없다 → 경고
+      if (sentOnLeaveRef.current) return false; // 이미 보냈다
+      try {
+        sendOnLeave(text);                  // ㉡ 성공 여부는 알 수 없다 — 다시 열 때 대조해 판정
+        sentOnLeaveRef.current = true;
+        return false;
+      } catch {
+        return true;                        // 보내기 자체를 못 걸었다 → 경고
       }
-      return true; // ㉢
+    };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") stash();
+    };
+    const onPageHide = () => {
+      leave();
     };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!flush()) return;
+      if (!leave()) return;
       e.preventDefault();
       e.returnValue = "";
     };
-    const onHide = () => {
-      if (document.visibilityState === "hidden") flush();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
     document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("visibilitychange", onHide);
-      // 화면에서 사라질 때(상세창 닫기 등)도 담아 둔다.
-      if (draftRef.current.trim()) writeDraft(draftId, draftRef.current);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      stash(); // 화면에서 사라질 때(상세창 닫기 등)도 담아 둔다 — 보내지는 않는다
     };
   }, [draftId, sendOnLeave]);
 
@@ -977,9 +1003,11 @@ export function HistoryPanel({
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-semibold text-wedly-red-ink break-keep">기록을 불러오지 못했어요</p>
             <p className="mt-0.5 text-[12px] leading-relaxed text-wedly-t2 break-keep">{shownLoadError}</p>
-            <p className="mt-1 text-[12px] leading-relaxed text-wedly-t2 break-keep">
-              지금 쓰면 이미 있던 기록이 지워질 수 있어 입력을 잠갔습니다.
-            </p>
+            {locked && (
+              <p className="mt-1 text-[12px] leading-relaxed text-wedly-t2 break-keep">
+                지금 쓰면 이미 있던 기록이 지워질 수 있어 입력을 잠갔습니다.
+              </p>
+            )}
           </div>
           <button
             type="button"

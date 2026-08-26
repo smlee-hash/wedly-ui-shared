@@ -68,12 +68,24 @@ export function failureReason(kind: PersistFailureKind): string {
   }
 }
 
-/** 오류에 자기 안내 문구가 붙어 있나(어댑터가 준 안내 — 뭉개면 안 된다). */
+/**
+ * 오류에 자기 안내 문구가 붙어 있나(어댑터가 준 안내 — 뭉개면 안 된다).
+ *
+ * ★브라우저가 스스로 만든 오류는 걸러낸다. 통신이 끊기면 브라우저가 영어로
+ *   "Failed to fetch" 같은 문구를 던지는데, 그걸 사람 안내로 오인해 그대로
+ *   보여 주면 안내가 영어로 나간다(적대적 검토 지적 · 프로젝트 규칙은 한국어).
+ */
 function ownMessage(err: unknown): string {
   const kind = (err as { persistKind?: unknown } | null | undefined)?.persistKind;
   if (kind === "auth" || kind === "server" || kind === "network") return "";
+  const name = (err as { name?: unknown } | null | undefined)?.name;
+  if (name === "TypeError" || name === "AbortError" || name === "NetworkError") return "";
   const m = (err as { message?: unknown } | null | undefined)?.message;
-  return typeof m === "string" ? m.trim() : "";
+  if (typeof m !== "string") return "";
+  const t = m.trim();
+  // 한글이 한 글자도 없는 문구는 브라우저·라이브러리가 만든 것으로 보고 쓰지 않는다.
+  if (!/[가-힣]/.test(t)) return "";
+  return t;
 }
 
 /** 저장 실패 안내. `label` 은 무엇을 저장하려 했는지("히스토리"·"정산정보"). */

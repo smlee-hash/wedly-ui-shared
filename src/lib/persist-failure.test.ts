@@ -105,3 +105,34 @@ describe("failureReason", () => {
     expect(failureReason("none")).toBe("");
   });
 });
+
+describe("saveFailureMessage — 브라우저가 만든 영어 오류 (2026-08-26 적대적 검토)", () => {
+  it("★통신이 끊겨 브라우저가 던진 영어 문구를 사람 안내로 오인하지 않는다", () => {
+    const err = new TypeError("Failed to fetch");
+    const msg = saveFailureMessage(err, "히스토리");
+    expect(msg).not.toContain("Failed to fetch");
+    expect(msg).toContain("연결");
+  });
+
+  it("이름이 없어도 한글이 한 글자도 없으면 쓰지 않는다", () => {
+    const err = new Error("NetworkError when attempting to fetch resource.");
+    expect(saveFailureMessage(err, "히스토리")).not.toContain("NetworkError");
+  });
+
+  it("한글 안내가 붙은 오류는 그대로 살린다(하이브 작성 불가 안내)", () => {
+    const err = new Error("이 앱에서는 정부지원금 히스토리를 작성할 수 없습니다.");
+    expect(saveFailureMessage(err, "히스토리")).toContain("이 앱에서는 정부지원금 히스토리를 작성할 수 없습니다.");
+  });
+
+  it("취소된 요청도 영어가 새지 않는다", () => {
+    const err = new Error("The user aborted a request.");
+    err.name = "AbortError";
+    expect(saveFailureMessage(err, "히스토리")).not.toContain("aborted");
+  });
+});
+
+describe("loadFailureMessage — 같은 규칙", () => {
+  it("브라우저 영어 문구가 불러오기 안내로도 새지 않는다", () => {
+    expect(loadFailureMessage(new TypeError("Failed to fetch"))).not.toContain("Failed to fetch");
+  });
+});
