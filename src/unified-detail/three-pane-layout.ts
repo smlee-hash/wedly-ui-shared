@@ -48,8 +48,12 @@ export function centerPaneClass(
   hasTrackRail: boolean,
 ): string {
   if (narrowSwitch && narrowPane !== "center") return "hidden";
-  // 레일이 있는 넓은 화면만 가운데 360px 하한 — 자리가 모자라면 레일이 줄어들고 가운데가 남는다.
-  if (!narrowSwitch && hasTrackRail) return "flex-1 min-w-[360px] flex flex-col min-h-0";
+  // 레일이 있는 넓은 화면만 가운데에 하한을 둔다 — 자리가 모자라면 레일이 줄고 가운데가 남는다.
+  // 하한값은 **이 변경 전 오른쪽 칸의 폭 그대로**(380px / 2xl 520px)다. 그래야 레일을 펼쳐도
+  // 「기존 상세정보 영역」이 예전보다 좁아지는 순간이 없다(요청서 「사용에 불편이 없도록」).
+  if (!narrowSwitch && hasTrackRail) {
+    return "flex-1 min-w-[380px] 2xl:min-w-[520px] flex flex-col min-h-0";
+  }
   return "flex-1 min-w-0 flex flex-col";
 }
 

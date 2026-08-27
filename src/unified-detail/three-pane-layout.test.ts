@@ -28,7 +28,7 @@ const SIDE_RAIL_CLOSED =
   "w-[44px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
 const SIDE_RAIL_OPEN =
   "w-[600px] 2xl:w-[760px] min-w-[320px] border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
-const CENTER_WIDE_WITH_RAIL = "flex-1 min-w-[360px] flex flex-col min-h-0";
+const CENTER_WIDE_WITH_RAIL = "flex-1 min-w-[380px] 2xl:min-w-[520px] flex flex-col min-h-0";
 
 const PANES: PaneName[] = ["basic", "center", "side"];
 const RAIL_WIDTH_CLASSES = ["w-[44px]", "w-[600px]", "2xl:w-[760px]"];
@@ -77,11 +77,11 @@ describe("레일 없음 — 하이브·일루아 불변", () => {
     expect(sidePaneClass(true, "center", { rail: false, railOpen: false })).toBe("hidden");
   });
 
-  it("레일 없을 때 가운데는 min-w-0 이고 min-w-[360px] 이 없다", () => {
+  it("레일 없을 때 가운데는 min-w-0 이고 min-w-[380px] 2xl:min-w-[520px] 이 없다", () => {
     const cls = centerPaneClass(false, "center", false);
     expect(cls).toBe(CENTER_WIDE);
     expect(cls).toContain("min-w-0");
-    expect(cls).not.toContain("min-w-[360px]");
+    expect(cls).not.toContain("min-w-[380px] 2xl:min-w-[520px]");
   });
 });
 
@@ -90,14 +90,14 @@ describe("레일 있음 — 오른쪽이 접이식, 가운데가 flex-1", () => 
     expect(basicPaneClass(false, "center")).toBe(BASIC_WIDE);
     expect(centerPaneClass(false, "center", true)).toBe(CENTER_WIDE_WITH_RAIL);
     expect(centerPaneClass(false, "center", true)).toContain("flex-1");
-    expect(centerPaneClass(false, "center", true)).toContain("min-w-[360px]");
+    expect(centerPaneClass(false, "center", true)).toContain("min-w-[380px] 2xl:min-w-[520px]");
   });
 
-  it("레일 있을 때 가운데는 min-w-[360px] 이고 레일 없을 때는 min-w-0", () => {
-    expect(centerPaneClass(false, "center", true)).toContain("min-w-[360px]");
+  it("레일 있을 때 가운데는 min-w-[380px] 2xl:min-w-[520px] 이고 레일 없을 때는 min-w-0", () => {
+    expect(centerPaneClass(false, "center", true)).toContain("min-w-[380px] 2xl:min-w-[520px]");
     expect(centerPaneClass(false, "center", true)).not.toContain("min-w-0");
     expect(centerPaneClass(false, "center", false)).toContain("min-w-0");
-    expect(centerPaneClass(false, "center", false)).not.toContain("min-w-[360px]");
+    expect(centerPaneClass(false, "center", false)).not.toContain("min-w-[380px] 2xl:min-w-[520px]");
   });
 
   it("접히면 오른쪽이 44px 이고 flex-shrink-0 을 유지한다", () => {
