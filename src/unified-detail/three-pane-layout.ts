@@ -41,18 +41,30 @@ export function threePaneSlots(hasTrackRail: boolean): {
     : { center: "plain", side: "detail" };
 }
 
-/** 가운데 칸 className — 레일이 있으면 여기에 「정보·기록」이 들어온다. */
+/**
+ * 가운데 칸 className — 레일이 있으면 여기에 「정보·기록」이 들어온다.
+ * railOpen 은 밖에서 세 개만 넘겨 부르던 코드가 안 깨지게 기본값 false.
+ * 레일이 없는 경로에서는 이 값을 아예 안 쓰므로 기본값이 옛 동작과 같다.
+ */
 export function centerPaneClass(
   narrowSwitch: boolean,
   narrowPane: PaneName,
   hasTrackRail: boolean,
+  railOpen: boolean = false,
 ): string {
   if (narrowSwitch && narrowPane !== "center") return "hidden";
-  // 레일이 있는 넓은 화면만 가운데에 하한을 둔다 — 자리가 모자라면 레일이 줄고 가운데가 남는다.
-  // 하한값은 **이 변경 전 오른쪽 칸의 폭 그대로**(380px / 2xl 520px)다. 그래야 레일을 펼쳐도
-  // 「기존 상세정보 영역」이 예전보다 좁아지는 순간이 없다(요청서 「사용에 불편이 없도록」).
   if (!narrowSwitch && hasTrackRail) {
-    return "flex-1 min-w-[380px] 2xl:min-w-[520px] flex flex-col min-h-0";
+    // 펼침: 가운데를 옛 오른쪽 칸 폭으로 고정해, 남는 자리를 업무 현황이 가져가게 한다.
+    // 하한 260: 좌 320 + 가운데 260 + 레일 380 = 960 ≤ 983(1024px 화면의 모달 96vw) → 더 이상 안 잘린다.
+    // 레일이 가운데보다 항상 넓다: 남는 자리 A = 모달폭 − 좌단. A < 760 이면 레일이 하한 380 을 잡고
+    // 가운데가 A−380(<380) 으로 줄어 레일이 넓다. A ≥ 760 이면 가운데가 380 을 유지하고
+    // 레일이 A−380 ≥ 380 이라 역시 레일이 넓다. 2xl(좌 400·가운데 520)에서도
+    // 가장 좁은 1536px 화면이 모달 1475 → 레일 555 > 520 이라 레일이 넓다.
+    if (railOpen) {
+      return "w-[380px] 2xl:w-[520px] min-w-[260px] flex flex-col min-h-0";
+    }
+    // 접힘: 손잡이만 남으므로 가운데가 남는 자리를 다 쓴다.
+    return "flex-1 min-w-0 flex flex-col min-h-0";
   }
   return "flex-1 min-w-0 flex flex-col";
 }
@@ -73,6 +85,11 @@ export function sidePaneClass(
   if (!opts.railOpen) {
     return "w-[44px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
   }
-  // 펼침은 선호 폭이지 고정폭이 아니다. flex-shrink-0 을 빼야 가운데(360px 하한)가 남을 자리가 생긴다.
-  return "w-[600px] 2xl:w-[760px] min-w-[320px] border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
+  // 펼침: 고정폭을 버리고 남는 자리를 전부 가져간다. 가운데가 옛 오른쪽 칸 폭으로 고정돼 있기 때문이다.
+  // 하한 380: 좌 320 + 가운데 260 + 레일 380 = 960 ≤ 983(1024px 화면의 모달 96vw) → 더 이상 안 잘린다.
+  // 레일이 가운데보다 항상 넓다: 남는 자리 A = 모달폭 − 좌단. A < 760 이면 레일이 하한 380 을 잡고
+  // 가운데가 A−380(<380) 으로 줄어 레일이 넓다. A ≥ 760 이면 가운데가 380 을 유지하고
+  // 레일이 A−380 ≥ 380 이라 역시 레일이 넓다. 2xl(좌 400·가운데 520)에서도
+  // 가장 좁은 1536px 화면이 모달 1475 → 레일 555 > 520 이라 레일이 넓다.
+  return "flex-1 min-w-[380px] border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
 }

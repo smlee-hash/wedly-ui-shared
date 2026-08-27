@@ -3588,27 +3588,34 @@ export default function UnifiedDetailView({
             railHandle={
               // 좁은 화면은 위 3버튼이 이미 전환이라 손잡이를 그리지 않는다.
               hasTrackRail && !narrowSwitch ? (
+                    // 같은 렌더에서 붙여야 넓어진 빈 칸이 한 프레임 안 보인다
                     <button
                       type="button"
-                      onClick={() => setTrackRailOpen((v) => !v)}
+                      onClick={() => { setTrackRailOpen((v) => !v); setTrackEverShown(true); }}
                       aria-expanded={trackRailOpen}
                       aria-label={trackRailOpen ? "업무 현황 접기" : "업무 현황 펼치기"}
                       title={trackRailOpen ? "업무 현황 접기" : "업무 현황 펼치기"}
                       className={
                         trackRailOpen
                           ? "flex-shrink-0 flex items-center gap-1 h-10 px-2 border-b border-wedly-bd/60 text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
-                          : "flex-1 w-full flex flex-col items-center justify-center gap-2 py-3 bg-wedly-bg-gray/50 text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
+                          : "flex-1 w-full flex flex-col items-center justify-center gap-2 py-3 bg-wedly-bg-blue text-wedly-accent-ink hover:bg-wedly-bg-blue/70 transition-colors"
                       }
                     >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <svg
+                        width={trackRailOpen ? "16" : "18"}
+                        height={trackRailOpen ? "16" : "18"}
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        aria-hidden="true"
+                      >
                         {trackRailOpen ? (
-                          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        ) : (
                           <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        ) : (
+                          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         )}
                       </svg>
                       {!trackRailOpen && (
-                        <span className="text-[12px] font-semibold text-wedly-t1" style={{ writingMode: "vertical-rl" }}>
+                        <span className="text-[12px] font-semibold" style={{ writingMode: "vertical-rl" }}>
                           업무 현황
                         </span>
                       )}

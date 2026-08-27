@@ -56,7 +56,7 @@ export function ThreePaneShell(props: ThreePaneShellProps): ReactElement {
   return (
     <div className="flex flex-1 min-h-0">
       <aside className={basicPaneClass(narrowSwitch, narrowPane)}>{basicPane}</aside>
-      <main className={centerPaneClass(narrowSwitch, narrowPane, hasTrackRail)}>
+      <main className={centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen)}>
         {slots.center === "detail" ? detailPane : plainCenterPane}
       </main>
       <aside className={sidePaneClass(narrowSwitch, narrowPane, { rail: hasTrackRail, railOpen })}>
