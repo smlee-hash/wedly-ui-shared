@@ -3567,7 +3567,8 @@ export default function UnifiedDetailView({
             }
             detailPane={hasTrackRail ? <>{errorBlock}{sideContent}</> : sideContent}
             plainCenterPane={centerContent}
-            {/* 첫 펼침 때 붙이고, 그 뒤엔 hidden 으로만 감춘다 — 접힌 채로 미리 마운트하면 헛통신·폭 0 측정이 난다. */}
+            // 첫 펼침 때 붙이고, 그 뒤엔 hidden 으로만 감춘다 — 접힌 채로 미리 마운트하면 헛통신·폭 0 측정이 난다.
+            // (JSX 속성 자리에 {/* */} 주석을 두면 펼침 연산자로 해석돼 문법 오류가 난다 — 2026-08-27 ERP 빌드가 잡음)
             trackPane={
               !error && WideCenterPanel && trackEverShown && (
                 <div className={trackVisible ? "flex-1 min-h-0 overflow-y-auto" : "hidden"}>
