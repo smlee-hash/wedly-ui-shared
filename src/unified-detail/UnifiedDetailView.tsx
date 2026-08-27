@@ -41,6 +41,8 @@ import { applyTabConfig } from "./lib/unified-tab-config";
 import type { BasicRecord } from "./adapter-types";
 import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
+import { narrowPaneTabs } from "./three-pane-layout";
+import { ThreePaneShell } from "./ThreePaneShell";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -2595,6 +2597,9 @@ export default function UnifiedDetailView({
   const [topCustom, setTopCustom] = useState<Array<{ id: string; label: string }>>([]);
   const [topTabEditMode, setTopTabEditMode] = useState(false);
   const [wideSide, setWideSide] = useState<"info" | "history" | "files">("history");
+  // 오른쪽 「업무 현황」 레일 — 항상 접힌 채로 시작한다(요청서 「기본적으로는 접힌 상태로 표시」,
+  // 사장님 결정 2026-08-27 「기억하지 않음」). 저장·복원 없음.
+  const [trackRailOpen, setTrackRailOpen] = useState(false);
   const [wideViewport, setWideViewport] = useState(() => {
     if (layout !== "wide") return false;
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
@@ -2623,6 +2628,20 @@ export default function UnifiedDetailView({
   // 3분할 내용을 쓰는 상태(넓은 화면 나란히 / 좁은 화면 전환) — 선언 순서를 위해 여기서 계산.
   const threePane = layout === "wide" && !isNew;
   const [narrowPane, setNarrowPane] = useState<"basic" | "center" | "side">("center");
+  // 지금 업무 현황이 눈에 보이는가(넓은 화면=펼침 / 좁은 화면=그 탭 선택).
+  const trackVisible = narrowSwitch ? narrowPane === "side" : trackRailOpen;
+  // 한 번이라도 보인 뒤에는 계속 붙여 둔다 — 다시 펼칠 때 목록을 다시 부르지 않기 위해.
+  const [trackEverShown, setTrackEverShown] = useState(false);
+  useEffect(() => {
+    if (trackVisible && !trackEverShown) setTrackEverShown(true);
+  }, [trackVisible, trackEverShown]);
+  // 좁은 화면에서 「업무 현황」을 보다가 창이 넓어지면 그 칸이 사라지지 않게 레일을 연다.
+  // 「상세창을 새로 열면 항상 접힘」은 초깃값 false 로 유지한다.
+  useEffect(() => {
+    if (!narrowSwitch && narrowPane === "side") setTrackRailOpen(true);
+    // narrowPane 은 일부러 의존 목록에서 뺀다 — 넓은 화면에서 값이 남아 있다고 다시 열면 안 된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [narrowSwitch]);
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
@@ -3142,99 +3161,26 @@ export default function UnifiedDetailView({
         {label}
       </button>
     );
-    return (
-      <FieldOptionsProvider value={adapter.fieldOptions}>
-      <div
-        className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center"
-        onClick={handleClose}
-      >
-        <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
-        <div
-          className={`relative bg-white shadow-2xl w-full h-full flex flex-col rounded-none overflow-hidden animate-modal-in ${narrowSwitch ? "" : "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl"}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="border-b border-wedly-bd/60 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2">
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-wedly-navy flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                {company.charAt(0) || "G"}
-              </div>
-              <EditableTitle
-                value={nameValue}
-                placeholder="통합 보기"
-                onSave={(v) => saveName(v)}
-              />
-              {headerChips.length > 0 && (
-                <div className="flex items-center gap-1 overflow-x-auto min-w-0">
-                  {headerChips.map((chip) => (
-                    <span
-                      key={chip.key}
-                      className="rounded-full bg-wedly-bg-gray border border-wedly-bd px-2.5 py-0.5 text-[11px] text-wedly-t2 whitespace-nowrap"
-                    >
-                      {chip.text}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {loading && (
-                <span className="text-[11px] text-wedly-accent animate-pulse flex-shrink-0">불러오는 중...</span>
-              )}
-            </div>
-            <button
-              onClick={handleClose}
-              className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-wedly-bg-gray text-wedly-t2 hover:text-wedly-t2 transition-colors flex-shrink-0"
-              aria-label="닫기"
-            >
-              <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
+    // ERP 만 가운데 고정 조각을 넣는다. 없으면 지금 3분할 그대로(하이브·일루아 한 픽셀도 안 바뀜).
+    const hasTrackRail = Boolean(WideCenterPanel);
 
-          {/* 좁은 화면(휴대폰) — 위쪽 단추로 세 칸 전환(PC 와 같은 짜임: 위=고르기, 아래=내용). */}
-          {narrowSwitch && (
-            <div className="flex items-stretch gap-1 border-b border-wedly-bd/60 bg-white px-2 py-2 flex-shrink-0">
-              {([
-                ["basic", "기본정보"],
-                ["center", "업무 현황"],
-                ["side", "정보 · 기록"],
-              ] as Array<["basic" | "center" | "side", string]>).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setNarrowPane(key)}
-                  className={`flex-1 rounded-xl px-2 py-2 text-[13px] font-semibold break-keep ${
-                    narrowPane === key
-                      ? "bg-wedly-bg-blue text-wedly-accent-ink"
-                      : "text-wedly-t2 hover:bg-wedly-bg-gray"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="flex flex-1 min-h-0">
-            <aside className={narrowSwitch ? (narrowPane === "basic" ? "flex-1 min-w-0 overflow-y-auto" : "hidden") : "w-[320px] 2xl:w-[400px] flex-shrink-0 border-r border-wedly-bd/60 overflow-y-auto"}>
-              <BasicInfoPanel
-                row={row}
-                detail={detail}
-                loading={loading}
-                onOpenTab={openGroupTab}
-                onSaved={handleSaved}
-                isAdmin={isAdmin}
-                orderedGroups={orderedGroups}
-                saveOwnField={adapter.api.saveOwnField}
-                ownDomain={adapter.ownDomain}
-                loadColumnConfig={adapter.api.loadColumnConfig}
-                saveColumnConfig={adapter.api.saveColumnConfig}
-                loadManagers={adapter.api.loadManagers}
-                adapter={adapter}
-                hiddenColumnKeys={hiddenColumnKeys}
-                stacked
-              />
-            </aside>
+    const errorBlock = (
+      <>
+                {error && (
+                  <div className="p-6">
+                    <div className="rounded-xl border border-wedly-bd-red bg-wedly-bg-red px-4 py-3 text-[13px] text-wedly-red-ink">
+                      {error}
+                      <div className="mt-3 border-t border-wedly-bd-red/60 pt-3 text-wedly-t2">
+                        <span className="font-medium">경정청구 기본 정보:</span> {company}
+                      </div>
+                    </div>
+                  </div>
+                )}
+      </>
+    );
 
-            <main className={narrowSwitch ? (narrowPane === "center" ? "flex-1 min-w-0 flex flex-col" : "hidden") : "flex-1 min-w-0 flex flex-col"}>
+    const centerContent = (
+      <>
               <div className="flex-1 min-h-0 overflow-y-auto">
                 {error && (
                   <div className="p-6">
@@ -3328,9 +3274,11 @@ export default function UnifiedDetailView({
                   </>
                 )}
               </div>
-            </main>
+      </>
+    );
 
-            <aside className={narrowSwitch ? (narrowPane === "side" ? "flex-1 min-w-0 flex flex-col min-h-0" : "hidden") : "w-[380px] 2xl:w-[520px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0"}>
+    const sideContent = (
+      <>
               {/* 분야 탭 줄 — 3분할에서는 오른쪽 패널 맨 위로(원래 상세창 모습을 통째로 오른쪽에). */}
               <div className="flex items-center gap-1 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 py-2">
                 <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
@@ -3523,8 +3471,150 @@ export default function UnifiedDetailView({
               ) : (
                 <WideFilesPane row={row} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
               )}
-            </aside>
+      </>
+    );
+
+    return (
+      <FieldOptionsProvider value={adapter.fieldOptions}>
+      <div
+        className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center"
+        onClick={handleClose}
+      >
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+        <div
+          className={`relative bg-white shadow-2xl w-full h-full flex flex-col rounded-none overflow-hidden animate-modal-in ${narrowSwitch ? "" : "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl"}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="border-b border-wedly-bd/60 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-wedly-navy flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                {company.charAt(0) || "G"}
+              </div>
+              <EditableTitle
+                value={nameValue}
+                placeholder="통합 보기"
+                onSave={(v) => saveName(v)}
+              />
+              {headerChips.length > 0 && (
+                <div className="flex items-center gap-1 overflow-x-auto min-w-0">
+                  {headerChips.map((chip) => (
+                    <span
+                      key={chip.key}
+                      className="rounded-full bg-wedly-bg-gray border border-wedly-bd px-2.5 py-0.5 text-[11px] text-wedly-t2 whitespace-nowrap"
+                    >
+                      {chip.text}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {loading && (
+                <span className="text-[11px] text-wedly-accent animate-pulse flex-shrink-0">불러오는 중...</span>
+              )}
+            </div>
+            <button
+              onClick={handleClose}
+              className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-wedly-bg-gray text-wedly-t2 hover:text-wedly-t2 transition-colors flex-shrink-0"
+              aria-label="닫기"
+            >
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
           </div>
+
+          {/* 좁은 화면(휴대폰) — 위쪽 단추로 세 칸 전환(PC 와 같은 짜임: 위=고르기, 아래=내용). */}
+          {narrowSwitch && (
+            <div className="flex items-stretch gap-1 border-b border-wedly-bd/60 bg-white px-2 py-2 flex-shrink-0">
+              {narrowPaneTabs(hasTrackRail).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setNarrowPane(key)}
+                  className={`flex-1 rounded-xl px-2 py-2 text-[13px] font-semibold break-keep ${
+                    narrowPane === key
+                      ? "bg-wedly-bg-blue text-wedly-accent-ink"
+                      : "text-wedly-t2 hover:bg-wedly-bg-gray"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <ThreePaneShell
+            narrowSwitch={narrowSwitch}
+            narrowPane={narrowPane}
+            hasTrackRail={hasTrackRail}
+            railOpen={trackRailOpen}
+            basicPane={
+              <BasicInfoPanel
+                row={row}
+                detail={detail}
+                loading={loading}
+                onOpenTab={openGroupTab}
+                onSaved={handleSaved}
+                isAdmin={isAdmin}
+                orderedGroups={orderedGroups}
+                saveOwnField={adapter.api.saveOwnField}
+                ownDomain={adapter.ownDomain}
+                loadColumnConfig={adapter.api.loadColumnConfig}
+                saveColumnConfig={adapter.api.saveColumnConfig}
+                loadManagers={adapter.api.loadManagers}
+                adapter={adapter}
+                hiddenColumnKeys={hiddenColumnKeys}
+                stacked
+              />
+            }
+            detailPane={hasTrackRail ? <>{errorBlock}{sideContent}</> : sideContent}
+            plainCenterPane={centerContent}
+            {/* 첫 펼침 때 붙이고, 그 뒤엔 hidden 으로만 감춘다 — 접힌 채로 미리 마운트하면 헛통신·폭 0 측정이 난다. */}
+            trackPane={
+              !error && WideCenterPanel && trackEverShown && (
+                <div className={trackVisible ? "flex-1 min-h-0 overflow-y-auto" : "hidden"}>
+                  <div className="flex flex-col h-full">
+                    <WideCenterPanel
+                      key="wide-center"
+                      rows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : []}
+                      primaryRow={row as Record<string, unknown>}
+                      isAdmin={isAdmin}
+                      onSaved={handleSaved}
+                      adapter={adapter}
+                    />
+                  </div>
+                </div>
+              )
+            }
+            railHandle={
+              // 좁은 화면은 위 3버튼이 이미 전환이라 손잡이를 그리지 않는다.
+              hasTrackRail && !narrowSwitch ? (
+                    <button
+                      type="button"
+                      onClick={() => setTrackRailOpen((v) => !v)}
+                      aria-expanded={trackRailOpen}
+                      aria-label={trackRailOpen ? "업무 현황 접기" : "업무 현황 펼치기"}
+                      title={trackRailOpen ? "업무 현황 접기" : "업무 현황 펼치기"}
+                      className={
+                        trackRailOpen
+                          ? "flex-shrink-0 flex items-center gap-1 h-10 px-2 border-b border-wedly-bd/60 text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
+                          : "flex-1 w-full flex flex-col items-center justify-center gap-2 py-3 bg-wedly-bg-gray/50 text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
+                      }
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        {trackRailOpen ? (
+                          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        ) : (
+                          <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        )}
+                      </svg>
+                      {!trackRailOpen && (
+                        <span className="text-[12px] font-semibold text-wedly-t1" style={{ writingMode: "vertical-rl" }}>
+                          업무 현황
+                        </span>
+                      )}
+                    </button>
+              ) : null
+            }
+          />
         </div>
       </div>
       </FieldOptionsProvider>
