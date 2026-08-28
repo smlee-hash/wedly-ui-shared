@@ -155,6 +155,9 @@ export {
 
 // 공용 히스토리(상담기록) 패널 — 하이브·ERP·일루아 공유
 export { HistoryPanel } from "./components/HistoryPanel";
+export { HistoryRecapCard } from "./components/HistoryRecapCard";
+export type { CommentRecap, RecapKind } from "./unified/history-core";
+export { hasRenderableRecap } from "./unified/history-core";
 export type { HistoryAdapter, HistoryFetchResult } from "./components/HistoryPanel";
 
 // 분야(섹션)별 히스토리 래퍼 — 공용 보관함(secstore) 저장. 앱별 출처/작성자/업로드경로 주입.

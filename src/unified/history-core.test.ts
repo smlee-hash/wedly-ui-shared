@@ -9,6 +9,7 @@ import {
   knownCategoryIds,
   computeCategoryCounts,
   filterByCategory,
+  hasRenderableRecap,
   ALL_TAB_ID,
   GENERAL_TAB_ID,
   type UnifiedComment,
@@ -179,5 +180,43 @@ describe("historyThumbnailUrl — 우리 서빙 URL 에만 ?w 부착", () => {
   });
   it("빈 문자열은 그대로", () => {
     expect(historyThumbnailUrl("")).toBe("");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 정리본(recap) — 카드로 그릴 자격이 있는지
+// ─────────────────────────────────────────────────────────────────────────────
+describe("hasRenderableRecap — 반쯤 만들어진 정리본은 카드로 안 그린다", () => {
+  const base = { id: "c1", name: "배보라", text: "원문", createdAt: "2026-08-27T01:00:00.000Z" };
+
+  it("정리본이 아예 없으면 false", () => {
+    expect(hasRenderableRecap(base)).toBe(false);
+  });
+
+  it("핵심 한 줄이 있으면 true", () => {
+    expect(
+      hasRenderableRecap({
+        ...base,
+        recap: { v: 1, kind: "call", headline: "농특세 납부 불필요", facts: [], nextSteps: [] },
+      }),
+    ).toBe(true);
+  });
+
+  it("핵심 한 줄이 빈 글자면 false — 빈 껍데기 카드를 막는다", () => {
+    expect(
+      hasRenderableRecap({
+        ...base,
+        recap: { v: 1, kind: "call", headline: "   ", facts: [], nextSteps: [] },
+      }),
+    ).toBe(false);
+  });
+
+  it("핵심 한 줄이 글자가 아니면 false — 저장이 깨진 자료에도 안 죽는다", () => {
+    expect(
+      hasRenderableRecap({
+        ...base,
+        recap: { v: 1, kind: "call", headline: 42, facts: [], nextSteps: [] } as never,
+      }),
+    ).toBe(false);
   });
 });
