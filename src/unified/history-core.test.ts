@@ -10,10 +10,13 @@ import {
   computeCategoryCounts,
   filterByCategory,
   hasRenderableRecap,
+  safeRecapKind,
+  safeRecapLines,
   ALL_TAB_ID,
   GENERAL_TAB_ID,
   type UnifiedComment,
   type HistoryCategoryDef,
+  type CommentRecap,
 } from "./history-core";
 
 const FALLBACKS: HistoryCategoryDef[] = [
@@ -218,5 +221,119 @@ describe("hasRenderableRecap — 반쯤 만들어진 정리본은 카드로 안 
         recap: { v: 1, kind: "call", headline: 42, facts: [], nextSteps: [] } as never,
       }),
     ).toBe(false);
+  });
+});
+
+function recap(partial: Partial<CommentRecap> = {}): CommentRecap {
+  return { v: 1, kind: "note", headline: "제목", facts: [], nextSteps: [], ...partial };
+}
+
+describe("safeRecapKind — 모르는 종류·물려받은 이름은 「기록」으로 떨어뜨린다", () => {
+  it('"call" → "call"', () => {
+    expect(safeRecapKind("call")).toBe("call");
+  });
+  it('"무언가" → "note"', () => {
+    expect(safeRecapKind("무언가")).toBe("note");
+  });
+  it('"toString" → "note" — Object 내장 함수를 종류로 쓰지 않는다', () => {
+    expect(safeRecapKind("toString")).toBe("note");
+  });
+  it('"constructor" → "note"', () => {
+    expect(safeRecapKind("constructor")).toBe("note");
+  });
+  it('undefined / null / 숫자 → "note"', () => {
+    expect(safeRecapKind(undefined)).toBe("note");
+    expect(safeRecapKind(null)).toBe("note");
+    expect(safeRecapKind(42)).toBe("note");
+  });
+});
+
+describe("safeRecapLines — 카드가 그릴 수 있는 모양만 남긴다", () => {
+  it("멀쩡한 facts·nextSteps 는 그대로", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          facts: [{ label: "상대", value: "김세무사" }],
+          nextSteps: ["다음 주 연락"],
+        }),
+      ),
+    ).toEqual({
+      facts: [{ label: "상대", value: "김세무사" }],
+      nextSteps: ["다음 주 연락"],
+    });
+  });
+
+  it("facts 에 null 항목이 섞이면 그것만 버린다", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          facts: [{ label: "상대", value: "김세무사" }, null, { label: "결과", value: "완료" }] as never,
+        }),
+      ),
+    ).toEqual({
+      facts: [
+        { label: "상대", value: "김세무사" },
+        { label: "결과", value: "완료" },
+      ],
+      nextSteps: [],
+    });
+  });
+
+  it("label 이나 value 가 객체·숫자면 그 줄을 버린다", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          facts: [
+            { label: "상대", value: { name: "김" } },
+            { label: "금액", value: 1000 },
+            { label: { k: 1 }, value: "완료" },
+            { label: "상태", value: "진행" },
+          ] as never,
+        }),
+      ),
+    ).toEqual({
+      facts: [{ label: "상태", value: "진행" }],
+      nextSteps: [],
+    });
+  });
+
+  it("label 또는 value 가 빈 글자면 그 줄을 버린다", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          facts: [
+            { label: "", value: "김세무사" },
+            { label: "상대", value: "" },
+            { label: "상대", value: "김세무사" },
+          ],
+        }),
+      ),
+    ).toEqual({
+      facts: [{ label: "상대", value: "김세무사" }],
+      nextSteps: [],
+    });
+  });
+
+  it("facts 가 배열이 아니면(문자열·undefined) 빈 배열", () => {
+    expect(safeRecapLines(recap({ facts: "깨짐" as never })).facts).toEqual([]);
+    expect(safeRecapLines(recap({ facts: undefined as never })).facts).toEqual([]);
+  });
+
+  it("nextSteps 에 객체가 섞이면 그것만 버린다", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          nextSteps: ["다음 주 연락", { todo: "메일" }, "서류 확인"] as never,
+        }),
+      ),
+    ).toEqual({
+      facts: [],
+      nextSteps: ["다음 주 연락", "서류 확인"],
+    });
+  });
+
+  it("nextSteps 가 배열이 아니면 빈 배열", () => {
+    expect(safeRecapLines(recap({ nextSteps: "깨짐" as never })).nextSteps).toEqual([]);
+    expect(safeRecapLines(recap({ nextSteps: undefined as never })).nextSteps).toEqual([]);
   });
 });

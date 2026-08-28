@@ -20,7 +20,7 @@ import {
   StickyNote,
   type LucideIcon,
 } from "lucide-react";
-import type { CommentRecap, RecapKind } from "../unified/history-core";
+import { safeRecapKind, safeRecapLines, type CommentRecap, type RecapKind } from "../unified/history-core";
 
 type KindStyle = { label: string; tile: string; symbol: string; icon: LucideIcon };
 
@@ -43,11 +43,9 @@ export function HistoryRecapCard({
   children: ReactNode;
 }) {
   const [openOriginal, setOpenOriginal] = useState(false);
-  // 저장된 자료가 낡거나 깨져 모르는 종류가 오면 「기록」으로 떨어뜨린다(카드가 안 죽게).
-  const k = KIND[recap.kind] ?? KIND.note;
+  const k = KIND[safeRecapKind(recap.kind)];
   const Icon = k.icon;
-  const facts = Array.isArray(recap.facts) ? recap.facts : [];
-  const nextSteps = Array.isArray(recap.nextSteps) ? recap.nextSteps : [];
+  const { facts, nextSteps } = safeRecapLines(recap);
 
   return (
     <div className="ml-7 overflow-hidden rounded-xl border border-wedly-bd bg-white shadow-[0_1px_2px_rgba(10,34,68,0.05),0_6px_18px_rgba(10,34,68,0.08)]">

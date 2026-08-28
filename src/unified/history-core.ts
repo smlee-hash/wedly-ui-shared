@@ -202,3 +202,52 @@ export function hasRenderableRecap(c: { recap?: CommentRecap }): boolean {
   const r = c.recap;
   return !!r && typeof r.headline === "string" && r.headline.trim().length > 0;
 }
+
+/** 정리본 종류 목록. 카드 아이콘 조회는 이 배열 소속으로만 판정한다. */
+export const RECAP_KINDS: readonly RecapKind[] = [
+  "call",
+  "contract",
+  "document",
+  "schedule",
+  "issue",
+  "note",
+];
+
+/** 모르는 종류·물려받은 이름("toString" 등)을 안전하게 「기록」으로 떨어뜨린다.
+ *  ★그냥 KIND[kind] 로 찾으면 "toString" 이 Object 내장 함수를 돌려줘 판정을 통과한다. */
+export function safeRecapKind(kind: unknown): RecapKind {
+  if (typeof kind === "string") {
+    for (const k of RECAP_KINDS) {
+      if (k === kind) return k;
+    }
+  }
+  return "note";
+}
+
+/** 카드가 그릴 수 있는 모양으로만 남긴다 — 글자가 아닌 값·빈 값·null 항목을 걸러낸다. */
+export function safeRecapLines(recap: CommentRecap): {
+  facts: { label: string; value: string }[];
+  nextSteps: string[];
+} {
+  const rawFacts: unknown = recap.facts;
+  const facts: { label: string; value: string }[] = [];
+  if (Array.isArray(rawFacts)) {
+    for (const item of rawFacts) {
+      if (item === null || typeof item !== "object") continue;
+      const label = (item as { label?: unknown }).label;
+      const value = (item as { value?: unknown }).value;
+      if (typeof label !== "string" || typeof value !== "string") continue;
+      if (!label.trim() || !value.trim()) continue;
+      facts.push({ label, value });
+    }
+  }
+
+  const rawSteps: unknown = recap.nextSteps;
+  const nextSteps: string[] = [];
+  if (Array.isArray(rawSteps)) {
+    for (const s of rawSteps) {
+      if (typeof s === "string" && s.trim()) nextSteps.push(s);
+    }
+  }
+  return { facts, nextSteps };
+}
