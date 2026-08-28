@@ -2042,6 +2042,11 @@ function GroupDomainPanel({
         // prop 을 모르는 패널은 무시하므로 미대응 앱 불변.
         hiddenSubTabs={hiddenSubTabs}
         hideSubTabBar={hideSubTabBar}
+        // 3분할에서 탭 줄은 바깥이 그리고 패널은 hideSubTabBar 로 자기 줄을 숨긴다 — 이 둘을 안 넘기면
+        // 패널이 바깥 클릭을 못 받아 계약 카드에 고정된다(정산·환불·미팅 탭이 죽던 원인).
+        // 공용 props 는 넓은 string 이라, 좁은 SubTab 을 받는 이쪽 함수는 감싸서 넘긴다(반변성).
+        subTab={subTab}
+        onSubTabChange={(t: string) => onSubTabChange(t as SubTab)}
       />,
     );
   }
