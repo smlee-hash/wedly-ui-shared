@@ -228,4 +228,8 @@ export type SectionPanelProps = {
   isAdmin: boolean;
   onSaved?: () => void;
   adapter: UnifiedDetailAdapter;
+  /** 현재 선택된 하위 탭. 바깥이 탭 줄을 그릴 때 패널 내용을 맞추려면 필요. 미전달이면 패널 내부 초기값. */
+  subTab?: string;
+  /** 하위 탭 변경 알림. 바깥 탭 줄과 패널 안 상태를 맞출 때. 미전달이면 불변. */
+  onSubTabChange?: (t: string) => void;
 };
