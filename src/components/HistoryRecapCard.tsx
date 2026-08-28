@@ -13,7 +13,7 @@ import { cn } from "../lib/cn";
 import {
   AlertTriangle,
   CalendarClock,
-  ChevronRight,
+  ChevronDown,
   FileCheck2,
   FileText,
   Phone,
@@ -82,23 +82,34 @@ export function HistoryRecapCard({
         </ul>
       )}
 
-      <div className="mt-2 border-t border-wedly-bd/60 px-3 py-1.5">
+      {/* 원본 서랍 — WEDLY 집안 접기/펼치기 문법 그대로다(RoleRatesAdvancedConfig·TemplateHub 실측):
+          둥근 하위 카드 + 오른쪽 아래화살표(열리면 180° 회전) + 구분선으로 본문 분리.
+          ★세로줄 인용 블록으로 그리지 마라 — 디자인 시스템에 없는 모양이다(2026-08-28 사장님 반려).
+          ★머리줄만 회색 층이고 원문 본문은 흰 바탕이다(이중 베젤 — 회색 셸 + 흰 속지).
+          회색 위 회색으로 두면 원문 글자가 묻힌다(2026-08-28 사장님 반려 2차). */}
+      <div className="mx-3 mb-3 mt-2 overflow-hidden rounded-xl border border-wedly-bd/60 bg-wedly-bg-gray">
         <button
           type="button"
           onClick={() => setOpenOriginal((v) => !v)}
           aria-expanded={openOriginal}
-          className="inline-flex items-center gap-1 text-[11px] text-wedly-muted transition hover:text-wedly-accent-ink"
+          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-wedly-bd/25"
         >
-          <ChevronRight className={cn("h-3 w-3 transition-transform", openOriginal && "rotate-90")} strokeWidth={2.4} aria-hidden />
-          {openOriginal ? "원본 접기" : "원본 보기"}
+          <span className="min-w-0 break-keep text-[12px] font-medium text-wedly-t2">
+            원본 메모
+            <span className="ml-1.5 text-[11px] font-normal text-wedly-muted">직원이 적은 그대로</span>
+          </span>
+          <ChevronDown
+            className={cn("h-3.5 w-3.5 shrink-0 text-wedly-muted transition-transform", openOriginal && "rotate-180")}
+            strokeWidth={2.2}
+            aria-hidden
+          />
         </button>
+        {openOriginal && (
+          <div className="whitespace-pre-wrap break-keep border-t border-wedly-bd/60 bg-white px-3 py-2.5 text-[12px] leading-relaxed text-wedly-t2">
+            {children}
+          </div>
+        )}
       </div>
-
-      {openOriginal && (
-        <div className="mx-3 mb-3 whitespace-pre-wrap break-keep rounded-r-lg border-l-[3px] border-wedly-bd-blue bg-wedly-bg-gray px-3 py-2 text-[12px] leading-relaxed text-wedly-t2">
-          {children}
-        </div>
-      )}
     </div>
   );
 }
