@@ -38,6 +38,10 @@ import type { UnifiedDetailAdapter } from "./adapter-types";
 // ─────────────────────────────────────────────────────────────────────────────
 type TopTab = "__basic__" | string; // "__basic__" = 기본정보, else = DomainGroup.key
 type SubTab = "history" | "contract" | "settlement" | "refund" | "meetings" | "files"; // 경정청구 분야 하위 탭
+/** 상세창 공용 하위 탭 키인지. 커스텀 패널이 돌려주는 값을 그대로 믿지 않으려고 쓴다. */
+function isSubTabKey(v: string): v is SubTab {
+  return v === "history" || v === "contract" || v === "settlement" || v === "refund" || v === "meetings" || v === "files";
+}
 
 // saveOwnField 콜백 타입 — 내부 컴포넌트들이 공유
 type SaveOwnFieldFn = (entryId: string, key: string, value: string | number | boolean | null) => Promise<void>;
@@ -1780,6 +1784,11 @@ function GroupDomainPanel({
         isAdmin={isAdmin}
         onSaved={onSaved}
         adapter={adapter}
+        // 어댑터 주입 패널에도 지금 하위 탭을 넘긴다 — 바깥이 탭 줄을 그리는 배치에서 이 둘이 없으면
+        // 패널이 클릭을 못 받아 한 탭에 고정된다(ERP NO.190: 정산·환불·미팅 탭이 죽어 있었다).
+        // 되돌아오는 값은 캐스트하지 않고 거른다 — 패널이 자기만의 탭 키를 쓰면 공용 상태가 어긋난다.
+        subTab={subTab}
+        onSubTabChange={(t: string) => { if (isSubTabKey(t)) onSubTabChange(t); }}
       />
     );
   }
