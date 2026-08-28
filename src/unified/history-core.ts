@@ -7,6 +7,25 @@
 // 이미지 붙여넣기·시간 표시·관리자 권한)은 부품에 "설정/어댑터"로 주입한다. 이 파일은 그중
 // 앱과 무관한 순수 규칙(본문 파싱·권한 판정·정렬·분류 집계)만 담는다.
 
+/** 정리본의 종류 — 카드 아이콘·색을 이걸로 고른다. */
+export type RecapKind = "call" | "contract" | "document" | "schedule" | "issue" | "note";
+
+/**
+ * AI 가 원문을 읽어 만든 **정리본**. 원문(`text`)은 절대 덮어쓰지 않고 곁에 붙는다.
+ * 셋 다 옵션이라, 이 칸이 없는 옛 기록은 지금과 100% 똑같이 그려진다.
+ */
+export type CommentRecap = {
+  /** 프롬프트 판 번호 — 프롬프트를 고치면 올려서 다시 만들게 한다. */
+  v: number;
+  kind: RecapKind;
+  /** 눈이 먼저 갈 한 줄. 카드에서 굵기 600 은 이 줄 하나뿐이다. */
+  headline: string;
+  /** 라벨-값 묶음. 최대 6개(넘는 건 만드는 쪽에서 자른다). */
+  facts: { label: string; value: string }[];
+  /** 다음 할 일. 최대 4개. */
+  nextSteps: string[];
+};
+
 /** 한 건의 히스토리(코멘트) — 양쪽 앱 공통 상위 자료형(superset). */
 export type UnifiedComment = {
   id: string;
@@ -20,6 +39,10 @@ export type UnifiedComment = {
   category?: string;
   /** 작성 출처: "hive" | "erp" | ... (없으면 자기 앱 글로 간주) */
   source?: string;
+  /** AI 정리본(있을 때만). 없으면 원문을 지금처럼 그린다. */
+  recap?: CommentRecap;
+  /** "부재" 같은 짧은 글 — 정리할 게 없다고 판정된 것. 스윕이 다시 시도하지 않는다. */
+  recapSkip?: boolean;
 };
 
 /** 분류(카테고리) 정의 — 탭으로 표시된다. */
@@ -168,4 +191,63 @@ export function filterByCategory(
     return comments.filter((c) => !c.category || !known.has(c.category));
   }
   return comments.filter((c) => c.category === activeCategory);
+}
+
+/**
+ * 이 기록을 정리 카드로 그릴 것인가.
+ * ★핵심 한 줄이 비어 있으면 **안 그린다** — 아이콘만 있고 내용이 없는 빈 카드가 뜨면
+ *  사용자는 "정리에 실패한 것"이 아니라 "원문이 사라진 것"으로 읽는다.
+ */
+export function hasRenderableRecap(c: { recap?: CommentRecap }): boolean {
+  const r = c.recap;
+  return !!r && typeof r.headline === "string" && r.headline.trim().length > 0;
+}
+
+/** 정리본 종류 목록. 카드 아이콘 조회는 이 배열 소속으로만 판정한다. */
+export const RECAP_KINDS: readonly RecapKind[] = [
+  "call",
+  "contract",
+  "document",
+  "schedule",
+  "issue",
+  "note",
+];
+
+/** 모르는 종류·물려받은 이름("toString" 등)을 안전하게 「기록」으로 떨어뜨린다.
+ *  ★그냥 KIND[kind] 로 찾으면 "toString" 이 Object 내장 함수를 돌려줘 판정을 통과한다. */
+export function safeRecapKind(kind: unknown): RecapKind {
+  if (typeof kind === "string") {
+    for (const k of RECAP_KINDS) {
+      if (k === kind) return k;
+    }
+  }
+  return "note";
+}
+
+/** 카드가 그릴 수 있는 모양으로만 남긴다 — 글자가 아닌 값·빈 값·null 항목을 걸러낸다. */
+export function safeRecapLines(recap: CommentRecap): {
+  facts: { label: string; value: string }[];
+  nextSteps: string[];
+} {
+  const rawFacts: unknown = recap.facts;
+  const facts: { label: string; value: string }[] = [];
+  if (Array.isArray(rawFacts)) {
+    for (const item of rawFacts) {
+      if (item === null || typeof item !== "object") continue;
+      const label = (item as { label?: unknown }).label;
+      const value = (item as { value?: unknown }).value;
+      if (typeof label !== "string" || typeof value !== "string") continue;
+      if (!label.trim() || !value.trim()) continue;
+      facts.push({ label, value });
+    }
+  }
+
+  const rawSteps: unknown = recap.nextSteps;
+  const nextSteps: string[] = [];
+  if (Array.isArray(rawSteps)) {
+    for (const s of rawSteps) {
+      if (typeof s === "string" && s.trim()) nextSteps.push(s);
+    }
+  }
+  return { facts, nextSteps };
 }

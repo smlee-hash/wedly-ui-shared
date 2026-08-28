@@ -18,8 +18,10 @@ import {
   appendImageLines,
   historyThumbnailUrl,
   canEditOrDelete as coreCanEditOrDelete,
+  hasRenderableRecap,
   type UnifiedComment,
 } from "../unified/history-core";
+import { HistoryRecapCard } from "./HistoryRecapCard";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -854,6 +856,17 @@ export function HistoryPanel({
             const isCopied = copiedId === c.id;
             // R9: parseCommentBody for rendering
             const bodyParts = parseCommentBody(c.text);
+            // R9 본문 조각 — 정리 카드의 「원본 펼침」과 기존 렌더가 **같은 것**을 쓰게 한 번만 만든다.
+            const bodyNodes = bodyParts.map((part, pi) =>
+              part.type === "image" ? (
+                <a key={pi} href={selfHostedFileUrl(part.url)} target="_blank" rel="noopener noreferrer" className="block my-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={historyThumbnailUrl(selfHostedFileUrl(part.url))} alt="첨부 이미지" className="max-w-full max-h-60 rounded-lg border border-wedly-bd hover:opacity-90 transition-opacity cursor-pointer" />
+                </a>
+              ) : (
+                <span key={pi}>{part.value}{pi < bodyParts.length - 1 ? "\n" : ""}</span>
+              )
+            );
             return (
               <div
                 key={c.id}
@@ -974,19 +987,13 @@ export function HistoryPanel({
                       </button>
                     </div>
                   </div>
+                ) : hasRenderableRecap(c) ? (
+                  /* 정리본이 있으면 카드로. 원본은 카드 안에서 펼쳐 본다. */
+                  <HistoryRecapCard recap={c.recap!}>{bodyNodes}</HistoryRecapCard>
                 ) : (
                   /* R9: render via parseCommentBody — image parts → <img>, text parts → span */
                   <div className="ml-7 text-[13px] text-wedly-t2 whitespace-pre-wrap leading-relaxed bg-wedly-bg-gray rounded-lg px-3 py-2">
-                    {bodyParts.map((part, pi) =>
-                      part.type === "image" ? (
-                        <a key={pi} href={selfHostedFileUrl(part.url)} target="_blank" rel="noopener noreferrer" className="block my-1">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={historyThumbnailUrl(selfHostedFileUrl(part.url))} alt="첨부 이미지" className="max-w-full max-h-60 rounded-lg border border-wedly-bd hover:opacity-90 transition-opacity cursor-pointer" />
-                        </a>
-                      ) : (
-                        <span key={pi}>{part.value}{pi < bodyParts.length - 1 ? "\n" : ""}</span>
-                      )
-                    )}
+                    {bodyNodes}
                   </div>
                 )}
               </div>

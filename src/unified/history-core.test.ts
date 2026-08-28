@@ -9,10 +9,14 @@ import {
   knownCategoryIds,
   computeCategoryCounts,
   filterByCategory,
+  hasRenderableRecap,
+  safeRecapKind,
+  safeRecapLines,
   ALL_TAB_ID,
   GENERAL_TAB_ID,
   type UnifiedComment,
   type HistoryCategoryDef,
+  type CommentRecap,
 } from "./history-core";
 
 const FALLBACKS: HistoryCategoryDef[] = [
@@ -179,5 +183,157 @@ describe("historyThumbnailUrl — 우리 서빙 URL 에만 ?w 부착", () => {
   });
   it("빈 문자열은 그대로", () => {
     expect(historyThumbnailUrl("")).toBe("");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 정리본(recap) — 카드로 그릴 자격이 있는지
+// ─────────────────────────────────────────────────────────────────────────────
+describe("hasRenderableRecap — 반쯤 만들어진 정리본은 카드로 안 그린다", () => {
+  const base = { id: "c1", name: "배보라", text: "원문", createdAt: "2026-08-27T01:00:00.000Z" };
+
+  it("정리본이 아예 없으면 false", () => {
+    expect(hasRenderableRecap(base)).toBe(false);
+  });
+
+  it("핵심 한 줄이 있으면 true", () => {
+    expect(
+      hasRenderableRecap({
+        ...base,
+        recap: { v: 1, kind: "call", headline: "농특세 납부 불필요", facts: [], nextSteps: [] },
+      }),
+    ).toBe(true);
+  });
+
+  it("핵심 한 줄이 빈 글자면 false — 빈 껍데기 카드를 막는다", () => {
+    expect(
+      hasRenderableRecap({
+        ...base,
+        recap: { v: 1, kind: "call", headline: "   ", facts: [], nextSteps: [] },
+      }),
+    ).toBe(false);
+  });
+
+  it("핵심 한 줄이 글자가 아니면 false — 저장이 깨진 자료에도 안 죽는다", () => {
+    expect(
+      hasRenderableRecap({
+        ...base,
+        recap: { v: 1, kind: "call", headline: 42, facts: [], nextSteps: [] } as never,
+      }),
+    ).toBe(false);
+  });
+});
+
+function recap(partial: Partial<CommentRecap> = {}): CommentRecap {
+  return { v: 1, kind: "note", headline: "제목", facts: [], nextSteps: [], ...partial };
+}
+
+describe("safeRecapKind — 모르는 종류·물려받은 이름은 「기록」으로 떨어뜨린다", () => {
+  it('"call" → "call"', () => {
+    expect(safeRecapKind("call")).toBe("call");
+  });
+  it('"무언가" → "note"', () => {
+    expect(safeRecapKind("무언가")).toBe("note");
+  });
+  it('"toString" → "note" — Object 내장 함수를 종류로 쓰지 않는다', () => {
+    expect(safeRecapKind("toString")).toBe("note");
+  });
+  it('"constructor" → "note"', () => {
+    expect(safeRecapKind("constructor")).toBe("note");
+  });
+  it('undefined / null / 숫자 → "note"', () => {
+    expect(safeRecapKind(undefined)).toBe("note");
+    expect(safeRecapKind(null)).toBe("note");
+    expect(safeRecapKind(42)).toBe("note");
+  });
+});
+
+describe("safeRecapLines — 카드가 그릴 수 있는 모양만 남긴다", () => {
+  it("멀쩡한 facts·nextSteps 는 그대로", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          facts: [{ label: "상대", value: "김세무사" }],
+          nextSteps: ["다음 주 연락"],
+        }),
+      ),
+    ).toEqual({
+      facts: [{ label: "상대", value: "김세무사" }],
+      nextSteps: ["다음 주 연락"],
+    });
+  });
+
+  it("facts 에 null 항목이 섞이면 그것만 버린다", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          facts: [{ label: "상대", value: "김세무사" }, null, { label: "결과", value: "완료" }] as never,
+        }),
+      ),
+    ).toEqual({
+      facts: [
+        { label: "상대", value: "김세무사" },
+        { label: "결과", value: "완료" },
+      ],
+      nextSteps: [],
+    });
+  });
+
+  it("label 이나 value 가 객체·숫자면 그 줄을 버린다", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          facts: [
+            { label: "상대", value: { name: "김" } },
+            { label: "금액", value: 1000 },
+            { label: { k: 1 }, value: "완료" },
+            { label: "상태", value: "진행" },
+          ] as never,
+        }),
+      ),
+    ).toEqual({
+      facts: [{ label: "상태", value: "진행" }],
+      nextSteps: [],
+    });
+  });
+
+  it("label 또는 value 가 빈 글자면 그 줄을 버린다", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          facts: [
+            { label: "", value: "김세무사" },
+            { label: "상대", value: "" },
+            { label: "상대", value: "김세무사" },
+          ],
+        }),
+      ),
+    ).toEqual({
+      facts: [{ label: "상대", value: "김세무사" }],
+      nextSteps: [],
+    });
+  });
+
+  it("facts 가 배열이 아니면(문자열·undefined) 빈 배열", () => {
+    expect(safeRecapLines(recap({ facts: "깨짐" as never })).facts).toEqual([]);
+    expect(safeRecapLines(recap({ facts: undefined as never })).facts).toEqual([]);
+  });
+
+  it("nextSteps 에 객체가 섞이면 그것만 버린다", () => {
+    expect(
+      safeRecapLines(
+        recap({
+          nextSteps: ["다음 주 연락", { todo: "메일" }, "서류 확인"] as never,
+        }),
+      ),
+    ).toEqual({
+      facts: [],
+      nextSteps: ["다음 주 연락", "서류 확인"],
+    });
+  });
+
+  it("nextSteps 가 배열이 아니면 빈 배열", () => {
+    expect(safeRecapLines(recap({ nextSteps: "깨짐" as never })).nextSteps).toEqual([]);
+    expect(safeRecapLines(recap({ nextSteps: undefined as never })).nextSteps).toEqual([]);
   });
 });
