@@ -289,4 +289,8 @@ export type SectionPanelProps = {
   hiddenSubTabs?: string[];
   /** true 면 패널 자체 하위 탭 줄을 그리지 않는다 — 오른쪽 한 줄로 끌어올렸을 때. 미전달이면 불변. */
   hideSubTabBar?: boolean;
+  /** 현재 선택된 하위 탭. hideSubTabBar 일 때 UnifiedDetailView 탭 줄과 내용을 맞추려면 필요. 미전달이면 패널 내부 초기값. */
+  subTab?: string;
+  /** 하위 탭 변경 알림. 바깥 탭 줄과 패널 안 상태를 맞출 때. 미전달이면 불변. */
+  onSubTabChange?: (t: string) => void;
 };
