@@ -67,3 +67,20 @@ describe("★배선 자체를 지킨다 — 글자만 보면 배선을 끊어도
     expect(panel).toMatch(/kakaoBusyId === c\.id \? "만드는 중/);
   });
 });
+
+describe("★AI 보고문 통로가 끝까지 이어져 있다 — 중간에서 끊기면 늘 기계글만 나간다", () => {
+  const mid = readFileSync(new URL("../unified-detail/HistoryPanel.tsx", import.meta.url), "utf8");
+
+  it("중간 부품이 앱에서 통로를 받는다", () => {
+    expect(mid).toContain("buildKakaoReport?:");
+  });
+
+  it("★받은 통로를 공용 패널로 실제로 넘긴다 — 여기가 끊겨 있었다(2026-08-29)", () => {
+    expect(mid).toMatch(/buildKakaoReport=\{보고문만들기\}/);
+  });
+
+  it("★앱이 통로를 안 실으면 넘기지 않는다 — 하이브·일루아는 기계글로 떨어져야 한다", () => {
+    expect(mid).toContain("api.buildKakaoReport ?");
+    expect(mid).toContain(": undefined");
+  });
+});
