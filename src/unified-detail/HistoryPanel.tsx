@@ -73,6 +73,12 @@ export type HistoryPanelApi = {
   loadComments: (entryId: string) => Promise<UnifiedComment[]>;
   addComment: (entryId: string, body: unknown) => Promise<UnifiedComment[]>;
   uploadImage: (file: File) => Promise<{ url: string }>;
+  /**
+   * 대표님께 보낼 카톡 보고문을 **서버에서** 만들어 온다(선택).
+   * ★안 실은 앱(하이브·일루아)에서는 기계적으로 다듬은 글로 떨어진다 — 단추는 그대로 쓸 수 있다.
+   *  말투를 다시 쓰는 일은 AI 가 해야 해서 앱마다 통로가 있어야 한다.
+   */
+  buildKakaoReport?: (entryId: string, commentId: string) => Promise<string | null>;
 };
 
 function makeAdapter(
@@ -129,6 +135,12 @@ export default function HistoryPanel({
   const name = userName || "나";
   const adapter = useMemo(() => makeAdapter(pageId, name, api), [pageId, name, api]);
 
+  // ★앱이 통로를 실었을 때만 넘긴다. 안 실으면 공용 패널이 기계글로 떨어진다.
+  const 보고문만들기 = useMemo(
+    () => (api.buildKakaoReport ? (c: UnifiedComment) => api.buildKakaoReport!(pageId, c.id).then((t) => t ?? "") : undefined),
+    [api, pageId],
+  );
+
   return (
     <SharedHistoryPanel
       pageId={pageId}
@@ -141,6 +153,7 @@ export default function HistoryPanel({
       pollingIntervalMs={5000}
       sourceBadge={{ label: ownSource === "erp" ? "HIVE" : "ERP", isForeign: (s) => !!s && s !== ownSource }}
       seedComments={seed}
+      buildKakaoReport={보고문만들기}
       shareEnabled={false}
       hideCategories
       draftId={pageId}
