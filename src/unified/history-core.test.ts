@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import {
   parseCommentBody,
@@ -12,12 +13,12 @@ import {
   hasRenderableRecap,
   safeRecapKind,
   safeRecapLines,
+  buildKakaoReport,
   ALL_TAB_ID,
   GENERAL_TAB_ID,
   type UnifiedComment,
   type HistoryCategoryDef,
-  type CommentRecap,
-} from "./history-core";
+  type CommentRecap, kakaoReportDate } from "./history-core";
 
 const FALLBACKS: HistoryCategoryDef[] = [
   { id: "policy", label: "정책자금" },
@@ -335,5 +336,90 @@ describe("safeRecapLines — 카드가 그릴 수 있는 모양만 남긴다", (
   it("nextSteps 가 배열이 아니면 빈 배열", () => {
     expect(safeRecapLines(recap({ nextSteps: "깨짐" as never })).nextSteps).toEqual([]);
     expect(safeRecapLines(recap({ nextSteps: undefined as never })).nextSteps).toEqual([]);
+  });
+});
+
+describe("★buildKakaoReport — 카톡에 그대로 붙일 수 있는 보고문", () => {
+  const recap = {
+    v: 2, kind: "call" as const,
+    headline: "대표님과 통화, 대출 의사 확인",
+    facts: [{ label: "확인 사항", value: "기업회생체크 확인함" }, { label: "고객 의사", value: "대출 받고 싶다고 함" }],
+    nextSteps: ["통장사본 회수하기"],
+  };
+
+  it("★마크다운 기호가 하나도 안 남는다 — 카톡은 별표를 글자 그대로 보여 준다", () => {
+    const r = buildKakaoReport({ ...recap, headline: "**굵게** ## 제목 `코드` ~취소~" }, { kindLabel: "통화" });
+    expect(r).not.toMatch(/[*_`~#>|]/);
+  });
+
+  it("★한 줄에 한 항목만 — 사실 개수 + 할 일 개수만큼 줄이 는다", () => {
+    const 줄 = buildKakaoReport(recap, { kindLabel: "통화" }).split("\n").filter((l) => l.startsWith("· "));
+    expect(줄).toHaveLength(3);
+  });
+
+  it("종류와 핵심 한 줄이 맨 위에 온다", () => {
+    expect(buildKakaoReport(recap, { kindLabel: "통화" }).split("\n")[0]).toBe("[통화] 대표님과 통화, 대출 의사 확인");
+  });
+
+  it("날짜를 주면 둘째 줄에 넣고, 안 주면 그 줄을 뺀다", () => {
+    expect(buildKakaoReport(recap, { kindLabel: "통화", at: "2026.08.27" }).split("\n")[1]).toBe("2026.08.27");
+    expect(buildKakaoReport(recap, { kindLabel: "통화" }).split("\n")[1]).toBe("");
+  });
+
+  it("★빈 구역은 제목째 뺀다 — 「다음 할 일」만 덩그러니 남지 않게", () => {
+    const r = buildKakaoReport({ ...recap, nextSteps: [] }, { kindLabel: "통화" });
+    expect(r).not.toContain("다음 할 일");
+    const r2 = buildKakaoReport({ ...recap, facts: [] }, { kindLabel: "통화" });
+    expect(r2).toContain("다음 할 일");
+    expect(r2).not.toContain("· 확인 사항");
+  });
+
+  it("★줄바꿈이 든 값도 한 줄로 눌러 담는다", () => {
+    const r = buildKakaoReport({ ...recap, headline: "첫째\n둘째" }, { kindLabel: "통화" });
+    expect(r.split("\n")[0]).toBe("[통화] 첫째 둘째");
+  });
+
+  it("빈 줄이 세 개 이상 이어지지 않는다", () => {
+    expect(buildKakaoReport(recap, { kindLabel: "통화" })).not.toMatch(/\n{3,}/);
+  });
+
+  it("앞뒤에 빈 줄이 남지 않는다", () => {
+    const r = buildKakaoReport(recap, { kindLabel: "통화" });
+    expect(r).toBe(r.trim());
+  });
+
+  it("자료가 이상해도 안 죽는다", () => {
+    expect(() => buildKakaoReport({ v: 2, kind: "note", headline: "", facts: [], nextSteps: [] } as never)).not.toThrow();
+  });
+});
+
+describe("★kakaoReportDate — 보고문 날짜는 실제 날짜여야 한다", () => {
+  it("한국시간 기준 YYYY.MM.DD 로 만든다", () => {
+    // 2026-08-27T15:30:00Z = 한국시간 8월 28일 0시 30분 → 날짜가 하루 넘어간다.
+    expect(kakaoReportDate("2026-08-27T15:30:00.000Z")).toBe("2026.08.28");
+    expect(kakaoReportDate("2026-08-27T01:00:00.000Z")).toBe("2026.08.27");
+  });
+
+  it("★상대 시각 글자를 그대로 돌려주지 않는다 — 「3일 전」은 며칠 뒤에 읽으면 뜻이 달라진다", () => {
+    expect(kakaoReportDate("3일 전")).toBe("");
+    expect(kakaoReportDate("방금")).toBe("");
+  });
+
+  it("값이 이상하면 빈 글자 — 그러면 보고문에서 날짜 줄이 빠진다", () => {
+    for (const v of [null, undefined, "", "아무 글자", 0]) expect(kakaoReportDate(v)).toBe("");
+  });
+
+  it("보고문 둘째 줄에 실제로 실린다", () => {
+    const recap = { v: 2, kind: "call" as const, headline: "통화 완료", facts: [], nextSteps: [] };
+    const r = buildKakaoReport(recap, { kindLabel: "통화", at: kakaoReportDate("2026-08-27T01:00:00.000Z") });
+    expect(r.split("\n")[1]).toBe("2026.08.27");
+  });
+});
+
+describe("★카드가 실제 날짜를 넘기는가 — 상대 시각으로 되돌아가지 못하게", () => {
+  it("HistoryPanel 이 kakaoReportDate 로 넘긴다", () => {
+    const src = readFileSync(new URL("../components/HistoryPanel.tsx", import.meta.url), "utf8");
+    expect(src).toContain("at={kakaoReportDate(c.createdAt)}");
+    expect(src).not.toContain("at={tf(c.createdAt)}");
   });
 });

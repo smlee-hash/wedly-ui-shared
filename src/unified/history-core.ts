@@ -251,3 +251,77 @@ export function safeRecapLines(recap: CommentRecap): {
   }
   return { facts, nextSteps };
 }
+
+/** 카톡에 붙일 보고문 한 줄의 최대 길이 — 넘으면 카톡 폭에서 지저분하게 접힌다. */
+export const KAKAO_LINE_MAX = 45;
+
+/** 카톡이 글자 그대로 보여 주는 기호들 — 보고문에 남으면 지저분하다. */
+const MARKDOWN_CHARS = /[*_`~#>|]/g;
+
+/** 한 줄로 눌러 담고 마크다운 기호를 걷어낸다. */
+function kakaoLine(v: unknown): string {
+  return String(v ?? "")
+    .replace(/\s+/g, " ")
+    .replace(MARKDOWN_CHARS, "")
+    .trim();
+}
+
+/**
+ * 정리본을 **카카오톡에 그대로 붙일 수 있는 글**로 만든다.
+ *
+ * ★마크다운을 쓰지 않는다 — 카톡은 렌더하지 않고 별표를 글자 그대로 보여 준다.
+ * ★한 줄에 한 항목만 둔다 — 카톡은 폭이 좁다.
+ * ★빈 구역(사실 없음·할 일 없음)은 제목째 뺀다.
+ *
+ * 나오는 모양(예):
+ *   [통화] 대표님과 통화, 대출 의사 확인
+ *   2026.08.27
+ *
+ *   · 확인 사항: 기업회생체크 확인함
+ *   · 고객 의사: 대출 받고 싶다고 함
+ *
+ *   [다음 할 일]
+ *   · 통장사본 회수하기
+ */
+/**
+ * 보고문에 쓸 **실제 날짜**(한국시간, `2026.08.27` 꼴).
+ * ★화면에 보이는 「3일 전」을 그대로 넣으면 안 된다 — 대표님께 보내는 글에서
+ *  상대 시각은 며칠 뒤에 읽으면 뜻이 달라진다(2026-08-29).
+ * 값이 이상하면 빈 글자를 돌려준다(그러면 날짜 줄이 빠진다).
+ */
+export function kakaoReportDate(iso: unknown): string {
+  // ★글자(또는 Date)만 받는다. 숫자 0 을 넘기면 `new Date("0")` 이 2000년 1월 1일이 되어
+  //  보고문에 엉뚱한 날짜가 실린다(2026-08-29 시험이 잡았다).
+  if (!(iso instanceof Date) && (typeof iso !== "string" || iso.trim() === "")) return "";
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const [y, m, day] = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d).split("-");
+  return `${y}.${m}.${day}`;
+}
+
+export function buildKakaoReport(
+  recap: CommentRecap,
+  opts: { at?: string; kindLabel?: string } = {},
+): string {
+  const { facts, nextSteps } = safeRecapLines(recap);
+  const 종류 = kakaoLine(opts.kindLabel ?? "");
+  const 머리 = kakaoLine(recap.headline);
+  const 줄: string[] = [];
+
+  줄.push(종류 ? `[${종류}] ${머리}` : 머리);
+  const 날짜 = kakaoLine(opts.at);
+  if (날짜) 줄.push(날짜);
+
+  if (facts.length > 0) {
+    줄.push("");
+    for (const f of facts) 줄.push(`· ${kakaoLine(f.label)}: ${kakaoLine(f.value)}`);
+  }
+  if (nextSteps.length > 0) {
+    줄.push("", "[다음 할 일]");
+    for (const s of nextSteps) 줄.push(`· ${kakaoLine(s)}`);
+  }
+  // 앞뒤 빈 줄 정리 + 빈 줄 두 개 이상은 하나로
+  return 줄.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
