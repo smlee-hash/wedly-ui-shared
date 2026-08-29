@@ -220,7 +220,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
             value={editColLabel}
             onChange={(e) => setEditColLabel(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && renameColumn(col.key)}
-            placeholder="컬럼 이름"
+            placeholder="칸 이름"
             className="w-full px-3 py-2 text-[13px] border border-wedly-bd rounded-lg bg-white text-wedly-t1 placeholder:text-wedly-muted focus:outline-none focus:ring-2 focus:ring-wedly-accent/30 focus:border-wedly-accent transition-colors"
             autoFocus
           />
@@ -329,7 +329,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-wedly-bd animate-modal-in max-h-[80vh] flex flex-col">
         <div className="px-5 pt-5 pb-3 border-b border-wedly-bd/60 flex items-center justify-between">
-          <h3 className="text-wedly-sub font-bold text-wedly-navy">컬럼 설정</h3>
+          <h3 className="text-wedly-sub font-bold text-wedly-navy">칸 설정</h3>
           <button
             onClick={onClose}
             className="text-wedly-t2 hover:text-wedly-t1 w-7 h-7 flex items-center justify-center rounded hover:bg-wedly-bg-gray"
@@ -341,11 +341,11 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
           </button>
         </div>
         <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">
-          <div className="text-[11px] font-medium text-wedly-muted uppercase tracking-wider mb-2">표시할 컬럼 선택</div>
+          <div className="text-[11px] font-medium text-wedly-muted uppercase tracking-wider mb-2">표시할 칸 선택</div>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="컬럼 이름 검색"
+            placeholder="칸 이름 검색"
             className="w-full mb-2 px-3 py-2 text-[13px] border border-wedly-bd rounded-lg bg-white text-wedly-t1 placeholder:text-wedly-muted focus:outline-none focus:ring-2 focus:ring-wedly-accent/30 focus:border-wedly-accent hover:border-wedly-accent/50 transition-colors"
           />
 
@@ -401,7 +401,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
                 <input
                   value={newColLabel}
                   onChange={(e) => setNewColLabel(e.target.value)}
-                  placeholder="컬럼 이름"
+                  placeholder="칸 이름"
                   className="w-full px-3 py-2 text-[13px] border border-wedly-bd rounded-lg bg-white text-wedly-t1 placeholder:text-wedly-muted focus:outline-none focus:ring-2 focus:ring-wedly-accent/30 focus:border-wedly-accent hover:border-wedly-accent/50 transition-colors"
                   autoFocus
                 />
@@ -430,7 +430,7 @@ export function ColumnToggleModal<TCol extends ColumnToggleColumn>({
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
-                새 컬럼 추가
+                새 칸 추가
               </button>
             )}
           </div>

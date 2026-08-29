@@ -118,8 +118,8 @@ function ManagedRow({ item, busy, canManageCommon, onMove, onToggleHidden, onEdi
           disabled={busy}
           onClick={onEdit}
           className="flex-shrink-0 rounded-md p-1 text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-accent transition-colors disabled:opacity-50"
-          title="컬럼 수정"
-          aria-label="컬럼 수정"
+          title="칸 수정"
+          aria-label="칸 수정"
         >
           <PencilIcon />
         </button>
@@ -289,7 +289,7 @@ export function CommonFieldsAdmin({
 
   const handleDelete = async (item: ManagedItem) => {
     if (!item.def || busy) return;
-    if (!confirm("이 컬럼을 삭제하시겠습니까? (모든 사용자에게 적용됩니다)")) return;
+    if (!confirm("이 칸을 삭제하시겠습니까? (모든 사용자에게 적용됩니다)")) return;
     await persistDefs(removeDef(defs, item.def.key));
   };
 
@@ -313,7 +313,7 @@ export function CommonFieldsAdmin({
     if (editType !== cur.type) {
       const msg = becomingIndependentPerson
         ? "이 칸을 '사람' 칸으로 바꾸면 기존 표 칸과 분리된 '새 빈 칸'이 됩니다.\n기존에 입력된 값은 원래 칸에 그대로 남고, 이 칸은 비어서 시작합니다. 계속하시겠습니까?"
-        : "컬럼 종류를 바꾸면 이미 입력된 값이 새 형식과 맞지 않을 수 있습니다. 계속하시겠습니까?\n(이미 입력된 값 자체는 지워지지 않습니다.)";
+        : "칸 종류를 바꾸면 이미 입력된 값이 새 형식과 맞지 않을 수 있습니다. 계속하시겠습니까?\n(이미 입력된 값 자체는 지워지지 않습니다.)";
       if (!confirm(msg)) return;
     }
     const built = buildDefFromForm({
@@ -342,7 +342,7 @@ export function CommonFieldsAdmin({
     if (busy || !saveDefs) return;
     // 표에서 끌어온 칸이 '사람'이면 독립 키를 줘 원본 칸과 값이 얽히지(별칭) 않게 한다.
     const def = ensureIndependentPersonKey(colDefFromOwnColumn(col, "custom"), takenKeys);
-    if (takenKeys.has(def.key)) { setError("이미 추가된 컬럼입니다."); return; }
+    if (takenKeys.has(def.key)) { setError("이미 추가된 칸입니다."); return; }
     const ok = await persistDefs(upsertDef(defs, def));
     if (ok) setPickOpen(false);
   };
@@ -373,13 +373,13 @@ export function CommonFieldsAdmin({
         {items.map((it) =>
           it.def && editingKey === it.def.key ? (
             <div key={norm(it.label)} className="rounded-xl border border-wedly-accent/50 bg-wedly-bg-gray/30 p-3 space-y-3">
-              <div className="text-[12px] font-semibold text-wedly-t2">✎ 컬럼 수정</div>
+              <div className="text-[12px] font-semibold text-wedly-t2">✎ 칸 수정</div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   value={editLabel}
                   onChange={(e) => setEditLabel(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); }}
-                  placeholder="컬럼 이름 (예: 비고)"
+                  placeholder="칸 이름 (예: 비고)"
                   className={inputCls}
                 />
                 <select value={editType} onChange={(e) => setEditType(e.target.value)} className={typeSelectCls}>
@@ -446,29 +446,29 @@ export function CommonFieldsAdmin({
       {/* ── 공통 컬럼 ── */}
       <section className="space-y-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-wedly-sub font-semibold text-wedly-accent">공통 컬럼</h3>
+          <h3 className="text-wedly-sub font-semibold text-wedly-accent">공통 칸</h3>
           <span className="text-[12px] text-wedly-muted">3개 앱이 값을 함께 씁니다</span>
         </div>
-        {renderRows(commonItems, "공통 컬럼이 없습니다.")}
+        {renderRows(commonItems, "공통 칸이 없습니다.")}
       </section>
 
       {/* ── 커스텀 컬럼 ── */}
       <section className="space-y-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-wedly-sub font-semibold text-wedly-t1">커스텀 컬럼</h3>
+          <h3 className="text-wedly-sub font-semibold text-wedly-t1">커스텀 칸</h3>
           <span className="text-[12px] text-wedly-muted">이 앱에서만 보입니다</span>
         </div>
-        {renderRows(customItems, "커스텀 컬럼이 없습니다.")}
+        {renderRows(customItems, "커스텀 칸이 없습니다.")}
 
         {canManageDefs && (
           <div className="rounded-xl border border-wedly-bd/60 bg-wedly-bg-gray/30 p-3 space-y-3">
-            <div className="text-[12px] font-semibold text-wedly-t2">＋ 커스텀 컬럼 추가</div>
+            <div className="text-[12px] font-semibold text-wedly-t2">＋ 커스텀 칸 추가</div>
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleAddFromForm(); }}
-                placeholder="컬럼 이름 (예: 비고)"
+                placeholder="칸 이름 (예: 비고)"
                 className={inputCls}
               />
               <select value={type} onChange={(e) => setType(e.target.value)} className={typeSelectCls}>
@@ -502,7 +502,7 @@ export function CommonFieldsAdmin({
             </button>
             {pickOpen && (
               <div className="rounded-lg border border-wedly-bd/60 bg-white p-2 space-y-1 max-h-[200px] overflow-y-auto">
-                <p className="text-[11px] text-wedly-muted px-1 pb-1">커스텀 컬럼으로 추가됩니다. 누르면 바로 추가돼요.</p>
+                <p className="text-[11px] text-wedly-muted px-1 pb-1">커스텀 칸으로 추가됩니다. 누르면 바로 추가돼요.</p>
                 {pullCandidates.length === 0 ? (
                   <div className="text-[12px] text-wedly-muted px-1 py-2">불러올 표 칸이 없습니다.</div>
                 ) : (

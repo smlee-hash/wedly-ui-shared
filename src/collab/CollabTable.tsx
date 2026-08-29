@@ -663,7 +663,7 @@ export function CollabTable({
       return m;
     });
     if (!hasColItem) {
-      mapped.push({ id: colSettingsMenuId, label: "컬럼 표시 설정", icon: "👁️", onClick: () => setColumnModalOpen(true) });
+      mapped.push({ id: colSettingsMenuId, label: "칸 표시 설정", icon: "👁️", onClick: () => setColumnModalOpen(true) });
     }
     return mapped;
   }, [adminToolbar?.settingsBaseMenus, colSettingsMenuId]);
@@ -1025,7 +1025,7 @@ export function CollabTable({
             onClick={() => setColumnModalOpen(true)}
             className="rounded-lg border border-wedly-bd px-3 py-1.5 text-sm font-medium text-wedly-t2 hover:bg-wedly-bg-gray"
           >
-            컬럼 설정
+            칸 설정
           </button>
         </div>
       )}

@@ -20,7 +20,7 @@ export type SectionEditorAddPayload = {
 };
 
 const KIND_OPTIONS: Array<{ value: SectionKind; label: string; description: string }> = [
-  { value: "fields", label: "일반 (컬럼 모음)", description: "기본정보·기타 같은 일반 정보 섹션. 컬럼을 하나씩 추가해서 채움" },
+  { value: "fields", label: "일반 (칸 모음)", description: "기본정보·기타 같은 일반 정보 섹션. 칸을 하나씩 추가해서 채움" },
   // 사용자 요구 2026-05-25: 정산·계약·환불 세 종류를 "차수 카드" 하나로 통일.
   // 내부 종류 식별은 settlement 로 두되, 사용자가 만든 섹션의 라벨로 의미 구분(어드민이 자유롭게 이름 정함).
   { value: "settlement", label: "차수 카드", description: "회차별로 카드를 늘려가며 정보를 쌓는 섹션 (정산·계약·환불 등 모든 차수 형식)" },
@@ -204,10 +204,10 @@ export function SectionEditorDeleteConfirm({
           </p>
           {hasContent && (
             <p className="text-[12px] text-wedly-t1 bg-wedly-bg-yellow/50 border border-wedly-orange/30 rounded-lg p-2">
-              이 섹션 안 컬럼들은 자동으로 &apos;기타&apos; 섹션으로 옮겨집니다.
+              이 섹션 안 칸들은 자동으로 &apos;기타&apos; 섹션으로 옮겨집니다.
               {otherSectionHidden && (
                 <span className="block mt-1 text-wedly-red font-medium">
-                  ⚠️ 현재 기타 섹션이 숨김 상태입니다. 옮겨진 컬럼을 보려면 섹션 편집 메뉴에서 &apos;기타 섹션 노출&apos; 을 켜세요.
+                  ⚠️ 현재 기타 섹션이 숨김 상태입니다. 옮겨진 칸을 보려면 섹션 편집 메뉴에서 &apos;기타 섹션 노출&apos; 을 켜세요.
                 </span>
               )}
             </p>

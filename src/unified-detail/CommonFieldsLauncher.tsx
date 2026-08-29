@@ -32,9 +32,9 @@ export function CommonFieldsLauncher({
         type="button"
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1 rounded-lg border border-wedly-bd px-2 py-1 text-[11px] font-medium text-wedly-t2 hover:bg-wedly-bg-gray transition-colors"
-        title="공통 컬럼 관리 (관리자 전용)"
+        title="공통 칸 관리 (관리자 전용)"
       >
-        <span aria-hidden>⚙</span> 공통 컬럼 관리
+        <span aria-hidden>⚙</span> 공통 칸 관리
       </button>
       {open && (
         <div
@@ -48,7 +48,7 @@ export function CommonFieldsLauncher({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-wedly-section font-semibold text-wedly-t1">공통 컬럼 관리</h2>
+              <h2 className="text-wedly-section font-semibold text-wedly-t1">공통 칸 관리</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -58,7 +58,7 @@ export function CommonFieldsLauncher({
               </button>
             </div>
 
-            <p className="mb-4 text-[12px] text-wedly-muted">컬럼을 <b>공통(3앱 공유)</b>과 <b>커스텀(이 앱 전용)</b> 사이에서 옮기고, 이 앱에서 숨기거나 새 컬럼을 추가합니다. 변경은 화면 새로고침 후 반영됩니다.</p>
+            <p className="mb-4 text-[12px] text-wedly-muted">칸을 <b>공통(3앱 공유)</b>과 <b>커스텀(이 앱 전용)</b> 사이에서 옮기고, 이 앱에서 숨기거나 새 칸을 추가합니다. 변경은 화면 새로고침 후 반영됩니다.</p>
             <CommonFieldsAdmin
               appSpecificLabels={appSpecificLabels}
               ownColumns={ownColumns}
