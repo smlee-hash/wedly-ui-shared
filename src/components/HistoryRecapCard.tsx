@@ -13,14 +13,16 @@ import { cn } from "../lib/cn";
 import {
   AlertTriangle,
   CalendarClock,
+  Check,
   ChevronDown,
+  Copy,
   FileCheck2,
   FileText,
   Phone,
   StickyNote,
   type LucideIcon,
 } from "lucide-react";
-import { safeRecapKind, safeRecapLines, type CommentRecap, type RecapKind } from "../unified/history-core";
+import { buildKakaoReport, safeRecapKind, safeRecapLines, type CommentRecap, type RecapKind } from "../unified/history-core";
 
 type KindStyle = { label: string; tile: string; symbol: string; icon: LucideIcon };
 
@@ -36,16 +38,31 @@ const KIND: Record<RecapKind, KindStyle> = {
 
 export function HistoryRecapCard({
   recap,
+  at,
   children,
 }: {
   recap: CommentRecap;
+  /** 보고문에 넣을 날짜(있으면). 없으면 날짜 줄을 뺀다. */
+  at?: string;
   /** 원본 본문 — 펼쳤을 때 그대로 보여 준다(이미지 줄 포함). */
   children: ReactNode;
 }) {
   const [openOriginal, setOpenOriginal] = useState(false);
+  const [copied, setCopied] = useState(false);
   const k = KIND[safeRecapKind(recap.kind)];
   const Icon = k.icon;
   const { facts, nextSteps } = safeRecapLines(recap);
+
+  const copyReport = () => {
+    const text = buildKakaoReport(recap, { at, kindLabel: k.label });
+    const done = () => { setCopied(true); setTimeout(() => setCopied(false), 1600); };
+    // ★clipboard 가 없는 환경(구형·비보안 맥락)에서도 죽지 않게 대비한다.
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  };
 
   return (
     <div className="ml-7 overflow-hidden rounded-xl border border-wedly-bd bg-white shadow-[0_1px_2px_rgba(10,34,68,0.05),0_6px_18px_rgba(10,34,68,0.08)]">
@@ -58,6 +75,19 @@ export function HistoryRecapCard({
           {/* ★이 카드에서 굵기 600 은 이 줄 하나뿐이다. 다른 줄에 같은 굵기를 더하지 말 것. */}
           <p className="break-keep text-[13px] font-semibold leading-snug text-wedly-t1">{recap.headline}</p>
         </div>
+        <button
+          type="button"
+          onClick={copyReport}
+          title="카카오톡에 붙여넣을 수 있는 보고문을 복사합니다"
+          className="ml-auto flex flex-shrink-0 items-center gap-1 rounded-lg border border-wedly-bd bg-white px-2 py-1 text-[11px] text-wedly-t2 transition hover:bg-wedly-bg-gray"
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-wedly-green" strokeWidth={2.4} aria-hidden />
+          ) : (
+            <Copy className="h-3.5 w-3.5 text-wedly-muted" strokeWidth={2.2} aria-hidden />
+          )}
+          <span className="whitespace-nowrap">{copied ? "복사됨" : "카톡 보고"}</span>
+        </button>
       </div>
 
       {facts.length > 0 && (
@@ -112,4 +142,20 @@ export function HistoryRecapCard({
       </div>
     </div>
   );
+}
+
+/** clipboard 를 못 쓸 때 — 화면 밖 textarea 로 복사한다. */
+function fallbackCopy(text: string, done: () => void) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    done();
+  } catch { /* 복사 실패는 조용히 넘긴다 — 카드는 그대로 쓸 수 있다 */ }
 }
