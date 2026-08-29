@@ -14,11 +14,13 @@ import {
   safeRecapKind,
   safeRecapLines,
   buildKakaoReport,
+  buildKakaoReportFromText,
+  kakaoReportFor,
   ALL_TAB_ID,
   GENERAL_TAB_ID,
   type UnifiedComment,
   type HistoryCategoryDef,
-  type CommentRecap, kakaoReportDate } from "./history-core";
+  type CommentRecap, kakaoReportDate, stripMarkdownKeepUrls, clampKakaoLine, KAKAO_LINE_MAX } from "./history-core";
 
 const FALLBACKS: HistoryCategoryDef[] = [
   { id: "policy", label: "정책자금" },
@@ -417,9 +419,99 @@ describe("★kakaoReportDate — 보고문 날짜는 실제 날짜여야 한다"
 });
 
 describe("★카드가 실제 날짜를 넘기는가 — 상대 시각으로 되돌아가지 못하게", () => {
-  it("HistoryPanel 이 kakaoReportDate 로 넘긴다", () => {
+  it("HistoryPanel 이 kakaoReportFor 로 보고문을 만들고 상대 시각을 넣지 않는다", () => {
     const src = readFileSync(new URL("../components/HistoryPanel.tsx", import.meta.url), "utf8");
-    expect(src).toContain("at={kakaoReportDate(c.createdAt)}");
+    expect(src).toContain("kakaoReportFor");
     expect(src).not.toContain("at={tf(c.createdAt)}");
+  });
+});
+
+describe("★buildKakaoReportFromText — 그냥 쓴 글도 카톡 보고문으로", () => {
+  it("★마크다운 기호를 걷어낸다", () => {
+    expect(buildKakaoReportFromText("**계약완료** ## 확인")).not.toMatch(/[*_`~#>|]/);
+  });
+  it("★사진 줄은 뺀다 — 카톡에 주소만 남으면 지저분하다", () => {
+    const r = buildKakaoReportFromText("계약완료\n[이미지] https://x/y.png\n입금확인");
+    expect(r).not.toContain("http");
+    expect(r).toContain("계약완료");
+    expect(r).toContain("입금확인");
+  });
+  it("★줄 구조를 그대로 둔다 — 손으로 쓴 메모에 억지로 기호를 붙이지 않는다", () => {
+    const r = buildKakaoReportFromText("사업장명 : 주)셀텍\n계약완료\n카드결제완료");
+    expect(r.split("\n").filter((l) => l.startsWith("· "))).toHaveLength(0);
+    expect(r).toContain("사업장명 : 주)셀텍");
+  });
+  it("날짜를 주면 맨 위에 넣는다", () => {
+    expect(buildKakaoReportFromText("계약완료", { at: "2026.08.27" }).split("\n")[0]).toBe("2026.08.27");
+  });
+  it("사진만 있는 기록이면 날짜만 남는다", () => {
+    expect(buildKakaoReportFromText("[이미지] https://x/y.png", { at: "2026.08.27" })).toBe("2026.08.27");
+  });
+  it("빈 줄이 세 개 이상 이어지지 않고 앞뒤 빈 줄도 없다", () => {
+    const r = buildKakaoReportFromText("\n\n가\n\n\n\n나\n\n", { at: "2026.08.27" });
+    expect(r).not.toMatch(/\n{3,}/);
+    expect(r).toBe(r.trim());
+  });
+  it("값이 이상해도 안 죽는다", () => {
+    for (const v of [null, undefined, 0, {}]) expect(() => buildKakaoReportFromText(v as never)).not.toThrow();
+  });
+});
+
+describe("★kakaoReportFor — 정리본이 있든 없든 같은 단추 하나로", () => {
+  const at = "2026-08-27T01:00:00.000Z";
+  it("정리본이 있으면 카드 형식으로", () => {
+    const c = { createdAt: at, text: "원문", recap: { v: 2, kind: "call", headline: "통화 완료", facts: [], nextSteps: [] } };
+    expect(kakaoReportFor(c as never).split("\n")[0]).toBe("[통화] 통화 완료");
+  });
+  it("★정리본이 없으면 원문으로 — 40자 미만 짧은 글도 보고할 수 있다", () => {
+    const c = { createdAt: at, text: "계약완료\n카드결제완료" };
+    const r = kakaoReportFor(c as never);
+    expect(r.split("\n")[0]).toBe("2026.08.27");
+    expect(r).toContain("계약완료");
+  });
+  it("★정리본이 반쯤 만들어졌으면(핵심 한 줄 없음) 원문으로 떨어진다", () => {
+    const c = { createdAt: at, text: "계약완료", recap: { v: 2, kind: "call", headline: "", facts: [], nextSteps: [] } };
+    expect(kakaoReportFor(c as never)).toContain("계약완료");
+  });
+});
+
+describe("★종류 이름은 한 곳에만 둔다", () => {
+  it("카드가 자기 이름표를 따로 갖고 있지 않다", () => {
+    const src = readFileSync(new URL("../components/HistoryRecapCard.tsx", import.meta.url), "utf8");
+    expect(src).toContain("recapKindLabel");
+    expect(src).not.toMatch(/label:\s*"통화"/);
+  });
+});
+
+describe("★주소·번호가 망가지지 않는다 (2026-08-29 적대적 리뷰)", () => {
+  it("주소 안의 _ # | 를 지우지 않는다 — 지우면 열리지 않는 죽은 링크가 된다", () => {
+    const r = buildKakaoReportFromText("자료: https://a.com/b_c#top?x=1|2");
+    expect(r).toContain("https://a.com/b_c#top?x=1|2");
+  });
+  it("주소 밖의 마크다운 장식은 걷어낸다", () => {
+    expect(buildKakaoReportFromText("**굵게** ## 제목")).not.toMatch(/[*#]/);
+  });
+  it("주소와 장식이 한 줄에 섞여 있어도 각각 맞게 처리한다", () => {
+    const r = buildKakaoReportFromText("**참고** https://a.com/x_y#z 확인 부탁");
+    expect(r).toContain("https://a.com/x_y#z");
+    expect(r).not.toContain("**");
+  });
+});
+
+describe("★긴 줄은 잘라 준다 — 죽은 상수로 두지 않는다", () => {
+  it("KAKAO_LINE_MAX 를 실제로 쓴다", () => {
+    const recap = {
+      v: 2, kind: "call" as const, headline: "통화",
+      facts: [{ label: "안내", value: "가".repeat(200) }], nextSteps: ["나".repeat(200)],
+    };
+    for (const line of buildKakaoReport(recap, { kindLabel: "통화" }).split("\n")) {
+      expect(line.length).toBeLessThanOrEqual(KAKAO_LINE_MAX);
+    }
+  });
+  it("짧은 줄은 그대로 둔다", () => {
+    expect(clampKakaoLine("짧은 줄")).toBe("짧은 줄");
+  });
+  it("자를 때 말줄임표를 붙인다", () => {
+    expect(clampKakaoLine("가".repeat(100)).endsWith("…")).toBe(true);
   });
 });

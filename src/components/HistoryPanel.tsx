@@ -19,7 +19,8 @@ import {
   historyThumbnailUrl,
   canEditOrDelete as coreCanEditOrDelete,
   hasRenderableRecap,
-  type UnifiedComment, kakaoReportDate } from "../unified/history-core";
+  kakaoReportFor,
+  type UnifiedComment } from "../unified/history-core";
 import { HistoryRecapCard } from "./HistoryRecapCard";
 
 // ---------------------------------------------------------------------------
@@ -72,6 +73,33 @@ export type HistoryAdapter = {
   uploadImage?: (file: File) => Promise<string>;
 };
 
+/** clipboard 를 못 쓸 때 — 화면 밖 textarea 로 복사한다. */
+/**
+ * clipboard 를 못 쓸 때 — 화면 밖 textarea 로 복사한다.
+ *
+ * ★`execCommand` 의 **돌려주는 값을 반드시 본다.** 실패해도 「복사됨」으로 바꾸면,
+ *  사용자는 복사된 줄 알고 카톡에 붙여넣는데 **전에 복사해 둔 엉뚱한 글이 대표님 채팅방에 붙는다**
+ *  (2026-08-29 적대적 리뷰). 이 파일의 링크 복사(fallbackShowUrl)는 원래부터 이렇게 하고 있었다.
+ * @returns 성공했으면 true
+ */
+function fallbackCopy(text: string): boolean {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length); // iOS 사파리는 select() 만으로는 안 잡힌다
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // History Panel
 // ---------------------------------------------------------------------------
@@ -107,6 +135,7 @@ export function HistoryPanel({
   onRetryLoad,
   draftId,
   sendOnLeave,
+  buildKakaoReport,
   // Hive compat — pageId kept for share URL generation
   pageId,
 }: {
@@ -147,6 +176,12 @@ export function HistoryPanel({
   draftId?: string;
   /** 화면을 떠날 때 치던 글을 살려 보내는 통로(선택). 성공 여부는 알 수 없다. */
   sendOnLeave?: (text: string) => void;
+  /**
+   * 카톡 보고문을 **서버에서** 만들어 오는 자리(선택).
+   * 꽂아 주면 그 결과를 복사하고, 없거나 실패하면 기계적으로 다듬은 글(kakaoReportFor)로 떨어진다.
+   * ★대표자께 보내는 글이라 말투를 다시 써야 한다 — 그 일은 AI 가 한다(ERP 가 꽂는다).
+   */
+  buildKakaoReport?: (c: UnifiedComment) => Promise<string>;
 }) {
   // helper — relative time (R6)
   const tf = timeFormatter ?? defaultTimeAgo;
@@ -289,6 +324,46 @@ export function HistoryPanel({
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const focusedRef = useRef(false);
+  const [kakaoCopiedId, setKakaoCopiedId] = useState<string | null>(null);
+  const [kakaoBusyId, setKakaoBusyId] = useState<string | null>(null);
+  const kakaoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ★창이 닫힌 뒤 setState 가 불리지 않게 정리한다.
+  useEffect(() => () => { if (kakaoTimerRef.current) clearTimeout(kakaoTimerRef.current); }, []);
+
+  const copyKakao = useCallback(async (c: UnifiedComment) => {
+    const 기계글 = kakaoReportFor(c);
+    let text = 기계글;
+    if (buildKakaoReport) {
+      setKakaoBusyId(c.id);
+      try {
+        const t = await buildKakaoReport(c);
+        if (typeof t === "string" && t.trim()) text = t.trim();
+      } catch {
+        // ★서버가 안 되면 기계글로 간다 — 단추가 아무 일도 안 하는 것보다 낫다.
+      } finally {
+        setKakaoBusyId(null);
+      }
+    }
+    const done = () => {
+      setKakaoCopiedId(c.id);
+      if (kakaoTimerRef.current) clearTimeout(kakaoTimerRef.current);
+      kakaoTimerRef.current = setTimeout(() => setKakaoCopiedId(null), 1600);
+    };
+    // ★복사가 **정말 됐을 때만** 「복사됨」으로 바꾼다. 실패했는데 성공으로 보이면
+    //  사용자가 카톡에 붙여넣을 때 전에 복사해 둔 엉뚱한 글이 대표님께 간다(적대적 리뷰).
+    const 실패안내 = () =>
+      doAlert("복사가 되지 않았습니다. 아래 글을 직접 복사해 주세요.\n\n" + text, { title: "복사 실패" });
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(text)
+        .then(done)
+        .catch(() => (fallbackCopy(text) ? done() : 실패안내()));
+    } else if (fallbackCopy(text)) {
+      done();
+    } else {
+      실패안내();
+    }
+  }, [buildKakaoReport, doAlert]);
 
   const handleShare = useCallback((commentId: string) => {
     if (typeof window === "undefined") return;
@@ -923,6 +998,27 @@ export function HistoryPanel({
                         </button>
                       </>
                     )}
+                    <button
+                      onClick={() => copyKakao(c)}
+                      disabled={kakaoBusyId === c.id}
+                      title="카카오톡에 붙여넣을 수 있는 보고문을 복사합니다"
+                      aria-label="카톡 보고문 복사"
+                      className={cn(
+                        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] transition",
+                        kakaoCopiedId === c.id
+                          ? "bg-wedly-bg-green text-wedly-green-ink"
+                          : "text-wedly-t2 hover:text-wedly-accent-ink hover:bg-wedly-bg-blue",
+                      )}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden>
+                        {kakaoCopiedId === c.id ? (
+                          <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        ) : (
+                          <path d="M5.5 2.5h6a1 1 0 011 1v8m-3-9v-1a1 1 0 00-1-1h-5a1 1 0 00-1 1v9a1 1 0 001 1h1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                        )}
+                      </svg>
+                      <span>{kakaoBusyId === c.id ? "만드는 중…" : kakaoCopiedId === c.id ? "복사됨" : "카톡 보고"}</span>
+                    </button>
                     {/* R3: shareEnabled gates share button */}
                     {shareEnabled && (
                       <button
@@ -988,7 +1084,7 @@ export function HistoryPanel({
                   </div>
                 ) : hasRenderableRecap(c) ? (
                   /* 정리본이 있으면 카드로. 원본은 카드 안에서 펼쳐 본다. */
-                  <HistoryRecapCard recap={c.recap!} at={kakaoReportDate(c.createdAt)}>{bodyNodes}</HistoryRecapCard>
+                  <HistoryRecapCard recap={c.recap!}>{bodyNodes}</HistoryRecapCard>
                 ) : (
                   /* R9: render via parseCommentBody — image parts → <img>, text parts → span */
                   <div className="ml-7 text-[13px] text-wedly-t2 whitespace-pre-wrap leading-relaxed bg-wedly-bg-gray rounded-lg px-3 py-2">
