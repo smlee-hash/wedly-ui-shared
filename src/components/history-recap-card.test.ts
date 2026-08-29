@@ -84,3 +84,24 @@ describe("★AI 보고문 통로가 끝까지 이어져 있다 — 중간에서 
     expect(mid).toContain(": undefined");
   });
 });
+
+describe("★배선은 네 자리다 — 한 곳만 새도 카톡 보고가 조용히 기계글로 떨어진다", () => {
+  // 앱 어댑터 → UnifiedDetailView(historyApi) → unified-detail/HistoryPanel → 공용 HistoryPanel
+  // 2026-08-29: 셋만 잇고 UnifiedDetailView 를 빠뜨려, 배포하고 눌러 보고서야 알았다.
+  const view = readFileSync(new URL("../unified-detail/UnifiedDetailView.tsx", import.meta.url), "utf8");
+  const types = readFileSync(new URL("../unified-detail/adapter-types.ts", import.meta.url), "utf8");
+
+  it("어댑터 자료형에 통로가 있다", () => {
+    expect(types).toContain("buildKakaoReport?(");
+  });
+
+  it("★UnifiedDetailView 가 historyApi 에 통로를 실어 넘긴다 — 여기가 새고 있었다", () => {
+    const memo = view.slice(view.indexOf("const historyApi"), view.indexOf("const historyApi") + 700);
+    expect(memo).toContain("adapter.api.buildKakaoReport");
+  });
+
+  it("★어댑터에 통로가 없으면 안 넘긴다 — 하이브·일루아는 기계글로 떨어져야 한다", () => {
+    const memo = view.slice(view.indexOf("const historyApi"), view.indexOf("const historyApi") + 700);
+    expect(memo).toMatch(/adapter\.api\.buildKakaoReport\s*\n?\s*\?/);
+  });
+});
