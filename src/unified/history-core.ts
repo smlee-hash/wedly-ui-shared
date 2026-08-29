@@ -224,6 +224,19 @@ export function safeRecapKind(kind: unknown): RecapKind {
   return "note";
 }
 
+/** 정리본 종류의 사람 말 이름. 카드와 보고문이 **같은 이름**을 써야 한다. */
+export const RECAP_KIND_LABEL: Record<RecapKind, string> = {
+  call: "통화",
+  contract: "계약 진행",
+  document: "서류",
+  schedule: "일정",
+  issue: "확인 필요",
+  note: "기록",
+};
+export function recapKindLabel(kind: unknown): string {
+  return RECAP_KIND_LABEL[safeRecapKind(kind)];
+}
+
 /** 카드가 그릴 수 있는 모양으로만 남긴다 — 글자가 아닌 값·빈 값·null 항목을 걸러낸다. */
 export function safeRecapLines(recap: CommentRecap): {
   facts: { label: string; value: string }[];
@@ -255,15 +268,30 @@ export function safeRecapLines(recap: CommentRecap): {
 /** 카톡에 붙일 보고문 한 줄의 최대 길이 — 넘으면 카톡 폭에서 지저분하게 접힌다. */
 export const KAKAO_LINE_MAX = 45;
 
-/** 카톡이 글자 그대로 보여 주는 기호들 — 보고문에 남으면 지저분하다. */
-const MARKDOWN_CHARS = /[*_`~#>|]/g;
+/**
+ * 주소(URL)를 건드리지 않고 마크다운 장식만 걷어낸다.
+ *
+ * ★그냥 `[*_`~#>|]` 를 다 지우면 **주소와 번호가 망가진다**(2026-08-29 적대적 리뷰 실측):
+ *  `https://a.com/b_c#top?x=1|2` → `https://a.com/bctop?x=12` (열리지 않는 죽은 링크)
+ *  `계약번호 #123` → `계약번호 123`
+ *  대표님께 가는 보고문에 틀린 주소·번호가 실리면 안 된다.
+ * 그래서 **주소 토막은 그대로 두고** 나머지에서만 장식을 없앤다.
+ */
+export function stripMarkdownKeepUrls(v: string): string {
+  return v
+    .split(/(\bhttps?:\/\/\S+)/g)
+    .map((조각, i) => (i % 2 === 1 ? 조각 : 조각.replace(/[*_`~#>|]/g, "")))
+    .join("");
+}
+
+/** 카톡 한 줄이 너무 길면 잘라 준다 — 넘으면 카톡 폭에서 지저분하게 접힌다. */
+export function clampKakaoLine(v: string, max = KAKAO_LINE_MAX): string {
+  return v.length <= max ? v : v.slice(0, max - 1).trimEnd() + "…";
+}
 
 /** 한 줄로 눌러 담고 마크다운 기호를 걷어낸다. */
 function kakaoLine(v: unknown): string {
-  return String(v ?? "")
-    .replace(/\s+/g, " ")
-    .replace(MARKDOWN_CHARS, "")
-    .trim();
+  return stripMarkdownKeepUrls(String(v ?? "").replace(/\s+/g, " ")).trim();
 }
 
 /**
@@ -316,12 +344,46 @@ export function buildKakaoReport(
 
   if (facts.length > 0) {
     줄.push("");
-    for (const f of facts) 줄.push(`· ${kakaoLine(f.label)}: ${kakaoLine(f.value)}`);
+    for (const f of facts) 줄.push(clampKakaoLine(`· ${kakaoLine(f.label)}: ${kakaoLine(f.value)}`));
   }
   if (nextSteps.length > 0) {
     줄.push("", "[다음 할 일]");
-    for (const s of nextSteps) 줄.push(`· ${kakaoLine(s)}`);
+    for (const s of nextSteps) 줄.push(clampKakaoLine(`· ${kakaoLine(s)}`));
   }
   // 앞뒤 빈 줄 정리 + 빈 줄 두 개 이상은 하나로
   return 줄.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * **정리본이 없는 글**을 카톡에 붙일 보고문으로 만든다(짧은 메모·직원이 손으로 쓴 글).
+ * ★AI 를 부르지 않는다 — 있는 글을 카톡에서 안 깨지게 다듬기만 한다.
+ *  · 마크다운 기호를 걷어낸다(카톡은 별표를 글자 그대로 보여 준다)
+ *  · 사진 줄(`[이미지] https://…`)은 뺀다 — 카톡에 주소만 남으면 지저분하다
+ *  · 빈 줄이 세 개 이상 이어지면 하나로 줄인다
+ * ★줄 구조는 **그대로 둔다.** 손으로 쓴 메모에 억지로 「·」를 붙이면 오히려 읽기 나빠진다.
+ */
+export function buildKakaoReportFromText(text: unknown, opts: { at?: string } = {}): string {
+  const 본문 = String(text ?? "")
+    .split("\n")
+    .filter((l) => !/^\s*\[이미지\]\s*https?:\/\//.test(l))
+    .map((l) => stripMarkdownKeepUrls(l).trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  const 날짜 = stripMarkdownKeepUrls(String(opts.at ?? "")).trim();
+  if (!본문) return 날짜;                 // 사진만 있는 기록 — 날짜만
+  return 날짜 ? `${날짜}\n\n${본문}` : 본문;
+}
+
+/**
+ * 이 기록의 카톡 보고문. 정리본이 있으면 그것으로, 없으면 원문으로 만든다.
+ * ★부르는 쪽이 갈래를 나누지 않게 여기서 정한다 — 두 곳에서 나누면 한쪽만 고쳐진다.
+ */
+export function kakaoReportFor(
+  c: { recap?: CommentRecap; text?: string; createdAt?: string },
+): string {
+  const at = kakaoReportDate(c.createdAt);
+  return hasRenderableRecap(c)
+    ? buildKakaoReport(c.recap!, { at, kindLabel: recapKindLabel(c.recap!.kind) })
+    : buildKakaoReportFromText(c.text, { at });
 }
