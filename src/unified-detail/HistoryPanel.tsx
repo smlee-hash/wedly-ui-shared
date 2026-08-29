@@ -41,8 +41,20 @@ type DbComment = {
   createdAt: string;
   source?: string;
   category?: string;
+  /** AI 정리본. 씨앗에도 반드시 실어야 한다 — 아래 toUnified 주석 참고. */
+  recap?: UnifiedComment["recap"];
+  recapSkip?: boolean;
 };
 
+/**
+ * 목록이 이미 갖고 있는 기록을 화면 모양으로 바꾼다(= 창을 열자마자 보여 줄 **씨앗**).
+ *
+ * ★`recap`·`recapSkip` 을 반드시 함께 넘긴다. 빠뜨리면 창을 열 때마다
+ *  **원본이 먼저 보였다가 통신이 끝난 뒤 정리 카드로 바뀌어 깜빡인다.**
+ *  게다가 목록이 갱신되면 이 씨앗이 다시 덮어써서 카드가 원본으로 되돌아간다
+ *  (2026-08-29 사장님 지적: 「잠깐 원본이 보였다가 정리본이 보이고, 다시 열면 반복」).
+ *  통신으로 받아 오는 쪽(앱별 어댑터)과 **같은 칸을 실어야** 두 번 그려도 모양이 안 바뀐다.
+ */
 function toUnified(list: DbComment[]): UnifiedComment[] {
   return (list ?? []).map((c) => ({
     id: c.id,
@@ -51,6 +63,8 @@ function toUnified(list: DbComment[]): UnifiedComment[] {
     createdAt: c.createdAt,
     category: c.category,
     source: c.source ?? "erp",
+    recap: c.recap,
+    recapSkip: c.recapSkip,
   }));
 }
 
