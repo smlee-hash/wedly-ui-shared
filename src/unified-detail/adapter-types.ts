@@ -89,6 +89,11 @@ export interface UnifiedDetailApi {
 
   /** 코멘트(히스토리) 목록 읽기 — ERP: GET /api/tax-amendment/{id}/comments */
   loadComments(entryId: string): Promise<UnifiedComment[]>;
+  /**
+   * 대표님께 보낼 카톡 보고문을 서버에서 만들어 온다(선택 — AI 통로가 있는 앱만).
+   * ★안 실은 앱에서는 화면이 기계적으로 다듬은 글로 떨어진다.
+   */
+  buildKakaoReport?(entryId: string, commentId: string): Promise<string | null>;
 
   /** 코멘트 추가/수정/삭제 — POST 후 응답의 최신 목록 반환(1요청, 원본 동일) */
   addComment(entryId: string, body: unknown): Promise<UnifiedComment[]>;

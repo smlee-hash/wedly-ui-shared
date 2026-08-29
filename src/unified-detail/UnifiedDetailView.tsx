@@ -2338,6 +2338,11 @@ export default function UnifiedDetailView({
     loadComments: (id) => adapter.api.loadComments(id),
     addComment: (id, body) => adapter.api.addComment(id, body),
     uploadImage: (file) => adapter.api.uploadImage(file),
+    // ★어댑터가 실었을 때만 넘긴다. 여기서 빠뜨리면 「카톡 보고」가 늘 기계글만 낸다 —
+    //  배선이 네 자리(앱 어댑터 → 여기 → HistoryPanel 래퍼 → 공용 패널)라 한 곳만 새도 조용히 죽는다.
+    ...(adapter.api.buildKakaoReport
+      ? { buildKakaoReport: (id: string, commentId: string) => adapter.api.buildKakaoReport!(id, commentId) }
+      : {}),
   }), [adapter]);
 
   // 데이터 패치 — 처음 1회는 스피너와 함께, 저장 후 새로고침은 조용히(silent: 스피너 없이)
