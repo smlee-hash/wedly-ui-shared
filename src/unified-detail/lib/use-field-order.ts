@@ -144,7 +144,7 @@ export function useFieldOrder<T extends OrderableField>(
 
   const resetOrder = useCallback(() => {
     if (!canEdit) return;
-    if (!confirm("컬럼 순서를 초기 상태로 되돌리시겠습니까? (모든 사용자에게 적용됩니다.)")) return;
+    if (!confirm("칸 순서를 초기 상태로 되돌리시겠습니까? (모든 사용자에게 적용됩니다.)")) return;
     persistOrder([]);
   }, [canEdit, persistOrder]);
 

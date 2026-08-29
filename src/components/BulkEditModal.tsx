@@ -195,7 +195,7 @@ export default function BulkEditModal({
             <div>
               <h2 className="text-wedly-section font-semibold text-wedly-t1">선택 항목 일괄 수정</h2>
               <p className="mt-0.5 text-[12px] text-wedly-muted">
-                선택한 <span className="font-semibold text-wedly-accent-ink">{selectedIds.length}</span>개 행의 한 컬럼 값을 한 번에 바꿉니다.
+                선택한 <span className="font-semibold text-wedly-accent-ink">{selectedIds.length}</span>개 행의 한 칸 값을 한 번에 바꿉니다.
               </p>
             </div>
           </div>
@@ -236,7 +236,7 @@ export default function BulkEditModal({
           ) : (
             <>
               <div>
-                <label className="mb-1.5 block text-[12px] font-medium text-wedly-t2">바꿀 컬럼</label>
+                <label className="mb-1.5 block text-[12px] font-medium text-wedly-t2">바꿀 칸</label>
                 <CustomSelect
                   value={columnKey}
                   onChange={setColumnKey}
@@ -248,7 +248,7 @@ export default function BulkEditModal({
                 <label className="mb-1.5 block text-[12px] font-medium text-wedly-t2">새 값</label>
                 {renderValueInput()}
                 <p className="mt-1.5 text-[11px] text-wedly-muted">
-                  비워두고 적용하면 해당 컬럼 값이 모두 지워집니다.
+                  비워두고 적용하면 해당 칸 값이 모두 지워집니다.
                 </p>
               </div>
 

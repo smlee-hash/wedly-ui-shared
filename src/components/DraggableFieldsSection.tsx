@@ -94,7 +94,7 @@ export function DraggableFieldsSection<T extends OrderableField>({
     return (
       <div className="py-4 space-y-2">
         <p className="text-[12px] text-wedly-muted">
-          이 섹션에는 컬럼이 없습니다. 어드민이 컬럼을 추가하거나 다른 섹션에서 옮기면 여기에 표시됩니다.
+          이 섹션에는 칸이 없습니다. 관리자가 칸을 추가하거나 다른 섹션에서 옮기면 여기에 표시됩니다.
         </p>
         {isAdmin && onAddColumn && (
           <button
@@ -102,7 +102,7 @@ export function DraggableFieldsSection<T extends OrderableField>({
             onClick={() => onAddColumn(sectionId, sectionLabel || sectionId)}
             className="w-full py-2 rounded-lg border-2 border-dashed border-wedly-accent/40 text-[12px] font-bold text-wedly-accent-ink hover:bg-wedly-bg-blue/30 transition-colors"
           >
-            + 새 컬럼 추가
+            + 새 칸 추가
           </button>
         )}
       </div>
@@ -137,8 +137,8 @@ export function DraggableFieldsSection<T extends OrderableField>({
                   onDragStart={handleDragStart(field.key)}
                   onDragEnd={handleDragEnd}
                   className="flex items-center justify-center w-10 sm:w-7 min-h-[40px] sm:min-h-0 flex-shrink-0 self-stretch text-wedly-accent-ink bg-wedly-bg-blue/20 hover:bg-wedly-bg-blue/50 cursor-grab active:cursor-grabbing select-none rounded-md transition-colors"
-                  title="여기를 잡고 끌어서 컬럼 순서 변경"
-                  aria-label="컬럼 순서 변경 핸들"
+                  title="여기를 잡고 끌어서 칸 순서 변경"
+                  aria-label="칸 순서 변경 핸들"
                 >
                   <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
                     <circle cx="4" cy="4" r="1.5" />
@@ -155,8 +155,8 @@ export function DraggableFieldsSection<T extends OrderableField>({
                   type="button"
                   onClick={() => onHideColumn(field.key)}
                   className="flex items-center justify-center w-6 h-6 rounded-full bg-wedly-red text-white hover:brightness-110 transition flex-shrink-0 self-center ml-1"
-                  title={`'${field.label}' 컬럼을 이 섹션에서 숨기기`}
-                  aria-label="컬럼 숨기기"
+                  title={`'${field.label}' 칸을 이 섹션에서 숨기기`}
+                  aria-label="칸 숨기기"
                 >
                   <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
                     <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />

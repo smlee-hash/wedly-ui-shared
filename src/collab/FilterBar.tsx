@@ -208,7 +208,7 @@ function FilterPopover({
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-xl border border-wedly-bd bg-white p-3 shadow-lg">
-        <label className="mb-1 block text-[11px] text-wedly-muted">컬럼</label>
+        <label className="mb-1 block text-[11px] text-wedly-muted">칸</label>
         <select
           disabled={item.pinned}
           value={item.field}

@@ -852,7 +852,7 @@ export function CollabTable({
       return m;
     });
     if (!hasColItem) {
-      mapped.push({ id: colSettingsMenuId, label: "컬럼 표시 설정", icon: "👁️", onClick: () => setColumnModalOpen(true) });
+      mapped.push({ id: colSettingsMenuId, label: "칸 표시 설정", icon: "👁️", onClick: () => setColumnModalOpen(true) });
     }
     return mapped;
   }, [adminToolbar?.settingsBaseMenus, colSettingsMenuId]);
@@ -1259,13 +1259,13 @@ export function CollabTable({
               <button
                 type="button"
                 onClick={() => setColumnModalOpen(true)}
-                title="표에 보일 컬럼 선택"
+                title="표에 보일 칸 선택"
                 className="inline-flex items-center gap-1 rounded-lg border border-wedly-bd px-2.5 py-1.5 text-[12px] font-medium text-wedly-t2 hover:bg-wedly-bg-gray transition-colors"
               >
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                   <path d="M2.5 2.5h11v11h-11zM6.5 2.5v11M10 2.5v11" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
                 </svg>
-                컬럼 설정
+                칸 설정
               </button>
             )}
             {isAdmin && (
@@ -1287,7 +1287,7 @@ export function CollabTable({
             onClick={() => setColumnModalOpen(true)}
             className="rounded-lg border border-wedly-bd px-3 py-1.5 text-sm font-medium text-wedly-t2 hover:bg-wedly-bg-gray"
           >
-            컬럼 설정
+            칸 설정
           </button>
         </div>
       )}

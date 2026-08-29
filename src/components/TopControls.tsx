@@ -174,7 +174,7 @@ export function TopControls({
               <button
                 onClick={onBulkEdit}
                 className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-white bg-wedly-accent rounded-lg hover:bg-wedly-accent/90 transition-colors"
-                title="선택한 행의 한 컬럼 값을 한 번에 바꿉니다"
+                title="선택한 행의 한 칸 값을 한 번에 바꿉니다"
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
