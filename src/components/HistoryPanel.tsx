@@ -19,8 +19,7 @@ import {
   historyThumbnailUrl,
   canEditOrDelete as coreCanEditOrDelete,
   hasRenderableRecap,
-  type UnifiedComment,
-} from "../unified/history-core";
+  type UnifiedComment, kakaoReportDate } from "../unified/history-core";
 import { HistoryRecapCard } from "./HistoryRecapCard";
 
 // ---------------------------------------------------------------------------
@@ -989,7 +988,7 @@ export function HistoryPanel({
                   </div>
                 ) : hasRenderableRecap(c) ? (
                   /* 정리본이 있으면 카드로. 원본은 카드 안에서 펼쳐 본다. */
-                  <HistoryRecapCard recap={c.recap!}>{bodyNodes}</HistoryRecapCard>
+                  <HistoryRecapCard recap={c.recap!} at={kakaoReportDate(c.createdAt)}>{bodyNodes}</HistoryRecapCard>
                 ) : (
                   /* R9: render via parseCommentBody — image parts → <img>, text parts → span */
                   <div className="ml-7 text-[13px] text-wedly-t2 whitespace-pre-wrap leading-relaxed bg-wedly-bg-gray rounded-lg px-3 py-2">
