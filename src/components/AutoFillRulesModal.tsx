@@ -155,7 +155,7 @@ export default function AutoFillRulesModal({
             <div>
               <h2 className="text-wedly-section font-semibold text-wedly-t1">자동 입력 규칙 편집</h2>
               <p className="mt-0.5 text-[12px] text-wedly-muted">
-                특정 컬럼 값에 따라 다른 컬럼이 자동으로 채워지도록 규칙을 만들 수 있습니다.
+                특정 칸 값에 따라 다른 칸이 자동으로 채워지도록 규칙을 만들 수 있습니다.
               </p>
             </div>
           </div>
@@ -206,7 +206,7 @@ export default function AutoFillRulesModal({
                       />
                       {/* 조건 (when) */}
                       <div className="rounded-lg bg-white border border-wedly-bd p-3 space-y-2">
-                        <p className="text-[10px] font-bold text-wedly-accent">조건 (이 컬럼이 …)</p>
+                        <p className="text-[10px] font-bold text-wedly-accent">조건 (이 칸이 …)</p>
                         <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-2">
                           <CustomSelect
                             value={r.whenKey}
@@ -235,7 +235,7 @@ export default function AutoFillRulesModal({
                       </div>
                       {/* 결과 (then) */}
                       <div className="rounded-lg bg-white border border-wedly-bd p-3 space-y-2">
-                        <p className="text-[10px] font-bold text-wedly-green">결과 (이 컬럼에 자동 입력)</p>
+                        <p className="text-[10px] font-bold text-wedly-green">결과 (이 칸에 자동 입력)</p>
                         <div className="grid grid-cols-1 sm:grid-cols-[1fr_2fr] gap-2">
                           <CustomSelect
                             value={r.thenKey}

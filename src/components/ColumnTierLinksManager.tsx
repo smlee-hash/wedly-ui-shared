@@ -104,8 +104,8 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
 
   // 1단계: 미리보기 — 바뀔 건수를 받아 확인 모달을 띄운다(어댑터가 미리보기를 안 주면 바로 추가).
   async function runPreview() {
-    if (!colKey || !fieldKey) { setNotice("컬럼과 차수 칸을 고르세요."); return; }
-    if (links.some((l) => l.columnKey === colKey)) { setNotice("이미 연결된 컬럼입니다."); return; }
+    if (!colKey || !fieldKey) { setNotice("칸과 차수 칸을 고르세요."); return; }
+    if (links.some((l) => l.columnKey === colKey)) { setNotice("이미 연결된 칸입니다."); return; }
     const link: ColumnTierLink = { columnKey: colKey, section, area, tierFieldKey: fieldKey, mode, ...(tierFieldIsFormula ? { readonly: true } : {}) };
     if (adapter.previewMigrate && adapter.applyMigrate) {
       const pv = await adapter.previewMigrate(link).catch(() => null);
@@ -138,8 +138,8 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
 
   return (
     <div className="px-3 sm:px-6 py-3 sm:py-4 max-w-3xl mx-auto">
-      <h1 className="text-wedly-page font-bold text-wedly-navy">차수 ↔ 컬럼 연결 설정</h1>
-      <p className="mt-1 text-[12px] sm:text-[13px] text-wedly-muted">상위 섹션 → 세부(계약/정산/환불) → 차수 칸을 골라 표 컬럼과 짝지으면 양쪽이 함께 바뀝니다.</p>
+      <h1 className="text-wedly-page font-bold text-wedly-navy">차수 ↔ 칸 연결 설정</h1>
+      <p className="mt-1 text-[12px] sm:text-[13px] text-wedly-muted">상위 섹션 → 세부(계약/정산/환불) → 차수 칸을 골라 표 칸과 짝지으면 양쪽이 함께 바뀝니다.</p>
 
       {/* 현재 연결 목록 */}
       <div className="mt-4 space-y-2">
@@ -163,7 +163,7 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
         <h2 className="text-wedly-section font-bold text-wedly-navy">연결 추가</h2>
 
         <div>
-          <label className="block text-[12px] text-wedly-muted mb-1">표 컬럼</label>
+          <label className="block text-[12px] text-wedly-muted mb-1">표 칸</label>
           <CustomSelect value={colKey} onChange={setColKey} options={colOptions} size="sm" />
         </div>
 

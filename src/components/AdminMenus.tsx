@@ -69,7 +69,7 @@ export function FieldRowAdminMenu({
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center justify-center w-6 h-6 rounded text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2 opacity-60 hover:opacity-100 transition"
         title={`${fieldLabel} 관리`}
-        aria-label="컬럼 관리"
+        aria-label="칸 관리"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
           <circle cx="3" cy="8" r="1.4" />
@@ -133,7 +133,7 @@ export function FieldRowAdminMenu({
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                     <path d="M3 5h10M5 5V3a1 1 0 011-1h4a1 1 0 011 1v2M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  이 컬럼 삭제
+                  이 칸 삭제
                 </button>
               )}
             </>
@@ -252,7 +252,7 @@ export function SectionAdminMenu({
       {open && (
         <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-wedly-bd rounded-lg shadow-lg overflow-hidden min-w-[200px] py-1">
           <div className="px-3 py-1.5 text-[10px] font-semibold text-wedly-muted uppercase tracking-wider border-b border-wedly-bd/60">
-            컬럼 관리
+            칸 관리
           </div>
           {onAddColumn && (
             <button
@@ -263,7 +263,7 @@ export function SectionAdminMenu({
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
               </svg>
-              새 컬럼 추가
+              새 칸 추가
             </button>
           )}
           {onToggleEditMode && (
@@ -280,7 +280,7 @@ export function SectionAdminMenu({
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <path d="M11.5 2L14 4.5L5.5 13L2 14L3 10.5L11.5 2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
-              {editMode ? "컬럼 수정 모드 종료" : "컬럼 수정 모드"}
+              {editMode ? "칸 수정 모드 종료" : "칸 수정 모드"}
             </button>
           )}
           {onShowHiddenColumns && (
@@ -293,7 +293,7 @@ export function SectionAdminMenu({
                 <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                 <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.3" />
               </svg>
-              숨김 컬럼 복원
+              숨김 칸 복원
             </button>
           )}
           {onToggleDeleteMode && (
@@ -310,7 +310,7 @@ export function SectionAdminMenu({
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <path d="M3 5h10M5 5V3a1 1 0 011-1h4a1 1 0 011 1v2M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              {deleteMode ? "컬럼 삭제 모드 종료" : "컬럼 삭제 모드"}
+              {deleteMode ? "칸 삭제 모드 종료" : "칸 삭제 모드"}
             </button>
           )}
           {onResetOrder && (
@@ -329,7 +329,7 @@ export function SectionAdminMenu({
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <path d="M2 8a6 6 0 1 0 2-4.5M2 3v3h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              컬럼 순서 초기화
+              칸 순서 초기화
             </button>
           )}
           {onManagePanels && (
@@ -403,7 +403,7 @@ export function SectionAdminMenu({
               type="button"
               onClick={(e) => { e.stopPropagation(); onDeleteSection(); setOpen(false); }}
               className="w-full px-3 py-1.5 text-[12px] text-left text-wedly-red-ink hover:bg-wedly-bg-red/40 transition flex items-center gap-2"
-              title="이 섹션을 삭제합니다 (안 컬럼은 기타로 이동)"
+              title="이 섹션을 삭제합니다 (안 칸은 기타로 이동)"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <path d="M3 5h10M5 5V3a1 1 0 011-1h4a1 1 0 011 1v2M5 5v9a1 1 0 001 1h4a1 1 0 001-1V5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
