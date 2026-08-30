@@ -91,5 +91,7 @@ export function sidePaneClass(
   // 가운데가 A−380(<380) 으로 줄어 레일이 넓다. A ≥ 760 이면 가운데가 380 을 유지하고
   // 레일이 A−380 ≥ 380 이라 역시 레일이 넓다. 2xl(좌 400·가운데 520)에서도
   // 가장 좁은 1536px 화면이 모달 1475 → 레일 555 > 520 이라 레일이 넓다.
-  return "flex-1 min-w-[380px] border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
+  // relative: 접기 단추를 칸 왼쪽 위 모서리에 겹쳐 놓기 위한 기준(2026-08-30 사장님 「세 칸 상단 줄을
+  // 똑같이 맞춰라」 — 접기 줄이 한 칸을 통째로 먹어 오른쪽만 머리가 한 줄 아래였다).
+  return "relative flex-1 min-w-[380px] border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
 }

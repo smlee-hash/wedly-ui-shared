@@ -27,7 +27,7 @@ const SIDE_NARROW_ON = "flex-1 min-w-0 flex flex-col min-h-0";
 const SIDE_RAIL_CLOSED =
   "w-[44px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
 const SIDE_RAIL_OPEN =
-  "flex-1 min-w-[380px] border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
+  "relative flex-1 min-w-[380px] border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
 const CENTER_WIDE_RAIL_OPEN = "w-[380px] 2xl:w-[520px] min-w-[260px] flex flex-col min-h-0";
 const CENTER_WIDE_RAIL_CLOSED = "flex-1 min-w-0 flex flex-col min-h-0";
 
@@ -244,17 +244,32 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
     expect(handle).toContain("hover:bg-wedly-bg-blue/70");
     expect(handle).toContain('width={trackRailOpen ? "16" : "18"}');
     expect(handle).toContain('strokeWidth="2"');
-    expect(handle).not.toContain("bg-wedly-bg-gray/50");
+    // 「회색이 아니다」는 접힘 갈래에만 건다 — 펼침 갈래는 2026-08-30부터 머리 밴드와 같은
+    // 회색(bg-wedly-bg-gray/50)을 쓴다. 갈래를 나눠 재지 않으면 이 시험이 정렬 개편을 거짓으로 막는다.
+    const collapsedClass = (handle.match(/:\s*"([^"]*bg-wedly-bg-blue[^"]*)"/) ?? [])[1] ?? "";
+    expect(collapsedClass).toContain("bg-wedly-bg-blue");
+    expect(collapsedClass).not.toContain("bg-wedly-bg-gray/50");
     expect(handle).not.toMatch(/bg-blue-\d/);
     expect(handle).toContain("font-semibold");
     expect(handle).toContain("업무 현황");
   });
 
-  it("펼친 가로 손잡이 줄은 회색 그대로이고 화살표만 반대다", () => {
+  it("펼친 손잡이는 줄을 먹지 않고 칸 왼쪽 위 모서리에 겹친다 — 세 칸 상단 줄 정렬(2026-08-30)", () => {
     expect(handle).toContain(
-      "flex-shrink-0 flex items-center gap-1 h-10 px-2 border-b border-wedly-bd/60 text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors",
+      "absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray/50 text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors",
     );
     expect(handle).toContain('strokeWidth="1.5"');
+    // 겹쳐 두려면 담는 칸에 기준(relative)이 있어야 한다 — 짝을 못 박는다.
+    expect(sidePaneClass(false, "side", { rail: true, railOpen: true })).toContain("relative");
+  });
+
+  it("세 칸 머리 줄 높이가 h-12 로 같다 — 왼쪽(3분할)·가운데 분야 탭·레일 손잡이", () => {
+    const view = src;
+    // 가운데 분야 탭 줄
+    expect(view).toContain('bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 h-12');
+    // 왼쪽 기본정보 머리(3분할일 때만 밴드)
+    expect(view).toContain('${stacked ? "h-12" : "py-2.5"}');
+    expect(view).toContain('-mx-4 -mt-4 rounded-none border-x-0 border-t-0');
   });
 
   it("손잡이 클릭에서 펼침과 한 번 보임을 같은 렌더에서 같이 켠다", () => {
