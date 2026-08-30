@@ -2217,12 +2217,8 @@ function CustomDomainPanel({
   const btnBase = "px-2 py-1 text-[11px] rounded-md border transition-colors whitespace-nowrap";
   return (
     <div className="p-4 space-y-4">
-      <div className={stacked
-        // 3분할에선 카드 안 머리가 아니라 **칸 전체 폭 머리 밴드**로 — 가운데 분야 탭 줄·레일 머리와
-        // 같은 높이(48)·같은 위치에서 시작해야 세 칸 상단이 한 줄로 보인다(사장님 2026-08-30).
-        ? "border border-wedly-bd bg-white overflow-hidden -mx-4 -mt-4 rounded-none border-x-0 border-t-0"
-        : "rounded-xl border border-wedly-bd bg-white overflow-hidden"}>
-        <div className={`px-4 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex items-center justify-between gap-2 ${stacked ? "h-12" : "py-2.5"}`}>
+      <div className="rounded-xl border border-wedly-bd bg-white overflow-hidden">
+        <div className="px-4 py-2.5 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex items-center justify-between gap-2">
           <span className="text-[12px] font-semibold text-wedly-t2 truncate">{label}</span>
           {isAdmin && (
             <div className="flex items-center gap-1 flex-shrink-0">
