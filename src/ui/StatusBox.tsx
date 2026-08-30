@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
+import { IoCheckmarkCircle, IoCloseCircle, IoInformationCircle, IoWarning } from "react-icons/io5";
 import { cn } from "./cn";
 
 /**
@@ -9,12 +9,13 @@ import { cn } from "./cn";
  * 색은 아이콘 타일이 전담하고 판정은 아이콘 모양+글자로 전달한다(색만으로 전달 금지 계약 유지).
  * 경고만 타일 안 심볼이 남색 — 금색 위 흰 글리프는 대비 2.13:1 미달 실측(v2에서 승계).
  * 값의 정본: 전역 디자인 시스템 정본 스킬(wedly design system) §상태 박스 v3.
+ * 2026-08-30: 심볼 계열을 확정 표준 D안(둥근 채움 · Ionicons Filled)으로 교체 — 「표정 자리」 규칙.
  */
 const TONES = {
-  success: { tile: "bg-wedly-green", glyph: "text-white", Icon: CheckCircle2 },
-  warning: { tile: "bg-wedly-gold", glyph: "text-wedly-navy", Icon: AlertTriangle },
-  error: { tile: "bg-wedly-red", glyph: "text-white", Icon: XCircle },
-  info: { tile: "bg-wedly-accent", glyph: "text-white", Icon: Info },
+  success: { tile: "bg-wedly-green", glyph: "text-white", Icon: IoCheckmarkCircle },
+  warning: { tile: "bg-wedly-gold", glyph: "text-wedly-navy", Icon: IoWarning },
+  error: { tile: "bg-wedly-red", glyph: "text-white", Icon: IoCloseCircle },
+  info: { tile: "bg-wedly-accent", glyph: "text-white", Icon: IoInformationCircle },
 } as const;
 
 export function StatusBox({

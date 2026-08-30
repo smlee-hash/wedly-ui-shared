@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react";
-import { TrendingDown, TrendingUp } from "lucide-react";
+import type { ComponentType } from "react";
+import { IoTrendingDown, IoTrendingUp } from "react-icons/io5";
 import { cn } from "./cn";
 
 /**
@@ -16,7 +16,8 @@ export function StatCard({
   label: string;
   value: string;
   delta?: { text: string; direction: "up" | "down" };
-  icon?: LucideIcon;
+  /** 타일 심볼. 확정 표준은 D안 채움(react-icons/io5)이지만 lucide 도 그대로 받는다(계열 전환은 화면 단위). */
+  icon?: ComponentType<{ className?: string }>;
   className?: string;
 }) {
   return (
@@ -43,9 +44,9 @@ export function StatCard({
               )}
             >
               {delta.direction === "up" ? (
-                <TrendingUp className="h-3 w-3" aria-hidden="true" />
+                <IoTrendingUp className="h-3 w-3" aria-hidden="true" />
               ) : (
-                <TrendingDown className="h-3 w-3" aria-hidden="true" />
+                <IoTrendingDown className="h-3 w-3" aria-hidden="true" />
               )}
               {delta.text}
             </p>
