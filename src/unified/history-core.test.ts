@@ -21,7 +21,7 @@ import {
   GENERAL_TAB_ID,
   type UnifiedComment,
   type HistoryCategoryDef,
-  type CommentRecap, kakaoReportDate, stripMarkdownKeepUrls, clampKakaoLine, KAKAO_LINE_MAX } from "./history-core";
+  type CommentRecap, kakaoReportDate, stripMarkdownKeepUrls, clampKakaoLine, KAKAO_LINE_MAX, kakaoTextareaRows, KAKAO_TEXTAREA_MIN_ROWS } from "./history-core";
 
 const FALLBACKS: HistoryCategoryDef[] = [
   { id: "policy", label: "정책자금" },
@@ -547,5 +547,19 @@ describe("★stripMarkdownKeepUrls — 홑 물결표는 범위 기호라 살린�
   });
   it("다른 장식(*·#·>·|)은 전처럼 지우고 주소는 건드리지 않는다", () => {
     expect(stripMarkdownKeepUrls("**굵게** #제목 > 인용 | 표 https://a.com/b_c#top?x=1|2")).toBe("굵게 제목  인용  표 https://a.com/b_c#top?x=1|2");
+  });
+});
+
+describe("★kakaoTextareaRows — 글상자는 글 줄 수만큼 (2026-09-03 사장님 지시)", () => {
+  it("짧은 글은 최소 8줄, 긴 글은 줄 수 + 1", () => {
+    expect(KAKAO_TEXTAREA_MIN_ROWS).toBe(8);
+    expect(kakaoTextareaRows("한 줄")).toBe(8);
+    expect(kakaoTextareaRows("")).toBe(8);
+    expect(kakaoTextareaRows(Array(52).fill("줄").join("\n"))).toBe(53);
+  });
+  it("대화상자가 그 값을 rows 로 쓴다", () => {
+    const src = readFileSync(new URL("../components/KakaoReportDialog.tsx", import.meta.url), "utf8");
+    expect(src).toContain("rows={kakaoTextareaRows(draft)}");
+    expect(src).not.toContain("min-h-[220px]");
   });
 });
