@@ -107,7 +107,7 @@ export function KakaoReportDialog({
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <h2 id={TITLE_ID} className="text-[15px] font-semibold text-wedly-t1">
+            <h2 id={TITLE_ID} className="text-wedly-section font-semibold text-wedly-t1">
               대표님께 보낼 카톡 보고문
             </h2>
             {subtitle ? <p className="mt-0.5 text-[12px] text-wedly-t2">{subtitle}</p> : null}
