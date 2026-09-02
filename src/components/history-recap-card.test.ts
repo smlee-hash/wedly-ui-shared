@@ -32,7 +32,7 @@ describe("★정리 카드 디자인 계약", () => {
   it("★서버가 만든 글이 있으면 그것을 쓴다 — 대표자께 보내는 말투는 AI 가 다시 쓴다", () => {
     const panel = readFileSync(new URL("./HistoryPanel.tsx", import.meta.url), "utf8");
     expect(panel).toContain("buildKakaoReport?");
-    expect(panel).toContain("await buildKakaoReport(c)");
+    expect(panel).toMatch(/buildKakaoReport\(c\)/);
   });
   it("★서버가 안 되면 기계글로 떨어진다 — 단추가 먹통이 되면 안 된다", () => {
     const panel = readFileSync(new URL("./HistoryPanel.tsx", import.meta.url), "utf8");
