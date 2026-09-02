@@ -3336,7 +3336,8 @@ export default function UnifiedDetailView({
                     <>
                       <button
                         type="button"
-                        onClick={() => setActiveTab("__basic__")}
+                        // narrowPane 도 함께 맞춘다 — 넓은 화면에서 기본정보를 보다가 창을 좁히면 그 칸이 그대로 보이게(코덱스 지적).
+                        onClick={() => { setActiveTab("__basic__"); setNarrowPane("basic"); }}
                         className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
                           activeTab === "__basic__" ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
                         }`}

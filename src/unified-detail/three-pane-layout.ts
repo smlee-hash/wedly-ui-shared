@@ -111,7 +111,8 @@ export function modalBoxClass(narrowSwitch: boolean, mergeBasic: boolean, railOp
   if (narrowSwitch) return "";
   if (mergeBasic && !railOpen) {
     // 38.4vw = 96vw × 0.4, 716 = 1680 × 0.4 + 44(손잡이)
-    return "sm:w-[calc(38.4vw_+_44px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl transition-[width] duration-200 ease-out";
+    // 폭 전환 애니메이션은 일부러 안 건다 — 가운데 칸이 flex-1 로 바뀌는 동시에 상자가 줄면 칸이 순간 커졌다 줄어 튄다(코덱스 지적).
+    return "sm:w-[calc(38.4vw_+_44px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl";
   }
   return "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl";
 }

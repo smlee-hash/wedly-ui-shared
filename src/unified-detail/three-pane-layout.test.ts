@@ -184,12 +184,14 @@ describe("threePaneSlots — 배치 규칙", () => {
   it("mergeBasic 이면 왼쪽 칸에 basicPane 을 안 넣고, 없으면 넣는다", () => {
     const src = readFileSync(join(DIR, "ThreePaneShell.tsx"), "utf8");
     // 이 보관함 시험은 JSX 렌더 없이 소스를 대조한다(react-dom 미설치).
-    expect(src).toContain("{mergeBasic ? null : basicPane}");
-    expect(src).toContain("basicPaneClass(narrowSwitch, narrowPane, mergeBasic)");
-    expect(src).toContain("centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen, mergeBasic)");
-    expect(src).toContain("{ rail: hasTrackRail, railOpen, mergeBasic }");
+    // 좁은 화면(포커스 모드)에서는 합치기를 무시해야 「기본정보」 전환 단추가 빈 칸을 보이지 않는다(코덱스 2026-09-02).
+    expect(src).toContain("const merge = mergeBasic && !narrowSwitch;");
+    expect(src).toContain("{merge ? null : basicPane}");
+    expect(src).toContain("basicPaneClass(narrowSwitch, narrowPane, merge)");
+    expect(src).toContain("centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen, merge)");
+    expect(src).toContain("{ rail: hasTrackRail, railOpen, mergeBasic: merge }");
     expect(src).toContain("mergeBasic = false");
-    expect(src).toMatch(/<aside className=\{basicPaneClass\([^)]*mergeBasic\)\}>\{mergeBasic \? null : basicPane\}<\/aside>/);
+    expect(src).toMatch(/<aside className=\{basicPaneClass\([^)]*merge\)\}>\{merge \? null : basicPane\}<\/aside>/);
   });
 
   it("레일 안쪽은 오류가 없고 한 번 보인 뒤에만 붙인다", () => {
@@ -319,7 +321,7 @@ describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합�
     expect(modalBoxClass(false, true, true)).toBe(now);
     expect(modalBoxClass(true, true, false)).toBe("");
     expect(modalBoxClass(false, true, false)).toBe(
-      "sm:w-[calc(38.4vw_+_44px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl transition-[width] duration-200 ease-out",
+      "sm:w-[calc(38.4vw_+_44px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl",
     );
   });
 });

@@ -55,14 +55,16 @@ export function ThreePaneShell(props: ThreePaneShellProps): ReactElement {
   } = props;
 
   const slots = threePaneSlots(hasTrackRail);
+  // 좁은 화면(포커스 모드)에서는 합치기를 무시한다 — 기본정보 전환 단추가 빈 칸을 보이면 안 된다(코덱스 지적).
+  const merge = mergeBasic && !narrowSwitch;
 
   return (
     <div className="flex flex-1 min-h-0">
-      <aside className={basicPaneClass(narrowSwitch, narrowPane, mergeBasic)}>{mergeBasic ? null : basicPane}</aside>
-      <main className={mergeBasic ? centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen, mergeBasic) : centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen)}>
+      <aside className={basicPaneClass(narrowSwitch, narrowPane, merge)}>{merge ? null : basicPane}</aside>
+      <main className={merge ? centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen, merge) : centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen)}>
         {slots.center === "detail" ? detailPane : plainCenterPane}
       </main>
-      <aside className={sidePaneClass(narrowSwitch, narrowPane, { rail: hasTrackRail, railOpen, mergeBasic })}>
+      <aside className={sidePaneClass(narrowSwitch, narrowPane, { rail: hasTrackRail, railOpen, mergeBasic: merge })}>
         {slots.side === "track" ? (
           <>
             {railHandle}
