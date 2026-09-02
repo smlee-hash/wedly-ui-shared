@@ -281,7 +281,8 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
   it("세 칸 머리 줄 높이가 h-12 로 같다 — 왼쪽(3분할)·가운데 분야 탭·레일 손잡이", () => {
     const view = src;
     // 가운데 분야 탭 줄
-    expect(view).toContain('bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 h-12');
+    // 2분할(mergeBasic)만 줄바꿈용 min-h-12 — 그 외 앱은 h-12 그대로(2026-09-02).
+    expect(view).toContain('bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 ${mergeBasic ? "min-h-12 py-1.5" : "h-12"}');
     // 왼쪽 기본정보 머리(3분할일 때만 밴드)
     expect(view).toContain('${stacked ? "h-12" : "py-2.5"}');
     expect(view).toContain('-mx-4 -mt-4 rounded-none border-x-0 border-t-0');
