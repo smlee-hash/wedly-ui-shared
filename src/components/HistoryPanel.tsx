@@ -20,8 +20,10 @@ import {
   canEditOrDelete as coreCanEditOrDelete,
   hasRenderableRecap,
   kakaoReportFor,
+  resolveKakaoSource,
   type UnifiedComment } from "../unified/history-core";
 import { HistoryRecapCard } from "./HistoryRecapCard";
+import { KakaoReportDialog } from "./KakaoReportDialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -324,46 +326,68 @@ export function HistoryPanel({
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const focusedRef = useRef(false);
-  const [kakaoCopiedId, setKakaoCopiedId] = useState<string | null>(null);
-  const [kakaoBusyId, setKakaoBusyId] = useState<string | null>(null);
-  const kakaoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // ★창이 닫힌 뒤 setState 가 불리지 않게 정리한다.
-  useEffect(() => () => { if (kakaoTimerRef.current) clearTimeout(kakaoTimerRef.current); }, []);
+  const [kakaoDialog, setKakaoDialog] = useState<{
+    comment: UnifiedComment;
+    loading: boolean;
+    text: string;
+    source: "ai" | "fallback" | "none";
+  } | null>(null);
 
-  const copyKakao = useCallback(async (c: UnifiedComment) => {
+  const openKakao = useCallback(async (c: UnifiedComment) => {
     const 기계글 = kakaoReportFor(c);
-    let text = 기계글;
-    if (buildKakaoReport) {
-      setKakaoBusyId(c.id);
-      try {
-        const t = await buildKakaoReport(c);
-        if (typeof t === "string" && t.trim()) text = t.trim();
-      } catch {
-        // ★서버가 안 되면 기계글로 간다 — 단추가 아무 일도 안 하는 것보다 낫다.
-      } finally {
-        setKakaoBusyId(null);
-      }
+    const hasBuilder = !!buildKakaoReport;
+    setKakaoDialog({
+      comment: c,
+      loading: hasBuilder,
+      text: 기계글,
+      source: resolveKakaoSource(hasBuilder, null),
+    });
+    if (!buildKakaoReport) return;
+    try {
+      const t = await buildKakaoReport(c);
+      const aiText = typeof t === "string" && t.trim() ? t.trim() : null;
+      setKakaoDialog((cur) => {
+        if (!cur || cur.comment.id !== c.id) return cur;
+        return {
+          comment: c,
+          loading: false,
+          text: aiText ?? 기계글,
+          source: resolveKakaoSource(true, aiText),
+        };
+      });
+    } catch {
+      // ★서버가 안 되면 기계글로 간다 — 단추가 아무 일도 안 하는 것보다 낫다.
+      setKakaoDialog((cur) => {
+        if (!cur || cur.comment.id !== c.id) return cur;
+        return {
+          comment: c,
+          loading: false,
+          text: 기계글,
+          source: resolveKakaoSource(true, null),
+        };
+      });
     }
-    const done = () => {
-      setKakaoCopiedId(c.id);
-      if (kakaoTimerRef.current) clearTimeout(kakaoTimerRef.current);
-      kakaoTimerRef.current = setTimeout(() => setKakaoCopiedId(null), 1600);
-    };
-    // ★복사가 **정말 됐을 때만** 「복사됨」으로 바꾼다. 실패했는데 성공으로 보이면
+  }, [buildKakaoReport]);
+
+  const copyText = useCallback(async (text: string): Promise<boolean> => {
+    // ★복사가 **정말 됐을 때만** 성공으로 친다. 실패했는데 성공으로 보이면
     //  사용자가 카톡에 붙여넣을 때 전에 복사해 둔 엉뚱한 글이 대표님께 간다(적대적 리뷰).
     const 실패안내 = () =>
       doAlert("복사가 되지 않았습니다. 아래 글을 직접 복사해 주세요.\n\n" + text, { title: "복사 실패" });
     if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      navigator.clipboard
-        .writeText(text)
-        .then(done)
-        .catch(() => (fallbackCopy(text) ? done() : 실패안내()));
-    } else if (fallbackCopy(text)) {
-      done();
-    } else {
-      실패안내();
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        if (fallbackCopy(text)) return true;
+        실패안내();
+        return false;
+      }
     }
-  }, [buildKakaoReport, doAlert]);
+    if (fallbackCopy(text)) return true;
+    실패안내();
+    return false;
+  }, [doAlert]);
 
   const handleShare = useCallback((commentId: string) => {
     if (typeof window === "undefined") return;
@@ -971,7 +995,8 @@ export function HistoryPanel({
                   <span className="text-[11px] text-wedly-muted tabular-nums">
                     {tf(c.createdAt)}
                   </span>
-                  <div className="ml-auto inline-flex items-center gap-1 opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 transition">
+                  <div className="ml-auto inline-flex items-center gap-1.5">
+                    <div className="inline-flex items-center gap-1 opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 transition">
                     {!locked && canEditOrDelete(c) && editingCommentId !== c.id && (
                       <>
                         <button
@@ -998,27 +1023,6 @@ export function HistoryPanel({
                         </button>
                       </>
                     )}
-                    <button
-                      onClick={() => copyKakao(c)}
-                      disabled={kakaoBusyId === c.id}
-                      title="카카오톡에 붙여넣을 수 있는 보고문을 복사합니다"
-                      aria-label="카톡 보고문 복사"
-                      className={cn(
-                        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] transition",
-                        kakaoCopiedId === c.id
-                          ? "bg-wedly-bg-green text-wedly-green-ink"
-                          : "text-wedly-t2 hover:text-wedly-accent-ink hover:bg-wedly-bg-blue",
-                      )}
-                    >
-                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden>
-                        {kakaoCopiedId === c.id ? (
-                          <path d="M3 8.5l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        ) : (
-                          <path d="M5.5 2.5h6a1 1 0 011 1v8m-3-9v-1a1 1 0 00-1-1h-5a1 1 0 00-1 1v9a1 1 0 001 1h1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                        )}
-                      </svg>
-                      <span>{kakaoBusyId === c.id ? "만드는 중…" : kakaoCopiedId === c.id ? "복사됨" : "카톡 보고"}</span>
-                    </button>
                     {/* R3: shareEnabled gates share button */}
                     {shareEnabled && (
                       <button
@@ -1049,6 +1053,20 @@ export function HistoryPanel({
                         )}
                       </button>
                     )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openKakao(c)}
+                      title="대표님께 보낼 카톡 보고문을 보고 복사합니다"
+                      aria-label="카톡 보고문 보기"
+                      aria-haspopup="dialog"
+                      className="inline-flex items-center gap-1 rounded-full border border-wedly-gold bg-wedly-bg-yellow px-2 py-[3px] text-[11px] font-semibold text-wedly-gold-ink transition duration-150 ease-out hover:-translate-y-px hover:shadow-sm focus-visible:outline-2 focus-visible:outline-wedly-accent"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden>
+                        <path d="M12 3C6.5 3 2 6.6 2 11c0 2.8 1.9 5.3 4.7 6.7L5.6 21.3c-.1.3.3.6.5.4l4.6-3c.4 0 .9.1 1.3.1 5.5 0 10-3.6 10-8S17.5 3 12 3z" fill="currentColor" />
+                      </svg>
+                      <span>카톡 보고</span>
+                    </button>
                   </div>
                 </div>
                 {editingCommentId === c.id ? (
@@ -1265,6 +1283,15 @@ export function HistoryPanel({
           </div>
         );
       })()}
+      <KakaoReportDialog
+        open={!!kakaoDialog}
+        loading={kakaoDialog?.loading ?? false}
+        text={kakaoDialog?.text ?? ""}
+        source={kakaoDialog?.source ?? "none"}
+        subtitle={kakaoDialog ? `${kakaoDialog.comment.name ?? ""} · ${tf(kakaoDialog.comment.createdAt)} 기록에서`.trim() : undefined}
+        onClose={() => setKakaoDialog(null)}
+        onCopy={copyText}
+      />
     </div>
   );
 }
