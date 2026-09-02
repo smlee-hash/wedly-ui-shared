@@ -364,7 +364,7 @@ describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합�
     expect(view).toContain("hideHeader?: boolean");
     expect(view).toContain("toolsSlot?: HTMLElement | null");
     expect(view).toContain('{mergeBasic && <div ref={setBasicToolsSlot} className={activeTab === "__basic__" ? "flex items-center gap-1.5" : "hidden"} />}');
-    expect(view).toContain("{isAdmin && (!mergeBasic || activeTab !== \"__basic__\") && (");
+    expect(view).toContain("{isAdmin && (!mergeBasic || activeTab !== \"__basic__\" || visibleGroups.length === 0) && (");
     expect(view).toContain('<div className="flex-shrink-0 flex items-center gap-1.5 ml-2">');
     expect(view).toContain("createPortal(");
     expect(view).toContain("<CommonFieldsLauncher");
