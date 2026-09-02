@@ -2640,9 +2640,9 @@ export default function UnifiedDetailView({
   const wideActive = layout === "wide" && !isNew && wideViewport;
   // 좁은 화면(휴대폰)에서도 3분할 내용을 쓰되, 한 번에 한 칸만 보여 주고 아래 단추로 바꾼다
   // (2026-08-23 사장님 선택 — 세 칸을 나란히 넣으면 한 칸이 130px 안팎이라 못 읽는다).
-  // 2026-09-02 사장님 결정 — 3분할 동시보기를 없애고 넓은 화면에서도 항상 포커스 모드
-  // (한 번에 한 칸 + 상단 전환)로 통일. 폭 조건(wideViewport)을 뺀다.
-  const narrowSwitch = layout === "wide" && !isNew;
+  // 2026-09-02 사장님 결정으로 "항상 포커스 모드"를 시도했으나, 같은 날 재검토 후
+  // 원래대로(넓은 화면=3분할 동시보기, 좁은 화면만 포커스 모드) 되돌림.
+  const narrowSwitch = layout === "wide" && !isNew && !wideViewport;
   // 3분할 내용을 쓰는 상태(넓은 화면 나란히 / 좁은 화면 전환) — 선언 순서를 위해 여기서 계산.
   const threePane = layout === "wide" && !isNew;
   const [narrowPane, setNarrowPane] = useState<"basic" | "center" | "side">(
@@ -3509,7 +3509,7 @@ export default function UnifiedDetailView({
       >
         <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
         <div
-          className={`relative bg-white shadow-2xl w-full h-full flex flex-col rounded-none overflow-hidden animate-modal-in ${!wideViewport ? "" : "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl"}`}
+          className={`relative bg-white shadow-2xl w-full h-full flex flex-col rounded-none overflow-hidden animate-modal-in ${narrowSwitch ? "" : "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl"}`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="border-b border-wedly-bd/60 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2">
