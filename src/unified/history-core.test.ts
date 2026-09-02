@@ -21,7 +21,7 @@ import {
   GENERAL_TAB_ID,
   type UnifiedComment,
   type HistoryCategoryDef,
-  type CommentRecap, kakaoReportDate, stripMarkdownKeepUrls, clampKakaoLine, KAKAO_LINE_MAX, kakaoTextareaRows, KAKAO_TEXTAREA_MIN_ROWS } from "./history-core";
+  type CommentRecap, kakaoReportDate, stripMarkdownKeepUrls, clampKakaoLine, KAKAO_LINE_MAX, kakaoTextareaRows, KAKAO_TEXTAREA_MIN_ROWS, KAKAO_TEXTAREA_MAX_ROWS } from "./history-core";
 
 const FALLBACKS: HistoryCategoryDef[] = [
   { id: "policy", label: "정책자금" },
@@ -557,9 +557,16 @@ describe("★kakaoTextareaRows — 글상자는 글 줄 수만큼 (2026-09-03 �
     expect(kakaoTextareaRows("")).toBe(8);
     expect(kakaoTextareaRows(Array(52).fill("줄").join("\n"))).toBe(53);
   });
+  it("개행이 수만 개여도 상한(400)에서 멈춘다 — 깨진 답으로 화면이 멎지 않게", () => {
+    expect(KAKAO_TEXTAREA_MAX_ROWS).toBe(400);
+    expect(kakaoTextareaRows("\n".repeat(100_000))).toBe(400);
+  });
   it("대화상자가 그 값을 rows 로 쓴다", () => {
     const src = readFileSync(new URL("../components/KakaoReportDialog.tsx", import.meta.url), "utf8");
     expect(src).toContain("rows={kakaoTextareaRows(draft)}");
     expect(src).not.toContain("min-h-[220px]");
+    // 자동 줄바꿈으로 접힌 줄까지 실제 높이로 맞춘다(안쪽 스크롤 없음).
+    expect(src).toContain("el.style.height = `${el.scrollHeight}px`");
+    expect(src).toContain("overflow-hidden");
   });
 });
