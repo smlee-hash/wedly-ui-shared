@@ -97,8 +97,14 @@ export function KakaoReportDialog({
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!open || loading || !el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    // ★창 폭이 바뀌면 자동 줄바꿈 줄 수가 달라진다 — 연 채로 좁히면 끝이 잘려 못 보던 실사례(2026-09-03 QA). 폭 변화에도 다시 맞춘다.
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
   }, [open, loading, draft]);
 
   // 만드는 중엔 닫기 단추로, 글이 오면 글 칸으로 초점을 옮긴다 — 열린 즉시 키보드가 창 안에 있게.
