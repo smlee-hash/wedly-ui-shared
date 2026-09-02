@@ -276,12 +276,28 @@ export const KAKAO_LINE_MAX = 45;
  *  `계약번호 #123` → `계약번호 123`
  *  대표님께 가는 보고문에 틀린 주소·번호가 실리면 안 된다.
  * 그래서 **주소 토막은 그대로 두고** 나머지에서만 장식을 없앤다.
+ *
+ * ★물결표(~)는 **양쪽에 글자가 붙어 있으면 범위 기호**라 살린다(2026-09-02 태산레져 실사례):
+ *  `24~25억`·`3~6개월`·`월~금` 을 지우면 `2425억`·`36개월`·`월금` 이 되어 대표님께 매출이 100배
+ *  부풀려 나간다. 취소선(`~~취소~~`·` ~취소~ `)처럼 한쪽이 공백·줄끝인 물결표만 지운다.
  */
 export function stripMarkdownKeepUrls(v: string): string {
   return v
     .split(/(\bhttps?:\/\/\S+)/g)
-    .map((조각, i) => (i % 2 === 1 ? 조각 : 조각.replace(/[*_`~#>|]/g, "")))
+    .map((조각, i) => (i % 2 === 1 ? 조각 : stripDecoration(조각)))
     .join("");
+}
+
+function stripDecoration(조각: string): string {
+  const 물결정리 = 조각
+    .replace(/~~/g, "")
+    // 뒤 탐색(lookbehind) 없이 — 옛 사파리에서도 돌게 이웃 글자를 손으로 본다.
+    .replace(/~/g, (_m, 위치: number, 전체: string) => {
+      const 앞 = 위치 > 0 ? 전체[위치 - 1] : " ";
+      const 뒤 = 위치 + 1 < 전체.length ? 전체[위치 + 1] : " ";
+      return /\S/.test(앞) && /\S/.test(뒤) ? "~" : "";
+    });
+  return 물결정리.replace(/[*_`#>|]/g, "");
 }
 
 /** 카톡 한 줄이 너무 길면 잘라 준다 — 넘으면 카톡 폭에서 지저분하게 접힌다. */
