@@ -3330,8 +3330,9 @@ export default function UnifiedDetailView({
     const sideContent = (
       <>
               {/* 분야 탭 줄 — 3분할에서는 오른쪽 패널 맨 위로(원래 상세창 모습을 통째로 오른쪽에). */}
-              <div className="flex items-center gap-1 bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 h-12">
-                <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+              {/* 2분할(mergeBasic)에서는 탭이 7개라 접힌 상자(≈658px)에 안 들어간다 — 넘치면 줄바꿈하고 글자 단추는 아이콘으로(QA 2026-09-02: 「특허」가 「탭 편집」 아래로 잘림). 그 외 앱은 문자열 그대로. */}
+              <div className={`flex items-center gap-1 bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 ${mergeBasic ? "min-h-12 py-1.5" : "h-12"}`}>
+                <div className={`flex items-center gap-1 flex-1 min-w-0 ${mergeBasic ? "flex-wrap" : "overflow-x-auto"}`}>
                   {mergeBasic && (
                     <>
                       <button
@@ -3348,9 +3349,8 @@ export default function UnifiedDetailView({
                         기본정보
                       </button>
                       {/* 기본정보와 분야 탭이 다른 묶음임을 보이는 구분 표식(사장님 2026-09-02) */}
-                      <span aria-hidden="true" className="inline-flex items-center gap-1 ml-1 mr-1 pl-3 h-6 border-l border-wedly-bd-blue text-[11px] font-semibold text-wedly-muted flex-shrink-0">
+                      <span aria-hidden="true" title="분야" className="inline-flex items-center gap-1 ml-1 mr-1 pl-2.5 h-6 border-l border-wedly-bd-blue flex-shrink-0">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="text-wedly-accent-ink"><path d="m12 3 9 5-9 5-9-5 9-5z" /><path d="m3 13 9 5 9-5" /></svg>
-                        분야
                       </span>
                     </>
                   )}
@@ -3427,7 +3427,7 @@ export default function UnifiedDetailView({
                       <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                         <path d="M11.5 2L14 4.5L5.5 13L2 14L3 10.5L11.5 2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
                       </svg>
-                      {topTabEditMode ? "완료" : "탭 편집"}
+                      {topTabEditMode ? "완료" : mergeBasic ? null : "탭 편집"}
                     </button>
                   </div>
                 )}
