@@ -3331,16 +3331,16 @@ export default function UnifiedDetailView({
     const sideContent = (
       <>
               {/* 분야 탭 줄 — 3분할에서는 오른쪽 패널 맨 위로(원래 상세창 모습을 통째로 오른쪽에). */}
-              {/* 2분할(mergeBasic)에서는 탭이 7개라 접힌 상자(≈658px)에 안 들어간다 — 넘치면 줄바꿈하고 글자 단추는 아이콘으로(QA 2026-09-02: 「특허」가 「탭 편집」 아래로 잘림). 그 외 앱은 문자열 그대로. */}
-              <div className={`flex items-center gap-1 bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 ${mergeBasic ? "min-h-12 py-1.5" : "h-12"}`}>
-                <div className={`flex items-center gap-1 flex-1 min-w-0 ${mergeBasic ? "flex-wrap" : "overflow-x-auto"}`}>
+              {/* 2분할(mergeBasic)도 한 줄 고정 — 넘치면 가로 스크롤, 알약만 px-2.5(2026-09-02 사장님 「둘째 줄로 내려가면 안 된다」). 그 외 앱은 문자열 그대로. */}
+              <div className={`flex items-center gap-1 bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 ${mergeBasic ? "px-4 h-12" : "px-3 sm:px-6 h-12"}`}>
+                <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto">
                   {mergeBasic && (
                     <>
                       <button
                         type="button"
                         // narrowPane 도 함께 맞춘다 — 넓은 화면에서 기본정보를 보다가 창을 좁히면 그 칸이 그대로 보이게(코덱스 지적).
                         onClick={() => { setActiveTab("__basic__"); setNarrowPane("basic"); }}
-                        className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
+                        className={`${mergeBasic ? "px-2.5" : "px-3"} py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
                           activeTab === "__basic__" ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
                         }`}
                       >
@@ -3388,7 +3388,7 @@ export default function UnifiedDetailView({
                       <button
                         key={group.key}
                         onClick={() => setActiveTab(group.key)}
-                        className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
+                        className={`${mergeBasic ? "px-2.5" : "px-3"} py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
                           active
                             ? "bg-wedly-bg-blue text-wedly-accent-ink"
                             : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
@@ -3651,19 +3651,22 @@ export default function UnifiedDetailView({
             }
             railHandle={
               // 좁은 화면은 위 3버튼이 이미 전환이라 손잡이를 그리지 않는다.
+              // 접힘/펼침을 같은 <button> 루트로 그린다 — 루트가 바뀌면 전환 때 포커스가 사라진다(코덱스 2026-09-02).
               hasTrackRail && !narrowSwitch ? (
-                trackRailOpen ? (
                     // 같은 렌더에서 붙여야 넓어진 빈 칸이 한 프레임 안 보인다
                     <button
                       type="button"
                       onClick={() => { setTrackRailOpen((v) => !v); setTrackEverShown(true); }}
                       aria-expanded={trackRailOpen}
-                      aria-label={trackRailOpen ? "업무 현황 접기" : "업무 현황 펼치기"}
-                      title={trackRailOpen ? "업무 현황 접기" : "업무 현황 펼치기"}
-                      // 펼침: 줄 하나를 통째로 먹지 않고 칸 왼쪽 위 모서리에 겹쳐 둔다 — 그래야
-                      // 레일의 첫 줄(주입 화면의 머리 밴드)이 좌·중앙 머리 줄과 같은 높이에 온다.
-                      className="absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
+                      aria-label={trackRailOpen ? "업무 현황 접기" : undefined}
+                      title={trackRailOpen ? "업무 현황 접기" : "컨설팅 업무 현황 펼치기"}
+                      className={trackRailOpen
+                        // 펼침: 줄 하나를 통째로 먹지 않고 칸 왼쪽 위 모서리에 겹쳐 둔다 — 그래야
+                        // 레일의 첫 줄(주입 화면의 머리 밴드)이 좌·중앙 머리 줄과 같은 높이에 온다.
+                        ? "absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
+                        : "flex-1 w-full flex flex-col items-center bg-white pt-3 focus:outline-none group"}
                     >
+                      {trackRailOpen ? (
                       <svg
                         width="16"
                         height="16"
@@ -3673,27 +3676,21 @@ export default function UnifiedDetailView({
                       >
                         <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
+                      ) : (
+                      <>
+                        <span className="sr-only">펼치기</span>
+                        {/* A안(2026-09-02 사장님 승인): 흰 띠 + 진한 파랑 세로 탭 — 검수자 지적 「접힘 표시가 눈에 안 띔」. */}
+                        <div className="motion-safe:animate-[wedly-nudge_1.2s_ease-in-out_3] flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out group-hover:bg-wedly-accent-ink group-hover:-translate-x-[3px] group-focus-visible:ring-[3px] group-focus-visible:ring-wedly-accent/40">
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          <span className="text-[12px] font-bold tracking-wide" style={{ writingMode: "vertical-rl" }}>컨설팅 업무 현황</span>
+                          {TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}
+                        </div>
+                        <span className="mt-3 text-[11px] text-wedly-muted" style={{ writingMode: "vertical-rl" }}>눌러서 펼치기</span>
+                      </>
+                      )}
                     </button>
-                ) : (
-                    // A안(2026-09-02 사장님 승인): 흰 띠 + 진한 파랑 세로 탭 — 검수자 지적 「접힘 표시가 눈에 안 띔」.
-                    <div className="flex-1 w-full flex flex-col items-center bg-white pt-3">
-                      <button
-                        type="button"
-                        onClick={() => { setTrackRailOpen(true); setTrackEverShown(true); }}
-                        aria-expanded={false}
-                        aria-label="컨설팅 업무 현황 펼치기"
-                        title="컨설팅 업무 현황 펼치기"
-                        className="motion-safe:animate-[wedly-nudge_1.2s_ease-in-out_3] flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out hover:bg-wedly-accent-ink hover:-translate-x-[3px] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-wedly-accent/40"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                          <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <span className="text-[12px] font-bold tracking-wide" style={{ writingMode: "vertical-rl" }}>컨설팅 업무 현황</span>
-                        {TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}
-                      </button>
-                      <span className="mt-3 text-[11px] text-wedly-muted" style={{ writingMode: "vertical-rl" }}>눌러서 펼치기</span>
-                    </div>
-                )
               ) : null
             }
           />

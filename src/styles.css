@@ -13,3 +13,6 @@
  * 색·브랜드 토큰 값은 각 앱이 스스로 정의한 것을 그대로 쓴다(값을 여기 박지 않는다).
  */
 @source "./**/*.{ts,tsx,js,jsx}";
+
+/* 접힌 「컨설팅 업무 현황」 손잡이가 처음 세 번 살짝 흔들려 「눌러서 펼친다」를 알린다(2026-09-02) */
+@keyframes wedly-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }

@@ -245,7 +245,7 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
   const handleStart = src.indexOf("aria-expanded={trackRailOpen}");
   const handleEnd = src.indexOf("</button>", handleStart);
   const handle = src.slice(handleStart, handleEnd);
-  const collapsedStart = src.indexOf('aria-label="컨설팅 업무 현황 펼치기"');
+  const collapsedStart = src.indexOf('<span className="sr-only">펼치기</span>');
   const collapsedEnd = src.indexOf("</button>", collapsedStart);
   const collapsed = collapsedStart >= 0 ? src.slice(collapsedStart, collapsedEnd) : "";
 
@@ -257,9 +257,12 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
   });
 
   it("접힌 손잡이는 흰 띠 안에 진한 파랑 세로 탭이다", () => {
-    expect(src).toContain('className="flex-1 w-full flex flex-col items-center bg-white pt-3"');
+    expect(src).toContain("flex-1 w-full flex flex-col items-center bg-white pt-3 focus:outline-none group");
     expect(collapsed).toContain("bg-wedly-accent");
-    expect(collapsed).toContain("hover:bg-wedly-accent-ink");
+    expect(collapsed).toContain("group-hover:bg-wedly-accent-ink");
+    expect(collapsed).toContain("group-hover:-translate-x-[3px]");
+    expect(collapsed).toContain("group-focus-visible:ring-[3px]");
+    expect(collapsed).toContain("group-focus-visible:ring-wedly-accent/40");
     expect(collapsed).toContain("motion-safe:animate-[wedly-nudge_1.2s_ease-in-out_3]");
     expect(collapsed).toContain('strokeWidth="2"');
     expect(collapsed).toContain("컨설팅 업무 현황");
@@ -269,6 +272,9 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
     expect(src).not.toContain(
       "flex-1 w-full flex flex-col items-center justify-center gap-2 py-3 bg-wedly-bg-blue text-wedly-accent-ink hover:bg-wedly-bg-blue/70 transition-colors",
     );
+    const css = readFileSync(join(DIR, "../styles.css"), "utf8");
+    expect(css).toContain("/* 접힌 「컨설팅 업무 현황」 손잡이가 처음 세 번 살짝 흔들려 「눌러서 펼친다」를 알린다(2026-09-02) */");
+    expect(css).toContain("@keyframes wedly-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }");
   });
 
   it("펼친 손잡이는 줄을 먹지 않고 칸 왼쪽 위 모서리에 겹친다 — 세 칸 상단 줄 정렬(2026-08-30)", () => {
@@ -281,7 +287,10 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
   });
 
   it("접힘 탭은 펼치기 레이블·배지 연결을 갖고, 펼침 버튼 자리는 그대로다", () => {
-    expect(src).toContain('aria-label="컨설팅 업무 현황 펼치기"');
+    expect(src).not.toContain('aria-label="컨설팅 업무 현황 펼치기"');
+    expect(src).toContain('<span className="sr-only">펼치기</span>');
+    expect(src).toContain('aria-label={trackRailOpen ? "업무 현황 접기" : undefined}');
+    expect(src).toContain("aria-expanded={trackRailOpen}");
     expect(src).toContain("const TrackRailBadge = adapter.components.trackRailBadge");
     expect(src).toContain("{TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}");
     expect(handle).toContain("absolute left-0 top-0 z-20 h-12 w-8");
@@ -289,9 +298,12 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
 
   it("세 칸 머리 줄 높이가 h-12 로 같다 — 왼쪽(3분할)·가운데 분야 탭·레일 손잡이", () => {
     const view = src;
-    // 가운데 분야 탭 줄
-    // 2분할(mergeBasic)만 줄바꿈용 min-h-12 — 그 외 앱은 h-12 그대로(2026-09-02).
-    expect(view).toContain('bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 ${mergeBasic ? "min-h-12 py-1.5" : "h-12"}');
+    // 가운데 분야 탭 줄 — 2분할도 한 줄 고정(h-12). 줄바꿈(min-h-12/flex-wrap)은 쓰지 않는다(2026-09-02 사장님).
+    expect(view).toContain('bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 ${mergeBasic ? "px-4 h-12" : "px-3 sm:px-6 h-12"}');
+    expect(view).toContain('className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto"');
+    expect(view).toContain('${mergeBasic ? "px-2.5" : "px-3"} py-1.5 rounded-full');
+    expect(view).not.toContain("min-h-12 py-1.5");
+    expect(view).not.toContain('${mergeBasic ? "flex-wrap" : "overflow-x-auto"}');
     // 왼쪽 기본정보 머리(3분할일 때만 밴드)
     expect(view).toContain('${stacked ? "h-12" : "py-2.5"}');
     expect(view).toContain('-mx-4 -mt-4 rounded-none border-x-0 border-t-0');
@@ -312,7 +324,7 @@ describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합�
     expect(basicPaneClass(true, "basic", true)).toBe(basicPaneClass(true, "basic"));
   });
   it("펼침이면 가운데 40% 고정·레일이 나머지, 접힘이면 가운데 flex-1", () => {
-    expect(centerPaneClass(false, "center", true, true, true)).toBe("w-[40%] flex-shrink-0 flex flex-col min-h-0");
+    expect(centerPaneClass(false, "center", true, true, true)).toBe("w-[40%] min-w-[640px] flex-shrink-0 flex flex-col min-h-0");
     expect(centerPaneClass(false, "center", true, false, true)).toBe("flex-1 min-w-0 flex flex-col min-h-0");
     expect(sidePaneClass(false, "side", { rail: true, railOpen: true, mergeBasic: true })).toBe(
       "relative flex-1 min-w-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out",
@@ -331,7 +343,7 @@ describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합�
     expect(modalBoxClass(false, true, true)).toBe(now);
     expect(modalBoxClass(true, true, false)).toBe("");
     expect(modalBoxClass(false, true, false)).toBe(
-      "sm:w-[calc(38.4vw_+_44px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl",
+      "sm:w-[max(calc(38.4vw_+_44px),684px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl",
     );
   });
 });
