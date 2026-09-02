@@ -16,6 +16,7 @@ import {
   buildKakaoReport,
   buildKakaoReportFromText,
   kakaoReportFor,
+  resolveKakaoSource,
   ALL_TAB_ID,
   GENERAL_TAB_ID,
   type UnifiedComment,
@@ -513,5 +514,20 @@ describe("★긴 줄은 잘라 준다 — 죽은 상수로 두지 않는다", ()
   });
   it("자를 때 말줄임표를 붙인다", () => {
     expect(clampKakaoLine("가".repeat(100)).endsWith("…")).toBe(true);
+  });
+});
+
+describe("resolveKakaoSource — 보고문 출처 안내", () => {
+  it("ai 글 있음 → ai", () => {
+    expect(resolveKakaoSource(true, "대표님, 통화했습니다.")).toBe("ai");
+  });
+  it("빈 문자열 + builder → fallback", () => {
+    expect(resolveKakaoSource(true, "")).toBe("fallback");
+  });
+  it("null + builder → fallback", () => {
+    expect(resolveKakaoSource(true, null)).toBe("fallback");
+  });
+  it("builder 없음 → none", () => {
+    expect(resolveKakaoSource(false, undefined)).toBe("none");
   });
 });

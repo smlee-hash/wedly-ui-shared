@@ -36,13 +36,13 @@ describe("★정리 카드 디자인 계약", () => {
   });
   it("★서버가 안 되면 기계글로 떨어진다 — 단추가 먹통이 되면 안 된다", () => {
     const panel = readFileSync(new URL("./HistoryPanel.tsx", import.meta.url), "utf8");
-    const 블록 = panel.slice(panel.indexOf("const copyKakao"), panel.indexOf("const copyKakao") + 1400);
+    const 블록 = panel.slice(panel.indexOf("const openKakao"), panel.indexOf("const openKakao") + 1800);
     expect(블록).toContain("kakaoReportFor(c)");
     expect(블록).toMatch(/catch\s*\{/);
   });
   it("★기다리는 동안 표시가 있다 — AI 는 몇 초 걸린다", () => {
-    const panel = readFileSync(new URL("./HistoryPanel.tsx", import.meta.url), "utf8");
-    expect(panel).toContain("만드는 중");
+    const dialog = readFileSync(new URL("./KakaoReportDialog.tsx", import.meta.url), "utf8");
+    expect(dialog).toContain("다시 쓰는 중");
   });
 });
 
@@ -50,8 +50,8 @@ describe("★배선 자체를 지킨다 — 글자만 보면 배선을 끊어도
   const panel = readFileSync(new URL("./HistoryPanel.tsx", import.meta.url), "utf8");
   const seedPanel = readFileSync(new URL("../unified-detail/HistoryPanel.tsx", import.meta.url), "utf8");
 
-  it("★단추가 실제로 copyKakao 에 물려 있다 — onClick 을 빈 함수로 바꾸면 잡는다", () => {
-    expect(panel).toMatch(/onClick=\{\(\)\s*=>\s*copyKakao\(c\)\}/);
+  it("★단추가 실제로 openKakao 에 물려 있다 — onClick 을 빈 함수로 바꾸면 잡는다", () => {
+    expect(panel).toMatch(/onClick=\{\(\)\s*=>\s*openKakao\(c\)\}/);
   });
 
   it("★씨앗이 실제로 패널에 넘어간다 — seedComments 를 지우면 깜빡임이 부활한다", () => {
@@ -64,7 +64,35 @@ describe("★배선 자체를 지킨다 — 글자만 보면 배선을 끊어도
   });
 
   it("★기다림 표시가 실제 상태에 물려 있다", () => {
-    expect(panel).toMatch(/kakaoBusyId === c\.id \? "만드는 중/);
+    expect(panel).toMatch(/loading=\{kakaoDialog\?\.loading \?\? false\}/);
+  });
+});
+
+describe("★카톡 보고 알약 + 대화상자", () => {
+  const panel = readFileSync(new URL("./HistoryPanel.tsx", import.meta.url), "utf8");
+  const dialog = readFileSync(new URL("./KakaoReportDialog.tsx", import.meta.url), "utf8");
+  const RAW_TW = /(bg|text|border)-(red|green|blue|gray|slate|amber|yellow|sky|indigo)-\d{2,3}/;
+
+  it("카톡 보고 단추는 hover 숨김 그룹 밖에 있다", () => {
+    const hoverOpen = panel.indexOf('focus-within:opacity-100 transition">');
+    expect(hoverOpen).toBeGreaterThan(-1);
+    const hoverClose = panel.indexOf("</div>", hoverOpen);
+    const kakaoSpan = panel.indexOf("<span>카톡 보고</span>");
+    expect(kakaoSpan).toBeGreaterThan(hoverClose);
+
+    const btnStart = panel.lastIndexOf("<button", kakaoSpan);
+    const btnEnd = panel.indexOf("</button>", kakaoSpan);
+    const btn = panel.slice(btnStart, btnEnd);
+    expect(btn).toContain("카톡 보고");
+    expect(btn).not.toContain("group-hover/comment:opacity-100");
+  });
+
+  it("KakaoReportDialog 에 raw Tailwind 색이 없다", () => {
+    expect(dialog).not.toMatch(RAW_TW);
+  });
+
+  it("HistoryPanel 이 KakaoReportDialog 를 import 한다", () => {
+    expect(panel).toMatch(/import\s*\{\s*KakaoReportDialog\s*\}\s*from\s*["']\.\/KakaoReportDialog["']/);
   });
 });
 

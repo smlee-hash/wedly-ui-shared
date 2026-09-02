@@ -387,3 +387,15 @@ export function kakaoReportFor(
     ? buildKakaoReport(c.recap!, { at, kindLabel: recapKindLabel(c.recap!.kind) })
     : buildKakaoReportFromText(c.text, { at });
 }
+
+/**
+ * 카톡 보고 대화상자에 붙일 출처 안내.
+ * AI 글이 있으면 "ai". 비거나 공백만이면 통로가 있을 때 "fallback", 없으면 "none".
+ */
+export function resolveKakaoSource(
+  hasBuilder: boolean,
+  aiText: string | null | undefined,
+): "ai" | "fallback" | "none" {
+  if (typeof aiText === "string" && aiText.trim().length > 0) return "ai";
+  return hasBuilder ? "fallback" : "none";
+}
