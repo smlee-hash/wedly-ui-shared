@@ -568,5 +568,7 @@ describe("★kakaoTextareaRows — 글상자는 글 줄 수만큼 (2026-09-03 �
     // 자동 줄바꿈으로 접힌 줄까지 실제 높이로 맞춘다(안쪽 스크롤 없음).
     expect(src).toContain("el.style.height = `${el.scrollHeight}px`");
     expect(src).toContain("overflow-hidden");
+    // 창 폭이 바뀌어도 다시 맞춘다(연 채로 좁히면 끝이 잘리던 실사례).
+    expect(src).toContain('window.addEventListener("resize", fit)');
   });
 });
