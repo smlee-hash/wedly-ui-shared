@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Info, Loader2 } from "lucide-react";
 import { cn } from "../lib/cn";
+import { kakaoTextareaRows } from "../unified/history-core";
 
 const BUBBLE_PATH =
   "M12 3C6.5 3 2 6.6 2 11c0 2.8 1.9 5.3 4.7 6.7L5.6 21.3c-.1.3.3.6.5.4l4.6-3c.4 0 .9.1 1.3.1 5.5 0 10-3.6 10-8S17.5 3 12 3z";
@@ -199,7 +200,10 @@ export function KakaoReportDialog({
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 aria-label="보고문"
-                className="w-full min-h-[220px] resize-y rounded-xl border border-wedly-bd bg-wedly-bg-gray/40 p-3.5 text-[13.5px] leading-7 text-wedly-t1 transition duration-150 ease-out focus:border-wedly-accent focus:outline-none"
+                // ★글 줄 수만큼 늘어난다(최소 8줄) — 220px 고정이던 때는 47줄 글을 여섯 화면 굴려야 했다(2026-09-03 사장님 지시).
+                //  안쪽 스크롤 대신 창(max-h 100vh-2rem)이 한 번만 스크롤된다. 손으로 줄이면(resize) 그때만 안쪽 스크롤이 생긴다.
+                rows={kakaoTextareaRows(draft)}
+                className="w-full resize-y overflow-y-auto rounded-xl border border-wedly-bd bg-wedly-bg-gray/40 p-3.5 text-[13.5px] leading-7 text-wedly-t1 transition duration-150 ease-out focus:border-wedly-accent focus:outline-none"
               />
               <p className={cn("mt-2 flex items-start gap-1.5 text-[12px] leading-5", hint.className)}>
                 <HintIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.2} aria-hidden />
