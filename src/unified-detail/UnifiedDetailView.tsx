@@ -2992,6 +2992,7 @@ export default function UnifiedDetailView({
           { key: "meetings", label: "미팅정보" },
         ] as const);
   const WideCenterPanel = threePane ? adapter.components.wideCenterPanel : undefined;
+  const TrackRailBadge = adapter.components.trackRailBadge;
   // 직접 만든 분야 — 고정 조각이 가운데를 차지하면 이 조각도 오른쪽으로 옮겨야 한다.
   // (안 옮기면 그 탭을 골라도 아무 데도 안 그려져 빈 화면이 된다.)
   const customOnRight = Boolean(
@@ -3651,6 +3652,7 @@ export default function UnifiedDetailView({
             railHandle={
               // 좁은 화면은 위 3버튼이 이미 전환이라 손잡이를 그리지 않는다.
               hasTrackRail && !narrowSwitch ? (
+                trackRailOpen ? (
                     // 같은 렌더에서 붙여야 넓어진 빈 칸이 한 프레임 안 보인다
                     <button
                       type="button"
@@ -3658,33 +3660,40 @@ export default function UnifiedDetailView({
                       aria-expanded={trackRailOpen}
                       aria-label={trackRailOpen ? "업무 현황 접기" : "업무 현황 펼치기"}
                       title={trackRailOpen ? "업무 현황 접기" : "업무 현황 펼치기"}
-                      className={
-                        trackRailOpen
-                          // 펼침: 줄 하나를 통째로 먹지 않고 칸 왼쪽 위 모서리에 겹쳐 둔다 — 그래야
-                          // 레일의 첫 줄(주입 화면의 머리 밴드)이 좌·중앙 머리 줄과 같은 높이에 온다.
-                          ? "absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
-                          : "flex-1 w-full flex flex-col items-center justify-center gap-2 py-3 bg-wedly-bg-blue text-wedly-accent-ink hover:bg-wedly-bg-blue/70 transition-colors"
-                      }
+                      // 펼침: 줄 하나를 통째로 먹지 않고 칸 왼쪽 위 모서리에 겹쳐 둔다 — 그래야
+                      // 레일의 첫 줄(주입 화면의 머리 밴드)이 좌·중앙 머리 줄과 같은 높이에 온다.
+                      className="absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
                     >
                       <svg
-                        width={trackRailOpen ? "16" : "18"}
-                        height={trackRailOpen ? "16" : "18"}
+                        width="16"
+                        height="16"
                         viewBox="0 0 16 16"
                         fill="none"
                         aria-hidden="true"
                       >
-                        {trackRailOpen ? (
-                          <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        ) : (
-                          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        )}
+                        <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                      {!trackRailOpen && (
-                        <span className="text-[12px] font-semibold" style={{ writingMode: "vertical-rl" }}>
-                          업무 현황
-                        </span>
-                      )}
                     </button>
+                ) : (
+                    // A안(2026-09-02 사장님 승인): 흰 띠 + 진한 파랑 세로 탭 — 검수자 지적 「접힘 표시가 눈에 안 띔」.
+                    <div className="flex-1 w-full flex flex-col items-center bg-white pt-3">
+                      <button
+                        type="button"
+                        onClick={() => { setTrackRailOpen(true); setTrackEverShown(true); }}
+                        aria-expanded={false}
+                        aria-label="컨설팅 업무 현황 펼치기"
+                        title="컨설팅 업무 현황 펼치기"
+                        className="motion-safe:animate-[wedly-nudge_1.2s_ease-in-out_3] flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out hover:bg-wedly-accent-ink hover:-translate-x-[3px] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-wedly-accent/40"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span className="text-[12px] font-bold tracking-wide" style={{ writingMode: "vertical-rl" }}>컨설팅 업무 현황</span>
+                        {TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}
+                      </button>
+                      <span className="mt-3 text-[11px] text-wedly-muted" style={{ writingMode: "vertical-rl" }}>눌러서 펼치기</span>
+                    </div>
+                )
               ) : null
             }
           />

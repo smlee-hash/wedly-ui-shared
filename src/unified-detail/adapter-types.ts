@@ -242,6 +242,8 @@ export interface UnifiedDetailAdapter {
     /** wide(3분할) 가운데 고정 조각 — 어느 분야 탭을 골라도 가운데엔 이것만 그린다(업무 현황).
      *  지정하면 모든 분야에서 본 패널이 오른쪽 「정보」 칸으로 간다. 미지정이면 기존 동작. */
     wideCenterPanel?: React.ComponentType<SectionPanelProps>;
+    /** 접힌 업무 현황 손잡이에 붙는 작은 배지(예: 진행 중 업무 수). 앱이 자료를 알므로 앱이 준다. 미지정이면 배지 없음. */
+    trackRailBadge?: React.ComponentType<{ primaryRow: Record<string, unknown> }>;
     /** wide(3분할) 전용 — 그 그룹의 본 패널(차수 카드 등)을 오른쪽 「정보」 칸으로 옮긴다.
      *  값이 "right" 인 그룹은 가운데에 머리 조각(진행 업무)만 남는다. 미지정 그룹·compact 불변. */
     widePanelPlacement?: Record<string, "right">;

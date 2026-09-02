@@ -245,28 +245,30 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
   const handleStart = src.indexOf("aria-expanded={trackRailOpen}");
   const handleEnd = src.indexOf("</button>", handleStart);
   const handle = src.slice(handleStart, handleEnd);
+  const collapsedStart = src.indexOf('aria-label="컨설팅 업무 현황 펼치기"');
+  const collapsedEnd = src.indexOf("</button>", collapsedStart);
+  const collapsed = collapsedStart >= 0 ? src.slice(collapsedStart, collapsedEnd) : "";
 
-  it("펼침이면 < (M10), 접힘이면 > (M6) 이다", () => {
-    expect(handle).toMatch(
-      /trackRailOpen \?[\s\S]*?d="M10 4l-4 4 4 4"[\s\S]*?:[\s\S]*?d="M6 4l4 4-4 4"/,
-    );
+  it("펼침이면 < (M10) 이고, 접힘 탭도 < (M10) 이다", () => {
+    expect(handle).toContain('d="M10 4l-4 4 4 4"');
+    expect(collapsed).toContain('d="M10 4l-4 4 4 4"');
+    // 옛 접힘 화살표(>)는 쓰지 않는다 — 접힘 탭은 펼칠 방향(왼쪽)을 가리킨다.
+    expect(src).not.toContain('d="M6 4l4 4-4 4"');
   });
 
-  it("접힌 손잡이는 WEDLY 파란 바탕·잉크색이고 화살표가 더 굵다", () => {
-    expect(handle).toContain("bg-wedly-bg-blue");
-    expect(handle).toContain("text-wedly-accent-ink");
-    expect(handle).toContain("hover:bg-wedly-bg-blue/70");
-    expect(handle).toContain('width={trackRailOpen ? "16" : "18"}');
-    expect(handle).toContain('strokeWidth="2"');
-    // 「회색이 아니다」는 접힘 갈래에만 건다 — 펼침 갈래는 2026-08-30부터 머리 밴드와 같은
-    // 회색을 쓴다(2026-09-02 사장님 지시로 bg-wedly-bg-gray/50 → bg-wedly-bg-gray 로 더 진하게).
-    // 갈래를 나눠 재지 않으면 이 시험이 정렬 개편을 거짓으로 막는다.
-    const collapsedClass = (handle.match(/:\s*"([^"]*bg-wedly-bg-blue[^"]*)"/) ?? [])[1] ?? "";
-    expect(collapsedClass).toContain("bg-wedly-bg-blue");
-    expect(collapsedClass).not.toContain("bg-wedly-bg-gray/50");
-    expect(handle).not.toMatch(/bg-blue-\d/);
-    expect(handle).toContain("font-semibold");
-    expect(handle).toContain("업무 현황");
+  it("접힌 손잡이는 흰 띠 안에 진한 파랑 세로 탭이다", () => {
+    expect(src).toContain('className="flex-1 w-full flex flex-col items-center bg-white pt-3"');
+    expect(collapsed).toContain("bg-wedly-accent");
+    expect(collapsed).toContain("hover:bg-wedly-accent-ink");
+    expect(collapsed).toContain("motion-safe:animate-[wedly-nudge_1.2s_ease-in-out_3]");
+    expect(collapsed).toContain('strokeWidth="2"');
+    expect(collapsed).toContain("컨설팅 업무 현황");
+    expect(src).toContain("눌러서 펼치기");
+    expect(src).not.toMatch(/bg-blue-\d/);
+    // 옛 접힘 바탕(옅은 파란 띠 단추 하나)은 접힘 갈래에서 빠진다.
+    expect(src).not.toContain(
+      "flex-1 w-full flex flex-col items-center justify-center gap-2 py-3 bg-wedly-bg-blue text-wedly-accent-ink hover:bg-wedly-bg-blue/70 transition-colors",
+    );
   });
 
   it("펼친 손잡이는 줄을 먹지 않고 칸 왼쪽 위 모서리에 겹친다 — 세 칸 상단 줄 정렬(2026-08-30)", () => {
@@ -276,6 +278,13 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
     expect(handle).toContain('strokeWidth="1.5"');
     // 겹쳐 두려면 담는 칸에 기준(relative)이 있어야 한다 — 짝을 못 박는다.
     expect(sidePaneClass(false, "side", { rail: true, railOpen: true })).toContain("relative");
+  });
+
+  it("접힘 탭은 펼치기 레이블·배지 연결을 갖고, 펼침 버튼 자리는 그대로다", () => {
+    expect(src).toContain('aria-label="컨설팅 업무 현황 펼치기"');
+    expect(src).toContain("const TrackRailBadge = adapter.components.trackRailBadge");
+    expect(src).toContain("{TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}");
+    expect(handle).toContain("absolute left-0 top-0 z-20 h-12 w-8");
   });
 
   it("세 칸 머리 줄 높이가 h-12 로 같다 — 왼쪽(3분할)·가운데 분야 탭·레일 손잡이", () => {
