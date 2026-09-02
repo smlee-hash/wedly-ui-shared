@@ -3461,7 +3461,7 @@ export default function UnifiedDetailView({
                 {(mergeBasic || isAdmin) && (
                 <div className="flex-shrink-0 flex items-center gap-1.5 ml-2">
                   {mergeBasic && <div ref={setBasicToolsSlot} className={activeTab === "__basic__" ? "flex items-center gap-1.5" : "hidden"} />}
-                  {isAdmin && (!mergeBasic || activeTab !== "__basic__") && (<>
+                  {isAdmin && (!mergeBasic || activeTab !== "__basic__" || visibleGroups.length === 0) && (<>
                     {topTabEditMode && (
                       <button type="button" onClick={resetTopTabs} className="px-2 py-1 text-[11px] rounded-md border border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors whitespace-nowrap">초기화</button>
                     )}
@@ -3686,7 +3686,7 @@ export default function UnifiedDetailView({
             // (JSX 속성 자리에 {/* */} 주석을 두면 펼침 연산자로 해석돼 문법 오류가 난다 — 2026-08-27 ERP 빌드가 잡음)
             trackPane={
               !error && WideCenterPanel && trackEverShown && (
-                <div className={trackVisible ? (mergeBasic ? "flex-1 min-h-0 overflow-y-auto pr-11" : "flex-1 min-h-0 overflow-y-auto") : "hidden"}>
+                <div className={trackVisible ? (mergeBasic ? "flex-1 min-w-0 min-h-0 overflow-y-auto" : "flex-1 min-h-0 overflow-y-auto") : "hidden"}>
                   <div className="flex flex-col h-full">
                     <WideCenterPanel
                       key="wide-center"
@@ -3712,7 +3712,7 @@ export default function UnifiedDetailView({
                       aria-label={trackRailOpen ? "컨설팅 업무 현황 접기" : undefined}
                       title={trackRailOpen ? "컨설팅 업무 현황 접기" : "컨설팅 업무 현황 펼치기"}
                       className={trackRailOpen
-                        ? "absolute right-0 top-0 bottom-0 z-20 w-11 flex flex-col items-center bg-white border-l border-wedly-bd/60 pt-3 focus:outline-none group"
+                        ? "order-last w-11 flex-shrink-0 flex flex-col items-center bg-white border-l border-wedly-bd/60 pt-3 focus:outline-none group"
                         : "flex-1 w-full flex flex-col items-center bg-white pt-3 focus:outline-none group"}
                     >
                       {trackRailOpen ? (

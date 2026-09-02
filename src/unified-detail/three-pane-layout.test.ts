@@ -197,7 +197,7 @@ describe("threePaneSlots — 배치 규칙", () => {
   it("레일 안쪽은 오류가 없고 한 번 보인 뒤에만 붙인다", () => {
     const src = readFileSync(join(DIR, "UnifiedDetailView.tsx"), "utf8");
     expect(src).toContain("!error && WideCenterPanel && trackEverShown");
-    expect(src).toContain('trackVisible ? (mergeBasic ? "flex-1 min-h-0 overflow-y-auto pr-11" : "flex-1 min-h-0 overflow-y-auto") : "hidden"');
+    expect(src).toContain('trackVisible ? (mergeBasic ? "flex-1 min-w-0 min-h-0 overflow-y-auto" : "flex-1 min-h-0 overflow-y-auto") : "hidden"');
     expect(src).toContain('if (!narrowSwitch && narrowPane === "side") setTrackRailOpen(true)');
   });
 
@@ -279,7 +279,7 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
 
   it("펼친 손잡이는 오른쪽 가장자리 세로 파란 탭이다(접힌 손잡이와 같은 모양, ‹ + 접기)", () => {
     expect(handle).toContain(
-      "absolute right-0 top-0 bottom-0 z-20 w-11 flex flex-col items-center bg-white border-l border-wedly-bd/60 pt-3 focus:outline-none group",
+      "order-last w-11 flex-shrink-0 flex flex-col items-center bg-white border-l border-wedly-bd/60 pt-3 focus:outline-none group",
     );
     expect(handle).toContain(
       "flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out group-hover:bg-wedly-accent-ink group-hover:translate-x-[3px] group-focus-visible:ring-[3px] group-focus-visible:ring-wedly-accent/40",
@@ -301,7 +301,7 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
     expect(src).toContain("aria-expanded={trackRailOpen}");
     expect(src).toContain("const TrackRailBadge = adapter.components.trackRailBadge");
     expect(src).toContain("{TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}");
-    expect(handle).toContain("absolute right-0 top-0 bottom-0 z-20 w-11");
+    expect(handle).toContain("order-last w-11 flex-shrink-0");
   });
 
   it("세 칸 머리 줄 높이가 h-12 로 같다 — 왼쪽(3분할)·가운데 분야 탭·레일 손잡이", () => {
@@ -335,7 +335,7 @@ describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합�
     expect(centerPaneClass(false, "center", true, true, true)).toBe("w-[40%] min-w-[672px] flex-shrink-0 flex flex-col min-h-0");
     expect(centerPaneClass(false, "center", true, false, true)).toBe("flex-1 min-w-0 flex flex-col min-h-0");
     expect(sidePaneClass(false, "side", { rail: true, railOpen: true, mergeBasic: true })).toBe(
-      "relative flex-1 min-w-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out",
+      "relative flex-1 min-w-0 border-l border-wedly-bd/60 flex flex-row min-h-0 transition-[width] duration-200 ease-out",
     );
     expect(sidePaneClass(false, "side", { rail: true, railOpen: false, mergeBasic: true })).toBe(
       sidePaneClass(false, "side", { rail: true, railOpen: false }),
@@ -351,7 +351,7 @@ describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합�
     expect(modalBoxClass(false, true, true)).toBe(now);
     expect(modalBoxClass(true, true, false)).toBe("");
     expect(modalBoxClass(false, true, false)).toBe(
-      "sm:w-[max(calc(38.4vw_+_44px),716px)] sm:h-[94vh] sm:max-w-[760px] sm:max-h-[94vh] sm:rounded-2xl",
+      "sm:w-[max(calc(38.4vw_+_44px),716px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl",
     );
   });
 

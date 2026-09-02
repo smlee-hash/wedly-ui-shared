@@ -94,7 +94,9 @@ export function sidePaneClass(
     return "w-[44px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
   }
   if (opts.mergeBasic) {
-    return "relative flex-1 min-w-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
+    // 2분할 펼침: 레일 안을 가로(row)로 — [본문 flex-1 | 접기 손잡이 44px 열]. 손잡이를 절대배치로 겹치면
+    // 본문 스크롤 막대를 덮어 못 끈다(코덱스 2026-09-02).
+    return "relative flex-1 min-w-0 border-l border-wedly-bd/60 flex flex-row min-h-0 transition-[width] duration-200 ease-out";
   }
   // 펼침: 고정폭을 버리고 남는 자리를 전부 가져간다. 가운데가 옛 오른쪽 칸 폭으로 고정돼 있기 때문이다.
   // 하한 380: 좌 320 + 가운데 260 + 레일 380 = 960 ≤ 983(1024px 화면의 모달 96vw) → 더 이상 안 잘린다.
@@ -113,7 +115,7 @@ export function modalBoxClass(narrowSwitch: boolean, mergeBasic: boolean, railOp
   if (mergeBasic && !railOpen) {
     // 38.4vw = 96vw × 0.4, 716 = 672(가운데 하한) + 44(손잡이), 760 = 접힘 상자 상한.
     // 폭 전환 애니메이션은 일부러 안 건다 — 가운데 칸이 flex-1 로 바뀌는 동시에 상자가 줄면 칸이 순간 커졌다 줄어 튄다(코덱스 지적).
-    return "sm:w-[max(calc(38.4vw_+_44px),716px)] sm:h-[94vh] sm:max-w-[760px] sm:max-h-[94vh] sm:rounded-2xl";
+    return "sm:w-[max(calc(38.4vw_+_44px),716px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl";
   }
   return "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl";
 }
