@@ -249,11 +249,10 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
   const collapsedEnd = src.indexOf("</button>", collapsedStart);
   const collapsed = collapsedStart >= 0 ? src.slice(collapsedStart, collapsedEnd) : "";
 
-  it("펼침이면 < (M10) 이고, 접힘 탭도 < (M10) 이다", () => {
+  it("펼침이면 ‹ (M10) 이고, 접힘 탭은 › (M6) 이다 — 사장님 2026-09-02", () => {
     expect(handle).toContain('d="M10 4l-4 4 4 4"');
-    expect(collapsed).toContain('d="M10 4l-4 4 4 4"');
-    // 옛 접힘 화살표(>)는 쓰지 않는다 — 접힘 탭은 펼칠 방향(왼쪽)을 가리킨다.
-    expect(src).not.toContain('d="M6 4l4 4-4 4"');
+    expect(collapsed).toContain('d="M6 4l4 4-4 4"');
+    expect(collapsed).not.toContain('d="M10 4l-4 4 4 4"');
   });
 
   it("접힌 손잡이는 흰 띠 안에 진한 파랑 세로 탭이다", () => {
