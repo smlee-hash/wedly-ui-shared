@@ -59,8 +59,8 @@ export function centerPaneClass(
   if (!narrowSwitch && hasTrackRail) {
     if (mergeBasic) {
       // 2분할: 펼침이면 왼쪽 40% 고정(사장님 「너무 넓으면 불편」), 접힘이면 모달 자체가 줄어 가운데가 전부.
-      // min-w-[640px]: 탭줄이 둘째 줄로 내려가지 않게 가운데 하한(2026-09-02 사장님).
-      return railOpen ? "w-[40%] min-w-[640px] flex-shrink-0 flex flex-col min-h-0" : "flex-1 min-w-0 flex flex-col min-h-0";
+      // min-w-[672px]: 탭줄에 도구 아이콘 2개가 들어가도 둘째 줄로 내려가지 않게(2026-09-02 사장님).
+      return railOpen ? "w-[40%] min-w-[672px] flex-shrink-0 flex flex-col min-h-0" : "flex-1 min-w-0 flex flex-col min-h-0";
     }
     // 펼침: 가운데를 옛 오른쪽 칸 폭으로 고정해, 남는 자리를 업무 현황이 가져가게 한다.
     // 하한 260: 좌 320 + 가운데 260 + 레일 380 = 960 ≤ 983(1024px 화면의 모달 96vw) → 더 이상 안 잘린다.
@@ -111,9 +111,9 @@ export function sidePaneClass(
 export function modalBoxClass(narrowSwitch: boolean, mergeBasic: boolean, railOpen: boolean): string {
   if (narrowSwitch) return "";
   if (mergeBasic && !railOpen) {
-    // 38.4vw = 96vw × 0.4, 716 = 1680 × 0.4 + 44(손잡이), 684 = 640(가운데 하한) + 44(손잡이).
+    // 38.4vw = 96vw × 0.4, 716 = 672(가운데 하한) + 44(손잡이), 760 = 접힘 상자 상한.
     // 폭 전환 애니메이션은 일부러 안 건다 — 가운데 칸이 flex-1 로 바뀌는 동시에 상자가 줄면 칸이 순간 커졌다 줄어 튄다(코덱스 지적).
-    return "sm:w-[max(calc(38.4vw_+_44px),684px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl";
+    return "sm:w-[max(calc(38.4vw_+_44px),716px)] sm:h-[94vh] sm:max-w-[760px] sm:max-h-[94vh] sm:rounded-2xl";
   }
   return "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl";
 }

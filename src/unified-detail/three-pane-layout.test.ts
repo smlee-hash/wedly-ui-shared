@@ -197,7 +197,7 @@ describe("threePaneSlots — 배치 규칙", () => {
   it("레일 안쪽은 오류가 없고 한 번 보인 뒤에만 붙인다", () => {
     const src = readFileSync(join(DIR, "UnifiedDetailView.tsx"), "utf8");
     expect(src).toContain("!error && WideCenterPanel && trackEverShown");
-    expect(src).toContain('trackVisible ? "flex-1 min-h-0 overflow-y-auto" : "hidden"');
+    expect(src).toContain('trackVisible ? (mergeBasic ? "flex-1 min-h-0 overflow-y-auto pr-11" : "flex-1 min-h-0 overflow-y-auto") : "hidden"');
     expect(src).toContain('if (!narrowSwitch && narrowPane === "side") setTrackRailOpen(true)');
   });
 
@@ -277,23 +277,31 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
     expect(css).toContain("@keyframes wedly-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }");
   });
 
-  it("펼친 손잡이는 줄을 먹지 않고 칸 왼쪽 위 모서리에 겹친다 — 세 칸 상단 줄 정렬(2026-08-30)", () => {
+  it("펼친 손잡이는 오른쪽 가장자리 세로 파란 탭이다(접힌 손잡이와 같은 모양, ‹ + 접기)", () => {
     expect(handle).toContain(
+      "absolute right-0 top-0 bottom-0 z-20 w-11 flex flex-col items-center bg-white border-l border-wedly-bd/60 pt-3 focus:outline-none group",
+    );
+    expect(handle).toContain(
+      "flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out group-hover:bg-wedly-accent-ink group-hover:translate-x-[3px] group-focus-visible:ring-[3px] group-focus-visible:ring-wedly-accent/40",
+    );
+    expect(handle).toContain('d="M10 4l-4 4 4 4"');
+    expect(handle).toContain('strokeWidth="2"');
+    expect(handle).toContain('style={{ writingMode: "vertical-rl" }}>접기</span>');
+    expect(src).not.toContain(
       "absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors",
     );
-    expect(handle).toContain('strokeWidth="1.5"');
     // 겹쳐 두려면 담는 칸에 기준(relative)이 있어야 한다 — 짝을 못 박는다.
     expect(sidePaneClass(false, "side", { rail: true, railOpen: true })).toContain("relative");
   });
 
-  it("접힘 탭은 펼치기 레이블·배지 연결을 갖고, 펼침 버튼 자리는 그대로다", () => {
+  it("접힘 탭은 펼치기 레이블·배지 연결을 갖고, 펼침은 오른쪽 세로 탭이다", () => {
     expect(src).not.toContain('aria-label="컨설팅 업무 현황 펼치기"');
     expect(src).toContain('<span className="sr-only">펼치기</span>');
-    expect(src).toContain('aria-label={trackRailOpen ? "업무 현황 접기" : undefined}');
+    expect(src).toContain('aria-label={trackRailOpen ? "컨설팅 업무 현황 접기" : undefined}');
     expect(src).toContain("aria-expanded={trackRailOpen}");
     expect(src).toContain("const TrackRailBadge = adapter.components.trackRailBadge");
     expect(src).toContain("{TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}");
-    expect(handle).toContain("absolute left-0 top-0 z-20 h-12 w-8");
+    expect(handle).toContain("absolute right-0 top-0 bottom-0 z-20 w-11");
   });
 
   it("세 칸 머리 줄 높이가 h-12 로 같다 — 왼쪽(3분할)·가운데 분야 탭·레일 손잡이", () => {
@@ -324,7 +332,7 @@ describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합�
     expect(basicPaneClass(true, "basic", true)).toBe(basicPaneClass(true, "basic"));
   });
   it("펼침이면 가운데 40% 고정·레일이 나머지, 접힘이면 가운데 flex-1", () => {
-    expect(centerPaneClass(false, "center", true, true, true)).toBe("w-[40%] min-w-[640px] flex-shrink-0 flex flex-col min-h-0");
+    expect(centerPaneClass(false, "center", true, true, true)).toBe("w-[40%] min-w-[672px] flex-shrink-0 flex flex-col min-h-0");
     expect(centerPaneClass(false, "center", true, false, true)).toBe("flex-1 min-w-0 flex flex-col min-h-0");
     expect(sidePaneClass(false, "side", { rail: true, railOpen: true, mergeBasic: true })).toBe(
       "relative flex-1 min-w-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out",
@@ -343,7 +351,45 @@ describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합�
     expect(modalBoxClass(false, true, true)).toBe(now);
     expect(modalBoxClass(true, true, false)).toBe("");
     expect(modalBoxClass(false, true, false)).toBe(
-      "sm:w-[max(calc(38.4vw_+_44px),684px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl",
+      "sm:w-[max(calc(38.4vw_+_44px),716px)] sm:h-[94vh] sm:max-w-[760px] sm:max-h-[94vh] sm:rounded-2xl",
     );
+  });
+
+  it("mergeBasic 펼침이면 기본정보 머리띠를 숨기고 도구를 탭줄 오른쪽에 붙인다", () => {
+    const view = readFileSync(join(DIR, "UnifiedDetailView.tsx"), "utf8");
+    expect(view).toContain("const [basicToolsSlot, setBasicToolsSlot] = useState<HTMLElement | null>(null);");
+    expect(view).toContain('import { createPortal } from "react-dom"');
+    expect(view).toContain("hideHeader={mergeBasic}");
+    expect(view).toContain("toolsSlot={mergeBasic ? basicToolsSlot : undefined}");
+    expect(view).toContain("hideHeader?: boolean");
+    expect(view).toContain("toolsSlot?: HTMLElement | null");
+    expect(view).toContain('{mergeBasic && <div ref={setBasicToolsSlot} className={activeTab === "__basic__" ? "flex items-center gap-1.5" : "hidden"} />}');
+    expect(view).toContain("{isAdmin && (!mergeBasic || activeTab !== \"__basic__\") && (");
+    expect(view).toContain('<div className="flex-shrink-0 flex items-center gap-1.5 ml-2">');
+    expect(view).toContain("createPortal(");
+    expect(view).toContain("<CommonFieldsLauncher");
+    expect(view).toContain("<SectionAdminMenu");
+    expect(view).toMatch(/<CommonFieldsLauncher[\s\S]*?compact/);
+    expect(view).toMatch(/<SectionAdminMenu[\s\S]*?compact/);
+  });
+});
+
+describe("CommonFieldsLauncher — compact 아이콘 단추", () => {
+  const src = readFileSync(join(DIR, "CommonFieldsLauncher.tsx"), "utf8");
+
+  it("compact 가 아니면 지금 여는 단추 문자열이 그대로다", () => {
+    expect(src).toContain(
+      'className="inline-flex items-center gap-1 rounded-lg border border-wedly-bd px-2 py-1 text-[11px] font-medium text-wedly-t2 hover:bg-wedly-bg-gray transition-colors"',
+    );
+    expect(src).toContain("<span aria-hidden>⚙</span> 공통 칸 관리");
+  });
+
+  it("compact 면 아이콘만 28px 단추다", () => {
+    expect(src).toContain("compact?: boolean");
+    expect(src).toContain(
+      'className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-wedly-bd text-[12px] text-wedly-t2 hover:bg-wedly-bg-gray transition-colors"',
+    );
+    expect(src).toContain('title="공통 칸 관리 (관리자 전용)"');
+    expect(src).toContain('aria-label="공통 칸 관리"');
   });
 });

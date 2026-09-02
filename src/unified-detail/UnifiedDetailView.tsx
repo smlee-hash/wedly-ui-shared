@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo, type DragEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, refreshCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
 import { type ColumnDef } from "../types/columns";
 import {
@@ -1115,6 +1116,8 @@ function BasicInfoPanel({
   adapter,
   hiddenColumnKeys = [],
   stacked,
+  hideHeader,
+  toolsSlot,
 }: {
   row: RowData;
   detail: CustomerDetailLite | null;
@@ -1137,6 +1140,10 @@ function BasicInfoPanel({
   hiddenColumnKeys?: string[];
   /** true면 라벨 위·값 아래. 미전달이면 기존 가로 배치 불변. */
   stacked?: boolean;
+  /** true면 「기본정보」 머리띠를 그리지 않는다. 미전달이면 기존 그대로. */
+  hideHeader?: boolean;
+  /** 관리자 도구를 이 요소 안에 그린다(탭줄 오른쪽). 없으면 머리띠에 둔다. */
+  toolsSlot?: HTMLElement | null;
 }) {
   // 자기 주력 분야 칸 정의 — 어댑터 주입(ERP=COLUMNS). 앱별로 다른 자기분야 칸을 외부에서 받는다.
   const { ownColumns } = adapter;
@@ -1582,6 +1589,43 @@ function BasicInfoPanel({
         // 같은 높이(48)·같은 위치에서 시작해야 세 칸 상단이 한 줄로 보인다(사장님 2026-08-30).
         ? "border border-wedly-bd bg-white overflow-hidden -mx-4 -mt-4 rounded-none border-x-0 border-t-0"
         : "rounded-xl border border-wedly-bd bg-white overflow-hidden"}>
+        {stacked && hideHeader
+          ? (toolsSlot
+            ? createPortal(
+                <div className="flex items-center gap-1.5">
+                  {isAdmin && (
+                    <>
+                      <CommonFieldsLauncher
+                        compact
+                        appSpecificLabels={[...ERP_APP_BASIC_FIELDS.map((f) => f.label), ...addedBasicLabels]}
+                        ownColumns={pickerOwnColumns}
+                        reservedLabels={allBasicFields.map((f) => f.label)}
+                        loadDefs={adapter.api.loadBasicFieldDefs ? () => adapter.api.loadBasicFieldDefs!(ownDomain) : undefined}
+                        saveDefs={adapter.api.saveBasicFieldDefs ? (fields) => adapter.api.saveBasicFieldDefs!(ownDomain, fields as Array<Record<string, unknown>>) : undefined}
+                        canManageCommon={adapter.appName === "ERP"}
+                        onChanged={() => { setDefsReloadKey((k) => k + 1); refreshCommonFieldsOverride().then(setCommonOverride); }}
+                      />
+                      <SectionAdminMenu
+                        compact
+                        sectionId="basic"
+                        sectionLabel={baseSection.label || "기본정보"}
+                        onAddColumn={() => setAddOpen(true)}
+                        onToggleEditMode={toggleEditMode}
+                        editMode={editMode}
+                        onShowHiddenColumns={() => { setShowHidden((v) => !v); setEditMode(false); setDeleteMode(false); }}
+                        hiddenCount={hiddenBasicFields.length}
+                        onToggleDeleteMode={toggleDeleteMode}
+                        deleteMode={deleteMode}
+                        onResetOrder={basicOrder.resetOrder}
+                        hasCustomOrder={basicOrder.hasCustomOrder}
+                      />
+                    </>
+                  )}
+                </div>,
+                toolsSlot,
+              )
+            : null)
+          : (
         <div className={`px-4 ${stacked ? "bg-wedly-bg-gray" : "bg-wedly-bg-gray/50"} border-b border-wedly-bd/60 flex items-center justify-between gap-2 ${stacked ? "h-12" : "py-2.5"}`}>
           <span className="text-[12px] font-semibold text-wedly-t2">{baseSection.label || "기본정보"}</span>
           {isAdmin && (
@@ -1611,6 +1655,7 @@ function BasicInfoPanel({
             </div>
           )}
         </div>
+          )}
 
         {/* 숨긴 칸 복원 — 눌러서 다시 표시 */}
         {isAdmin && showHidden && (
@@ -2616,6 +2661,7 @@ export default function UnifiedDetailView({
   // 오른쪽 「업무 현황」 레일 — 항상 접힌 채로 시작한다(요청서 「기본적으로는 접힌 상태로 표시」,
   // 사장님 결정 2026-08-27 「기억하지 않음」). 저장·복원 없음.
   const [trackRailOpen, setTrackRailOpen] = useState(false);
+  const [basicToolsSlot, setBasicToolsSlot] = useState<HTMLElement | null>(null);
   const [wideViewport, setWideViewport] = useState(() => {
     if (layout !== "wide") return false;
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
@@ -3325,6 +3371,8 @@ export default function UnifiedDetailView({
         adapter={adapter}
         hiddenColumnKeys={hiddenColumnKeys}
         stacked
+        hideHeader={mergeBasic}
+        toolsSlot={mergeBasic ? basicToolsSlot : undefined}
       />
     );
 
@@ -3410,8 +3458,10 @@ export default function UnifiedDetailView({
                     </button>
                   )}
                 </div>
-                {isAdmin && (
-                  <div className="flex-shrink-0 flex items-center gap-1 ml-2">
+                {(mergeBasic || isAdmin) && (
+                <div className="flex-shrink-0 flex items-center gap-1.5 ml-2">
+                  {mergeBasic && <div ref={setBasicToolsSlot} className={activeTab === "__basic__" ? "flex items-center gap-1.5" : "hidden"} />}
+                  {isAdmin && (!mergeBasic || activeTab !== "__basic__") && (<>
                     {topTabEditMode && (
                       <button type="button" onClick={resetTopTabs} className="px-2 py-1 text-[11px] rounded-md border border-wedly-bd text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors whitespace-nowrap">초기화</button>
                     )}
@@ -3430,7 +3480,8 @@ export default function UnifiedDetailView({
                       </svg>
                       {topTabEditMode ? "완료" : mergeBasic ? null : "탭 편집"}
                     </button>
-                  </div>
+                  </>)}
+                </div>
                 )}
               </div>
               {mergeBasic && activeTab === "__basic__" ? (
@@ -3635,7 +3686,7 @@ export default function UnifiedDetailView({
             // (JSX 속성 자리에 {/* */} 주석을 두면 펼침 연산자로 해석돼 문법 오류가 난다 — 2026-08-27 ERP 빌드가 잡음)
             trackPane={
               !error && WideCenterPanel && trackEverShown && (
-                <div className={trackVisible ? "flex-1 min-h-0 overflow-y-auto" : "hidden"}>
+                <div className={trackVisible ? (mergeBasic ? "flex-1 min-h-0 overflow-y-auto pr-11" : "flex-1 min-h-0 overflow-y-auto") : "hidden"}>
                   <div className="flex flex-col h-full">
                     <WideCenterPanel
                       key="wide-center"
@@ -3658,24 +3709,19 @@ export default function UnifiedDetailView({
                       type="button"
                       onClick={() => { setTrackRailOpen((v) => !v); setTrackEverShown(true); }}
                       aria-expanded={trackRailOpen}
-                      aria-label={trackRailOpen ? "업무 현황 접기" : undefined}
-                      title={trackRailOpen ? "업무 현황 접기" : "컨설팅 업무 현황 펼치기"}
+                      aria-label={trackRailOpen ? "컨설팅 업무 현황 접기" : undefined}
+                      title={trackRailOpen ? "컨설팅 업무 현황 접기" : "컨설팅 업무 현황 펼치기"}
                       className={trackRailOpen
-                        // 펼침: 줄 하나를 통째로 먹지 않고 칸 왼쪽 위 모서리에 겹쳐 둔다 — 그래야
-                        // 레일의 첫 줄(주입 화면의 머리 밴드)이 좌·중앙 머리 줄과 같은 높이에 온다.
-                        ? "absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
+                        ? "absolute right-0 top-0 bottom-0 z-20 w-11 flex flex-col items-center bg-white border-l border-wedly-bd/60 pt-3 focus:outline-none group"
                         : "flex-1 w-full flex flex-col items-center bg-white pt-3 focus:outline-none group"}
                     >
                       {trackRailOpen ? (
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        aria-hidden="true"
-                      >
-                        <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+                      <div className="flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out group-hover:bg-wedly-accent-ink group-hover:translate-x-[3px] group-focus-visible:ring-[3px] group-focus-visible:ring-wedly-accent/40">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span className="text-[12px] font-bold tracking-wide" style={{ writingMode: "vertical-rl" }}>접기</span>
+                      </div>
                       ) : (
                       <>
                         <span className="sr-only">펼치기</span>
