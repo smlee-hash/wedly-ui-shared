@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle, Info, Loader2 } from "lucide-react";
 import { cn } from "../lib/cn";
 
 const BUBBLE_PATH =
@@ -36,13 +36,38 @@ export function KakaoReportDialog({
   const sessionRef = useRef(0);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
+  // ★기다리는 동안 빈 뼈대 대신 **정리한 글을 먼저** 보여 준다(느리다는 지적 2026-09-02).
+  //  AI 글이 오면 — 사람이 아직 안 고쳤으면 바로 바꿔 넣고, 고치는 중이면 「AI 글로 바꾸기」로 물어본다.
+  const baseRef = useRef(text);
+  const [pendingAi, setPendingAi] = useState<string | null>(null);
   // ★열릴 때마다 원문으로 되돌린다 — 닫았다 같은 기록을 다시 열면 지난번 고친 글이 남아 있으면 안 된다.
   useEffect(() => {
     if (open) {
       setDraft(text);
+      baseRef.current = text;
+      setPendingAi(null);
       setCopied(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  useEffect(() => {
+    if (!open || text === baseRef.current) return;
+    setDraft((cur) => {
+      if (cur === baseRef.current) {
+        baseRef.current = text;
+        setPendingAi(null);
+        return text;
+      }
+      setPendingAi(text);
+      return cur;
+    });
   }, [open, text]);
+  const applyPendingAi = () => {
+    if (pendingAi === null) return;
+    setDraft(pendingAi);
+    baseRef.current = pendingAi;
+    setPendingAi(null);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -90,12 +115,11 @@ export function KakaoReportDialog({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // 만드는 중엔 닫기 단추로, 글이 오면 글 칸으로 초점을 옮긴다 — 열린 즉시 키보드가 창 안에 있게.
+  // 열린 즉시 글 칸으로 초점을 옮긴다 — 키보드가 창 안에 있게.
   useEffect(() => {
     if (!open) return;
-    if (loading) closeBtnRef.current?.focus();
-    else textareaRef.current?.focus();
-  }, [open, loading]);
+    textareaRef.current?.focus();
+  }, [open]);
 
   useEffect(() => {
     return () => {
@@ -127,7 +151,7 @@ export function KakaoReportDialog({
   const empty = !draft.trim();
 
   const handleCopy = async () => {
-    if (loading || empty || copied) return;
+    if (empty || copied) return;
     const session = sessionRef.current;
     let ok = false;
     try {
@@ -177,31 +201,33 @@ export function KakaoReportDialog({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            aria-label="보고문"
+            className="w-full min-h-[180px] resize-y rounded-xl border border-wedly-bd bg-wedly-bg-gray/40 p-3.5 text-[13.5px] leading-7 text-wedly-t1 transition duration-150 ease-out focus:border-wedly-accent focus:outline-none"
+          />
           {loading ? (
-            <div role="status" aria-live="polite">
-              <div className="space-y-2.5" aria-hidden>
-                <div className="h-3.5 w-full rounded bg-wedly-bg-gray animate-pulse" />
-                <div className="h-3.5 w-[92%] rounded bg-wedly-bg-gray animate-pulse" />
-                <div className="h-3.5 w-[88%] rounded bg-wedly-bg-gray animate-pulse" />
-                <div className="h-3.5 w-[96%] rounded bg-wedly-bg-gray animate-pulse" />
-                <div className="h-3.5 w-[72%] rounded bg-wedly-bg-gray animate-pulse" />
-              </div>
-              <p className="mt-3 text-[12px] text-wedly-t2">대표님 말투로 다시 쓰는 중…</p>
-            </div>
+            <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-5 text-wedly-t2" role="status" aria-live="polite">
+              <Loader2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 animate-spin" aria-hidden />
+              <span className="min-w-0 break-keep">정리한 글을 먼저 보여 드려요. 대표님 말투로 다시 쓰는 중…</span>
+            </p>
+          ) : pendingAi !== null ? (
+            <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-5 text-wedly-t2" role="status" aria-live="polite">
+              <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.2} aria-hidden />
+              <span className="min-w-0 break-keep">
+                AI 가 대표님 말투로 다시 쓴 글이 도착했어요.{" "}
+                <button type="button" onClick={applyPendingAi} className="font-semibold text-wedly-accent-ink underline underline-offset-2 hover:text-wedly-accent">
+                  AI 글로 바꾸기
+                </button>
+              </span>
+            </p>
           ) : (
-            <>
-              <textarea
-                ref={textareaRef}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                aria-label="보고문"
-                className="w-full min-h-[180px] resize-y rounded-xl border border-wedly-bd bg-wedly-bg-gray/40 p-3.5 text-[13.5px] leading-7 text-wedly-t1 transition duration-150 ease-out focus:border-wedly-accent focus:outline-none"
-              />
-              <p className={cn("mt-2 flex items-start gap-1.5 text-[12px] leading-5", hint.className)}>
-                <HintIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.2} aria-hidden />
-                <span className="min-w-0 break-keep">{hint.text}</span>
-              </p>
-            </>
+            <p className={cn("mt-2 flex items-start gap-1.5 text-[12px] leading-5", hint.className)}>
+              <HintIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.2} aria-hidden />
+              <span className="min-w-0 break-keep">{hint.text}</span>
+            </p>
           )}
         </div>
 
@@ -216,7 +242,7 @@ export function KakaoReportDialog({
           <button
             type="button"
             onClick={() => void handleCopy()}
-            disabled={loading || empty || copied}
+            disabled={empty || copied}
             className={cn(
               "rounded-lg px-3.5 py-2 text-[13px] font-semibold text-white transition duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-40",
               copied ? "bg-wedly-green-ink" : "bg-wedly-accent hover:bg-wedly-accent-ink",

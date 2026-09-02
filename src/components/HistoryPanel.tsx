@@ -338,6 +338,25 @@ export function HistoryPanel({
 
   // ★열 때마다 번호를 올린다 — 같은 기록을 닫았다 다시 열어도 지난 요청의 늦은 응답이 새 창을 덮지 못하게(적대적 리뷰).
   const kakaoSeqRef = useRef(0);
+  // ★미리 만들기 — 단추에 마우스를 올리는 순간 서버에 부탁해 두면, 누를 때쯤엔 답이 와 있다(느리다는 지적 2026-09-02).
+  //  같은 기록은 한 번만 부탁하고, 실패한 부탁은 지워 다음에 다시 시도한다.
+  const kakaoPrefetchRef = useRef<Map<string, Promise<string | null>>>(new Map());
+  const requestKakao = useCallback((c: UnifiedComment): Promise<string | null> => {
+    if (!buildKakaoReport) return Promise.resolve(null);
+    const cached = kakaoPrefetchRef.current.get(c.id);
+    if (cached) return cached;
+    const p = Promise.resolve()
+      .then(() => buildKakaoReport(c))
+      .then((t) => (typeof t === "string" && t.trim() ? t.trim() : null))
+      .catch(() => null)
+      .then((t) => {
+        if (t === null) kakaoPrefetchRef.current.delete(c.id);
+        return t;
+      });
+    kakaoPrefetchRef.current.set(c.id, p);
+    return p;
+  }, [buildKakaoReport]);
+  const prefetchKakao = useCallback((c: UnifiedComment) => { void requestKakao(c); }, [requestKakao]);
   const openKakao = useCallback(async (c: UnifiedComment) => {
     const 기계글 = kakaoReportFor(c);
     const hasBuilder = !!buildKakaoReport;
@@ -349,25 +368,19 @@ export function HistoryPanel({
       source: resolveKakaoSource(hasBuilder, null),
     });
     if (!buildKakaoReport) return;
-    let aiText: string | null = null;
-    try {
-      // ★서버가 답을 안 주고 연결만 붙들면 창이 영원히 「다시 쓰는 중」이 된다 — 제한시간을 두고 기계글로 떨어진다.
-      const t = await Promise.race([
-        buildKakaoReport(c),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), KAKAO_AI_TIMEOUT_MS)),
-      ]);
-      aiText = typeof t === "string" && t.trim() ? t.trim() : null;
-    } catch {
-      // ★서버가 안 되면 기계글로 간다 — 단추가 아무 일도 안 하는 것보다 낫다.
-      aiText = null;
-    }
+    // ★서버가 답을 안 주고 연결만 붙들면 창이 영원히 「다시 쓰는 중」이 된다 — 제한시간을 두고 기계글로 떨어진다.
+    //  서버가 안 되면 기계글로 간다 — 단추가 아무 일도 안 하는 것보다 낫다.
+    const aiText = await Promise.race([
+      requestKakao(c),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), KAKAO_AI_TIMEOUT_MS)),
+    ]);
     if (kakaoSeqRef.current !== seq) return; // 그 사이 닫혔거나 다른 창이 열렸다 — 버린다
     setKakaoDialog((cur) =>
       cur && cur.comment.id === c.id
         ? { comment: c, loading: false, text: aiText ?? 기계글, source: resolveKakaoSource(true, aiText) }
         : cur,
     );
-  }, [buildKakaoReport]);
+  }, [buildKakaoReport, requestKakao]);
   const closeKakao = useCallback(() => {
     kakaoSeqRef.current += 1; // 닫은 뒤 도착하는 응답을 무효로
     setKakaoDialog(null);
@@ -1061,6 +1074,8 @@ export function HistoryPanel({
                     <button
                       type="button"
                       onClick={() => openKakao(c)}
+                      onMouseEnter={() => prefetchKakao(c)}
+                      onFocus={() => prefetchKakao(c)}
                       title="대표님께 보낼 카톡 보고문을 보고 복사합니다"
                       aria-label="카톡 보고문 보기"
                       aria-haspopup="dialog"
