@@ -537,8 +537,13 @@ describe("★stripMarkdownKeepUrls — 홑 물결표는 범위 기호라 살린�
     expect(stripMarkdownKeepUrls("매출은 2년 전 40억에서 작년 24~25억으로 줄었어요")).toBe("매출은 2년 전 40억에서 작년 24~25억으로 줄었어요");
     expect(stripMarkdownKeepUrls("3~6개월마다 다시 확인해 드릴게요")).toBe("3~6개월마다 다시 확인해 드릴게요");
   });
-  it("취소선(~~)은 여전히 지운다", () => {
+  it("글자 사이 물결표(월~금·9~18시)도 살린다", () => {
+    expect(stripMarkdownKeepUrls("월~금 9~18시 운영")).toBe("월~금 9~18시 운영");
+  });
+  it("취소선(~~ 와 공백에 붙은 홑 ~)은 여전히 지운다", () => {
     expect(stripMarkdownKeepUrls("~~취소된 일정~~ 확정")).toBe("취소된 일정 확정");
+    expect(stripMarkdownKeepUrls("굵게 ~취소~ 정상")).toBe("굵게 취소 정상");
+    expect(stripMarkdownKeepUrls("끝에 ~취소~")).toBe("끝에 취소");
   });
   it("다른 장식(*·#·>·|)은 전처럼 지우고 주소는 건드리지 않는다", () => {
     expect(stripMarkdownKeepUrls("**굵게** #제목 > 인용 | 표 https://a.com/b_c#top?x=1|2")).toBe("굵게 제목  인용  표 https://a.com/b_c#top?x=1|2");
