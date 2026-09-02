@@ -1636,7 +1636,7 @@ function BasicInfoPanel({
           </div>
         )}
 
-        <div className="mx-3 my-2 rounded-xl border border-wedly-bd px-3 py-1">
+        <div className={stacked ? "mx-3 my-2 rounded-xl border border-wedly-bd px-3 py-1" : "px-3 py-1"}>
           {isAdmin && editMode ? (
             // 수정 모드 — 드래그로 순서 + 이름·형식 변경
             <DraggableFieldsSection<ColumnLite>
