@@ -3728,12 +3728,11 @@ export default function UnifiedDetailView({
                         {/* A안(2026-09-02 사장님 승인): 흰 띠 + 진한 파랑 세로 탭 — 검수자 지적 「접힘 표시가 눈에 안 띔」. */}
                         <div className="motion-safe:animate-[wedly-nudge_1.2s_ease-in-out_3] flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out group-hover:bg-wedly-accent-ink group-hover:-translate-x-[3px] group-focus-visible:ring-[3px] group-focus-visible:ring-wedly-accent/40">
                           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                            <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                           <span className="text-[12px] font-bold tracking-wide" style={{ writingMode: "vertical-rl" }}>컨설팅 업무 현황</span>
                           {TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}
                         </div>
-                        <span className="mt-3 text-[11px] text-wedly-muted" style={{ writingMode: "vertical-rl" }}>눌러서 펼치기</span>
                       </>
                       )}
                     </button>

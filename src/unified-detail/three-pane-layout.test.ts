@@ -266,7 +266,9 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
     expect(collapsed).toContain("motion-safe:animate-[wedly-nudge_1.2s_ease-in-out_3]");
     expect(collapsed).toContain('strokeWidth="2"');
     expect(collapsed).toContain("컨설팅 업무 현황");
-    expect(src).toContain("눌러서 펼치기");
+    // 「눌러서 펼치기」 안내 글자는 사장님 지시로 뺐다(2026-09-02). 접힘 화살표는 오른쪽(›).
+    expect(src).not.toContain("눌러서 펼치기");
+    expect(collapsed).toContain('d="M6 4l4 4-4 4"');
     expect(src).not.toMatch(/bg-blue-\d/);
     // 옛 접힘 바탕(옅은 파란 띠 단추 하나)은 접힘 갈래에서 빠진다.
     expect(src).not.toContain(
