@@ -38,7 +38,7 @@ describe("★정리 카드 디자인 계약", () => {
     const panel = readFileSync(new URL("./HistoryPanel.tsx", import.meta.url), "utf8");
     const 블록 = panel.slice(panel.indexOf("const openKakao"), panel.indexOf("const openKakao") + 1800);
     expect(블록).toContain("kakaoReportFor(c)");
-    expect(블록).toMatch(/catch\s*\{/);
+    expect(블록).toMatch(/\.catch\(|catch\s*\{/);
   });
   it("★기다리는 동안 표시가 있다 — AI 는 몇 초 걸린다", () => {
     const dialog = readFileSync(new URL("./KakaoReportDialog.tsx", import.meta.url), "utf8");
