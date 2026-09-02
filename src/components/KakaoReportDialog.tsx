@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AlertTriangle, Info, Loader2 } from "lucide-react";
 import { cn } from "../lib/cn";
 import { kakaoTextareaRows } from "../unified/history-core";
@@ -91,6 +91,15 @@ export function KakaoReportDialog({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // ★글상자 높이를 실제 내용 높이에 맞춘다 — rows 는 개행만 세므로 좁은 화면에서 자동 줄바꿈으로 접힌 줄을 못 센다(코덱스 지적).
+  //  안쪽 스크롤이 생기지 않게 그린 뒤 scrollHeight 로 다시 맞춘다. 창(max-h 100vh-2rem)이 대신 한 번만 스크롤된다.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!open || loading || !el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [open, loading, draft]);
 
   // 만드는 중엔 닫기 단추로, 글이 오면 글 칸으로 초점을 옮긴다 — 열린 즉시 키보드가 창 안에 있게.
   useEffect(() => {
@@ -201,9 +210,9 @@ export function KakaoReportDialog({
                 onChange={(e) => setDraft(e.target.value)}
                 aria-label="보고문"
                 // ★글 줄 수만큼 늘어난다(최소 8줄) — 220px 고정이던 때는 47줄 글을 여섯 화면 굴려야 했다(2026-09-03 사장님 지시).
-                //  안쪽 스크롤 대신 창(max-h 100vh-2rem)이 한 번만 스크롤된다. 손으로 줄이면(resize) 그때만 안쪽 스크롤이 생긴다.
+                //  안쪽 스크롤 대신 창(max-h 100vh-2rem)이 한 번만 스크롤된다. rows 는 첫 그리기용이고 실제 높이는 위 효과가 맞춘다.
                 rows={kakaoTextareaRows(draft)}
-                className="w-full resize-y overflow-y-auto rounded-xl border border-wedly-bd bg-wedly-bg-gray/40 p-3.5 text-[13.5px] leading-7 text-wedly-t1 transition duration-150 ease-out focus:border-wedly-accent focus:outline-none"
+                className="w-full resize-none overflow-hidden rounded-xl border border-wedly-bd bg-wedly-bg-gray/40 p-3.5 text-[13.5px] leading-7 text-wedly-t1 transition duration-150 ease-out focus:border-wedly-accent focus:outline-none"
               />
               <p className={cn("mt-2 flex items-start gap-1.5 text-[12px] leading-5", hint.className)}>
                 <HintIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.2} aria-hidden />
