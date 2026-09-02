@@ -41,7 +41,7 @@ import { applyTabConfig } from "./lib/unified-tab-config";
 import type { BasicRecord } from "./adapter-types";
 import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
-import { narrowPaneTabs } from "./three-pane-layout";
+import { modalBoxClass, narrowPaneTabs } from "./three-pane-layout";
 import { ThreePaneShell } from "./ThreePaneShell";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2645,6 +2645,9 @@ export default function UnifiedDetailView({
   const narrowSwitch = layout === "wide" && !isNew && !wideViewport;
   // 3분할 내용을 쓰는 상태(넓은 화면 나란히 / 좁은 화면 전환) — 선언 순서를 위해 여기서 계산.
   const threePane = layout === "wide" && !isNew;
+  // ERP 2분할(2026-09-02 사장님 승인): 넓은 화면 + 업무 현황 레일이 있으면 기본정보를 가운데 탭줄에 합친다.
+  // 레일 없는 앱(하이브·일루아)·좁은 화면(포커스 모드)·compact 는 그대로.
+  const mergeBasic = threePane && !narrowSwitch && Boolean(adapter.components.wideCenterPanel);
   const [narrowPane, setNarrowPane] = useState<"basic" | "center" | "side">(
     (initialTab ?? "__basic__") === "__basic__" ? "basic" : "center",
   );
@@ -2897,11 +2900,11 @@ export default function UnifiedDetailView({
 
   // wide 에서는 기본정보가 왼쪽 고정이라 가운데 탭이 __basic__ 이면 첫 분야로 옮긴다. compact 영향 0.
   useEffect(() => {
-    if (!threePane) return;
+    if (!threePane || mergeBasic) return;
     if (activeTab !== "__basic__") return;
     const first = visibleGroups[0];
     if (first) setActiveTab(first.key);
-  }, [threePane, activeTab, visibleGroups]);
+  }, [threePane, activeTab, visibleGroups, mergeBasic]);
 
   const headerChips = useMemo(() => {
     if (!headerChipKeys || headerChipKeys.length === 0) return [] as Array<{ key: string; text: string }>;
@@ -3304,11 +3307,52 @@ export default function UnifiedDetailView({
       </>
     );
 
+    const basicInfoPanel = (
+      <BasicInfoPanel
+        row={row}
+        detail={detail}
+        loading={loading}
+        onOpenTab={openGroupTab}
+        onSaved={handleSaved}
+        isAdmin={isAdmin}
+        orderedGroups={orderedGroups}
+        saveOwnField={adapter.api.saveOwnField}
+        ownDomain={adapter.ownDomain}
+        loadColumnConfig={adapter.api.loadColumnConfig}
+        saveColumnConfig={adapter.api.saveColumnConfig}
+        loadManagers={adapter.api.loadManagers}
+        adapter={adapter}
+        hiddenColumnKeys={hiddenColumnKeys}
+        stacked
+      />
+    );
+
     const sideContent = (
       <>
               {/* 분야 탭 줄 — 3분할에서는 오른쪽 패널 맨 위로(원래 상세창 모습을 통째로 오른쪽에). */}
               <div className="flex items-center gap-1 bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 h-12">
                 <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+                  {mergeBasic && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("__basic__")}
+                        className={`px-3 py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
+                          activeTab === "__basic__" ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
+                        }`}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                          <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="M6 17c.6-1.6 1.8-2.4 3-2.4s2.4.8 3 2.4M14 10h4M14 14h4" />
+                        </svg>
+                        기본정보
+                      </button>
+                      {/* 기본정보와 분야 탭이 다른 묶음임을 보이는 구분 표식(사장님 2026-09-02) */}
+                      <span aria-hidden="true" className="inline-flex items-center gap-1 ml-1 mr-1 pl-3 h-6 border-l border-wedly-bd-blue text-[11px] font-semibold text-wedly-muted flex-shrink-0">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="text-wedly-accent-ink"><path d="m12 3 9 5-9 5-9-5 9-5z" /><path d="m3 13 9 5 9-5" /></svg>
+                        분야
+                      </span>
+                    </>
+                  )}
                   {(isAdmin && topTabEditMode ? orderedGroups : visibleGroups).map((group, gi) => {
                     const rows = rowsOfGroup(detail, group);
                     const status = firstNonEmpty(rows, (r) => r.status ?? null);
@@ -3387,6 +3431,12 @@ export default function UnifiedDetailView({
                   </div>
                 )}
               </div>
+              {mergeBasic && activeTab === "__basic__" ? (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  {basicInfoPanel}
+                </div>
+              ) : (
+                <>
               {/* 오른쪽 한 줄 — 히스토리 · 그 분야 세부 탭들 · 파일(원래 상세창 순서 그대로). */}
               <div className="p-2 border-b border-wedly-bd/60 flex-shrink-0 flex items-center gap-1 overflow-x-auto">
                 {sideBtn("history", "히스토리")}
@@ -3498,6 +3548,8 @@ export default function UnifiedDetailView({
               ) : (
                 <WideFilesPane row={row} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
               )}
+                </>
+              )}
       </>
     );
 
@@ -3509,7 +3561,7 @@ export default function UnifiedDetailView({
       >
         <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
         <div
-          className={`relative bg-white shadow-2xl w-full h-full flex flex-col rounded-none overflow-hidden animate-modal-in ${narrowSwitch ? "" : "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl"}`}
+          className={`relative bg-white shadow-2xl w-full h-full flex flex-col rounded-none overflow-hidden animate-modal-in ${modalBoxClass(narrowSwitch, mergeBasic, trackRailOpen)}`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="border-b border-wedly-bd/60 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2">
@@ -3573,25 +3625,8 @@ export default function UnifiedDetailView({
             narrowPane={narrowPane}
             hasTrackRail={hasTrackRail}
             railOpen={trackRailOpen}
-            basicPane={
-              <BasicInfoPanel
-                row={row}
-                detail={detail}
-                loading={loading}
-                onOpenTab={openGroupTab}
-                onSaved={handleSaved}
-                isAdmin={isAdmin}
-                orderedGroups={orderedGroups}
-                saveOwnField={adapter.api.saveOwnField}
-                ownDomain={adapter.ownDomain}
-                loadColumnConfig={adapter.api.loadColumnConfig}
-                saveColumnConfig={adapter.api.saveColumnConfig}
-                loadManagers={adapter.api.loadManagers}
-                adapter={adapter}
-                hiddenColumnKeys={hiddenColumnKeys}
-                stacked
-              />
-            }
+            mergeBasic={mergeBasic}
+            basicPane={basicInfoPanel}
             detailPane={hasTrackRail ? <>{errorBlock}{sideContent}</> : sideContent}
             plainCenterPane={centerContent}
             // 첫 펼침 때 붙이고, 그 뒤엔 hidden 으로만 감춘다 — 접힌 채로 미리 마운트하면 헛통신·폭 0 측정이 난다.

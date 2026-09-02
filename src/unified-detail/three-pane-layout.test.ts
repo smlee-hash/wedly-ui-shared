@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest";
 import {
   basicPaneClass,
   centerPaneClass,
+  modalBoxClass,
   narrowPaneTabs,
   sidePaneClass,
   threePaneSlots,
@@ -180,6 +181,17 @@ describe("threePaneSlots — 배치 규칙", () => {
     expect(src).toContain("{trackPane}");
   });
 
+  it("mergeBasic 이면 왼쪽 칸에 basicPane 을 안 넣고, 없으면 넣는다", () => {
+    const src = readFileSync(join(DIR, "ThreePaneShell.tsx"), "utf8");
+    // 이 보관함 시험은 JSX 렌더 없이 소스를 대조한다(react-dom 미설치).
+    expect(src).toContain("{mergeBasic ? null : basicPane}");
+    expect(src).toContain("basicPaneClass(narrowSwitch, narrowPane, mergeBasic)");
+    expect(src).toContain("centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen, mergeBasic)");
+    expect(src).toContain("{ rail: hasTrackRail, railOpen, mergeBasic }");
+    expect(src).toContain("mergeBasic = false");
+    expect(src).toMatch(/<aside className=\{basicPaneClass\([^)]*mergeBasic\)\}>\{mergeBasic \? null : basicPane\}<\/aside>/);
+  });
+
   it("레일 안쪽은 오류가 없고 한 번 보인 뒤에만 붙인다", () => {
     const src = readFileSync(join(DIR, "UnifiedDetailView.tsx"), "utf8");
     expect(src).toContain("!error && WideCenterPanel && trackEverShown");
@@ -278,5 +290,36 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
       "onClick={() => { setTrackRailOpen((v) => !v); setTrackEverShown(true); }}",
     );
     expect(src).toContain("if (trackVisible && !trackEverShown) setTrackEverShown(true)");
+  });
+});
+
+describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합친 2분할", () => {
+  it("왼쪽 칸은 hidden, 좁은 화면·기본값은 지금과 같다", () => {
+    expect(basicPaneClass(false, "basic", true)).toBe("hidden");
+    expect(basicPaneClass(false, "basic")).toBe(basicPaneClass(false, "basic", false));
+    expect(basicPaneClass(true, "basic", true)).toBe(basicPaneClass(true, "basic"));
+  });
+  it("펼침이면 가운데 40% 고정·레일이 나머지, 접힘이면 가운데 flex-1", () => {
+    expect(centerPaneClass(false, "center", true, true, true)).toBe("w-[40%] flex-shrink-0 flex flex-col min-h-0");
+    expect(centerPaneClass(false, "center", true, false, true)).toBe("flex-1 min-w-0 flex flex-col min-h-0");
+    expect(sidePaneClass(false, "side", { rail: true, railOpen: true, mergeBasic: true })).toBe(
+      "relative flex-1 min-w-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out",
+    );
+    expect(sidePaneClass(false, "side", { rail: true, railOpen: false, mergeBasic: true })).toBe(
+      sidePaneClass(false, "side", { rail: true, railOpen: false }),
+    );
+  });
+  it("mergeBasic 을 안 주면 네 함수 모두 옛 문자열 그대로", () => {
+    expect(centerPaneClass(false, "center", true, true)).toBe("w-[380px] 2xl:w-[520px] min-w-[260px] flex flex-col min-h-0");
+    expect(sidePaneClass(false, "side", { rail: true, railOpen: true })).toContain("min-w-[380px]");
+  });
+  it("모달 상자 — 접힘이면 왼쪽 40% 폭(38.4vw)+손잡이 44px 로 줄고, 그 외엔 지금 문자열", () => {
+    const now = "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl";
+    expect(modalBoxClass(false, false, false)).toBe(now);
+    expect(modalBoxClass(false, true, true)).toBe(now);
+    expect(modalBoxClass(true, true, false)).toBe("");
+    expect(modalBoxClass(false, true, false)).toBe(
+      "sm:w-[calc(38.4vw_+_44px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl transition-[width] duration-200 ease-out",
+    );
   });
 });

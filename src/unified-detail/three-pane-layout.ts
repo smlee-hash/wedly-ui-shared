@@ -21,10 +21,12 @@ export function narrowPaneTabs(hasTrackRail: boolean): Array<[PaneName, string]>
 }
 
 /** 좌단(기본정보) className */
-export function basicPaneClass(narrowSwitch: boolean, narrowPane: PaneName): string {
+export function basicPaneClass(narrowSwitch: boolean, narrowPane: PaneName, mergeBasic: boolean = false): string {
   if (narrowSwitch) {
     return narrowPane === "basic" ? "flex-1 min-w-0 overflow-y-auto" : "hidden";
   }
+  // ERP 2분할(2026-09-02 사장님 승인): 기본정보는 가운데 탭줄로 들어가므로 왼쪽 칸을 안 그린다.
+  if (mergeBasic) return "hidden";
   return "w-[320px] 2xl:w-[400px] flex-shrink-0 border-r border-wedly-bd/60 overflow-y-auto";
 }
 
@@ -51,9 +53,14 @@ export function centerPaneClass(
   narrowPane: PaneName,
   hasTrackRail: boolean,
   railOpen: boolean = false,
+  mergeBasic: boolean = false,
 ): string {
   if (narrowSwitch && narrowPane !== "center") return "hidden";
   if (!narrowSwitch && hasTrackRail) {
+    if (mergeBasic) {
+      // 2분할: 펼침이면 왼쪽 40% 고정(사장님 「너무 넓으면 불편」), 접힘이면 모달 자체가 줄어 가운데가 전부.
+      return railOpen ? "w-[40%] flex-shrink-0 flex flex-col min-h-0" : "flex-1 min-w-0 flex flex-col min-h-0";
+    }
     // 펼침: 가운데를 옛 오른쪽 칸 폭으로 고정해, 남는 자리를 업무 현황이 가져가게 한다.
     // 하한 260: 좌 320 + 가운데 260 + 레일 380 = 960 ≤ 983(1024px 화면의 모달 96vw) → 더 이상 안 잘린다.
     // 레일이 가운데보다 항상 넓다: 남는 자리 A = 모달폭 − 좌단. A < 760 이면 레일이 하한 380 을 잡고
@@ -73,7 +80,7 @@ export function centerPaneClass(
 export function sidePaneClass(
   narrowSwitch: boolean,
   narrowPane: PaneName,
-  opts: { rail: boolean; railOpen: boolean },
+  opts: { rail: boolean; railOpen: boolean; mergeBasic?: boolean },
 ): string {
   // 좁은 화면은 전환식이라 접이식 폭을 붙이지 않는다.
   if (narrowSwitch) {
@@ -85,6 +92,9 @@ export function sidePaneClass(
   if (!opts.railOpen) {
     return "w-[44px] flex-shrink-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
   }
+  if (opts.mergeBasic) {
+    return "relative flex-1 min-w-0 border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
+  }
   // 펼침: 고정폭을 버리고 남는 자리를 전부 가져간다. 가운데가 옛 오른쪽 칸 폭으로 고정돼 있기 때문이다.
   // 하한 380: 좌 320 + 가운데 260 + 레일 380 = 960 ≤ 983(1024px 화면의 모달 96vw) → 더 이상 안 잘린다.
   // 레일이 가운데보다 항상 넓다: 남는 자리 A = 모달폭 − 좌단. A < 760 이면 레일이 하한 380 을 잡고
@@ -94,4 +104,14 @@ export function sidePaneClass(
   // relative: 접기 단추를 칸 왼쪽 위 모서리에 겹쳐 놓기 위한 기준(2026-08-30 사장님 「세 칸 상단 줄을
   // 똑같이 맞춰라」 — 접기 줄이 한 칸을 통째로 먹어 오른쪽만 머리가 한 줄 아래였다).
   return "relative flex-1 min-w-[380px] border-l border-wedly-bd/60 flex flex-col min-h-0 transition-[width] duration-200 ease-out";
+}
+
+/** 모달 상자 폭 클래스 — 2분할에서 레일을 접으면 왼쪽 40% 폭만 남기고 상자를 줄인다(넓게 퍼지지 않게). */
+export function modalBoxClass(narrowSwitch: boolean, mergeBasic: boolean, railOpen: boolean): string {
+  if (narrowSwitch) return "";
+  if (mergeBasic && !railOpen) {
+    // 38.4vw = 96vw × 0.4, 716 = 1680 × 0.4 + 44(손잡이)
+    return "sm:w-[calc(38.4vw_+_44px)] sm:h-[94vh] sm:max-w-[716px] sm:max-h-[94vh] sm:rounded-2xl transition-[width] duration-200 ease-out";
+  }
+  return "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl";
 }

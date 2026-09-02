@@ -21,6 +21,8 @@ export type ThreePaneShellProps = {
   narrowPane: PaneName;
   hasTrackRail: boolean;
   railOpen: boolean;
+  /** ERP 2분할 — 기본정보를 탭줄로 */
+  mergeBasic?: boolean;
   /** 기본정보 */
   basicPane: ReactNode;
   /** 분야 탭 + 히스토리·정보·파일 */
@@ -44,6 +46,7 @@ export function ThreePaneShell(props: ThreePaneShellProps): ReactElement {
     narrowPane,
     hasTrackRail,
     railOpen,
+    mergeBasic = false,
     basicPane,
     detailPane,
     plainCenterPane,
@@ -55,11 +58,11 @@ export function ThreePaneShell(props: ThreePaneShellProps): ReactElement {
 
   return (
     <div className="flex flex-1 min-h-0">
-      <aside className={basicPaneClass(narrowSwitch, narrowPane)}>{basicPane}</aside>
-      <main className={centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen)}>
+      <aside className={basicPaneClass(narrowSwitch, narrowPane, mergeBasic)}>{mergeBasic ? null : basicPane}</aside>
+      <main className={mergeBasic ? centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen, mergeBasic) : centerPaneClass(narrowSwitch, narrowPane, hasTrackRail, railOpen)}>
         {slots.center === "detail" ? detailPane : plainCenterPane}
       </main>
-      <aside className={sidePaneClass(narrowSwitch, narrowPane, { rail: hasTrackRail, railOpen })}>
+      <aside className={sidePaneClass(narrowSwitch, narrowPane, { rail: hasTrackRail, railOpen, mergeBasic })}>
         {slots.side === "track" ? (
           <>
             {railHandle}
