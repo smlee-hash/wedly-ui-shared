@@ -391,6 +391,19 @@ export function buildKakaoReportFromText(text: unknown, opts: { at?: string } = 
   return 날짜 ? `${날짜}\n\n${본문}` : 본문;
 }
 
+/** 카톡 보고문 글상자의 최소 줄 수 — 짧은 메모도 이만큼은 보인다. */
+export const KAKAO_TEXTAREA_MIN_ROWS = 8;
+
+/**
+ * 카톡 보고문 글상자의 줄 수 — **글 줄 수만큼**(한 줄 여유), 최소 8줄.
+ * ★2026-09-03 사장님 지시: 판 6 보고문이 40~50줄이 됐는데 상자가 220px(6줄)라 여섯 화면을 굴려야 했다.
+ *  상자가 글만큼 늘어나고 창이 화면 높이에 맞춰 한 번만 스크롤되게 한다(안쪽 스크롤 없음).
+ */
+export function kakaoTextareaRows(text: string, min = KAKAO_TEXTAREA_MIN_ROWS): number {
+  const lines = String(text ?? "").split("\n").length;
+  return Math.max(min, lines + 1);
+}
+
 /**
  * 이 기록의 카톡 보고문. 정리본이 있으면 그것으로, 없으면 원문으로 만든다.
  * ★부르는 쪽이 갈래를 나누지 않게 여기서 정한다 — 두 곳에서 나누면 한쪽만 고쳐진다.
