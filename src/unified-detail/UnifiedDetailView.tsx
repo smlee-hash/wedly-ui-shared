@@ -1636,7 +1636,7 @@ function BasicInfoPanel({
           </div>
         )}
 
-        <div className="px-3 py-1">
+        <div className="mx-3 my-2 rounded-xl border border-wedly-bd px-3 py-1">
           {isAdmin && editMode ? (
             // 수정 모드 — 드래그로 순서 + 이름·형식 변경
             <DraggableFieldsSection<ColumnLite>
@@ -1666,7 +1666,7 @@ function BasicInfoPanel({
             />
           ) : isAdmin && deleteMode ? (
             // 삭제 모드 — 숨기기 / (추가 칸)삭제 (드래그 없음)
-            <div className="divide-y divide-wedly-bd/60">
+            <div className="divide-y divide-wedly-bd">
               {groupedFields.map((f) => (
                 <BasicEditRow
                   key={f.key}
@@ -1683,7 +1683,7 @@ function BasicInfoPanel({
           ) : (
             // 일반 모드 — 값 입력 (저장된 순서 반영)
             <div>
-            <div className="divide-y divide-wedly-bd/60">
+            <div className="divide-y divide-wedly-bd">
               {groupedFields.length === 0 && (
                 <div className="py-4 text-center text-[12px] text-wedly-muted">표시할 칸이 없습니다.</div>
               )}
