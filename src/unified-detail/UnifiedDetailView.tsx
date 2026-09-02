@@ -1582,7 +1582,7 @@ function BasicInfoPanel({
         // 같은 높이(48)·같은 위치에서 시작해야 세 칸 상단이 한 줄로 보인다(사장님 2026-08-30).
         ? "border border-wedly-bd bg-white overflow-hidden -mx-4 -mt-4 rounded-none border-x-0 border-t-0"
         : "rounded-xl border border-wedly-bd bg-white overflow-hidden"}>
-        <div className={`px-4 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex items-center justify-between gap-2 ${stacked ? "h-12" : "py-2.5"}`}>
+        <div className={`px-4 ${stacked ? "bg-wedly-bg-gray" : "bg-wedly-bg-gray/50"} border-b border-wedly-bd/60 flex items-center justify-between gap-2 ${stacked ? "h-12" : "py-2.5"}`}>
           <span className="text-[12px] font-semibold text-wedly-t2">{baseSection.label || "기본정보"}</span>
           {isAdmin && (
             <div className="flex items-center gap-1.5">
@@ -3307,7 +3307,7 @@ export default function UnifiedDetailView({
     const sideContent = (
       <>
               {/* 분야 탭 줄 — 3분할에서는 오른쪽 패널 맨 위로(원래 상세창 모습을 통째로 오른쪽에). */}
-              <div className="flex items-center gap-1 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 h-12">
+              <div className="flex items-center gap-1 bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 h-12">
                 <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
                   {(isAdmin && topTabEditMode ? orderedGroups : visibleGroups).map((group, gi) => {
                     const rows = rowsOfGroup(detail, group);
@@ -3626,7 +3626,7 @@ export default function UnifiedDetailView({
                         trackRailOpen
                           // 펼침: 줄 하나를 통째로 먹지 않고 칸 왼쪽 위 모서리에 겹쳐 둔다 — 그래야
                           // 레일의 첫 줄(주입 화면의 머리 밴드)이 좌·중앙 머리 줄과 같은 높이에 온다.
-                          ? "absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray/50 text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
+                          ? "absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors"
                           : "flex-1 w-full flex flex-col items-center justify-center gap-2 py-3 bg-wedly-bg-blue text-wedly-accent-ink hover:bg-wedly-bg-blue/70 transition-colors"
                       }
                     >
