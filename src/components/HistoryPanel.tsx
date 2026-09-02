@@ -25,6 +25,9 @@ import {
 import { HistoryRecapCard } from "./HistoryRecapCard";
 import { KakaoReportDialog } from "./KakaoReportDialog";
 
+/** 대표님용 글을 기다리는 최대 시간 — 서버 쪽 AI 제한(45초)보다 조금 길게. */
+const KAKAO_AI_TIMEOUT_MS = 60_000;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -333,9 +336,12 @@ export function HistoryPanel({
     source: "ai" | "fallback" | "none";
   } | null>(null);
 
+  // ★열 때마다 번호를 올린다 — 같은 기록을 닫았다 다시 열어도 지난 요청의 늦은 응답이 새 창을 덮지 못하게(적대적 리뷰).
+  const kakaoSeqRef = useRef(0);
   const openKakao = useCallback(async (c: UnifiedComment) => {
     const 기계글 = kakaoReportFor(c);
     const hasBuilder = !!buildKakaoReport;
+    const seq = ++kakaoSeqRef.current;
     setKakaoDialog({
       comment: c,
       loading: hasBuilder,
@@ -343,31 +349,29 @@ export function HistoryPanel({
       source: resolveKakaoSource(hasBuilder, null),
     });
     if (!buildKakaoReport) return;
+    let aiText: string | null = null;
     try {
-      const t = await buildKakaoReport(c);
-      const aiText = typeof t === "string" && t.trim() ? t.trim() : null;
-      setKakaoDialog((cur) => {
-        if (!cur || cur.comment.id !== c.id) return cur;
-        return {
-          comment: c,
-          loading: false,
-          text: aiText ?? 기계글,
-          source: resolveKakaoSource(true, aiText),
-        };
-      });
+      // ★서버가 답을 안 주고 연결만 붙들면 창이 영원히 「다시 쓰는 중」이 된다 — 제한시간을 두고 기계글로 떨어진다.
+      const t = await Promise.race([
+        buildKakaoReport(c),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), KAKAO_AI_TIMEOUT_MS)),
+      ]);
+      aiText = typeof t === "string" && t.trim() ? t.trim() : null;
     } catch {
       // ★서버가 안 되면 기계글로 간다 — 단추가 아무 일도 안 하는 것보다 낫다.
-      setKakaoDialog((cur) => {
-        if (!cur || cur.comment.id !== c.id) return cur;
-        return {
-          comment: c,
-          loading: false,
-          text: 기계글,
-          source: resolveKakaoSource(true, null),
-        };
-      });
+      aiText = null;
     }
+    if (kakaoSeqRef.current !== seq) return; // 그 사이 닫혔거나 다른 창이 열렸다 — 버린다
+    setKakaoDialog((cur) =>
+      cur && cur.comment.id === c.id
+        ? { comment: c, loading: false, text: aiText ?? 기계글, source: resolveKakaoSource(true, aiText) }
+        : cur,
+    );
   }, [buildKakaoReport]);
+  const closeKakao = useCallback(() => {
+    kakaoSeqRef.current += 1; // 닫은 뒤 도착하는 응답을 무효로
+    setKakaoDialog(null);
+  }, []);
 
   const copyText = useCallback(async (text: string): Promise<boolean> => {
     // ★복사가 **정말 됐을 때만** 성공으로 친다. 실패했는데 성공으로 보이면
@@ -1289,7 +1293,7 @@ export function HistoryPanel({
         text={kakaoDialog?.text ?? ""}
         source={kakaoDialog?.source ?? "none"}
         subtitle={kakaoDialog ? `${kakaoDialog.comment.name ?? ""} · ${tf(kakaoDialog.comment.createdAt)} 기록에서`.trim() : undefined}
-        onClose={() => setKakaoDialog(null)}
+        onClose={closeKakao}
         onCopy={copyText}
       />
     </div>
