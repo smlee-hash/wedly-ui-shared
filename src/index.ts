@@ -150,6 +150,7 @@ export {
 
 // 공용 히스토리(상담기록) 패널 — 하이브·ERP·일루아 공유
 export { HistoryPanel } from "./components/HistoryPanel";
+export { KakaoReportDialog } from "./components/KakaoReportDialog";
 export { HistoryRecapCard } from "./components/HistoryRecapCard";
 export type { CommentRecap, RecapKind } from "./unified/history-core";
 export { hasRenderableRecap } from "./unified/history-core";
