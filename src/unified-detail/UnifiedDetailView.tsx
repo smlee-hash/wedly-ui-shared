@@ -3659,10 +3659,10 @@ export default function UnifiedDetailView({
       </>
     );
 
+    // ★ compact 경로와 똑같이 이 상자 안에서 그린다 — 분야 행 조회가 실패했는데도
+    //    아래 분야 패널이 "행 0건"으로 보이면 사용자가 새 계약을 만들어 자료가 어긋난다
+    //    (2026-09-03 적대적 리뷰 P0).
     return (
-      {/* ★ compact 경로와 똑같이 이 상자 안에서 그린다 — 분야 행 조회가 실패했는데도
-          아래 분야 패널이 "행 0건"으로 보이면 사용자가 새 계약을 만들어 자료가 어긋난다
-          (2026-09-03 적대적 리뷰 P0). */}
       <DetailLoadStateProvider rowsLoadFailed={rowsLoadFailed}>
       <FieldOptionsProvider value={adapter.fieldOptions}>
       <div
