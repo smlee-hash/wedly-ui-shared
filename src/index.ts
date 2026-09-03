@@ -215,6 +215,8 @@ export type { CustomerDetailLite, DomainRowLite } from "./unified-detail/lib/cus
 export type { DomainGroup } from "./unified-detail/lib/domain-config";
 export { DOMAIN_GROUPS } from "./unified-detail/lib/domain-config";
 export { useFieldOrder } from "./unified-detail/lib/use-field-order";
+export type { SectionSubTab, SectionSubTabKey } from "./unified-detail/section-sub-tabs";
+export { OWN_DOMAIN_SUB_TABS, SECTION_SUB_TABS, subTabsOfGroup, rightRailSubTabs } from "./unified-detail/section-sub-tabs";
 // 분야별 정산 차수 탭 래퍼(공용 부품에 ERP 경로 주입) — erp-adapter 가 adapter.components 로 주입.
 export { default as SectionSettlementTab } from "./unified-detail/SectionSettlementTab";
 

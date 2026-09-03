@@ -29,15 +29,21 @@ export const SECTION_SUB_TABS: SectionSubTab[] = [
 ];
 
 /**
- * 이 분야 그룹의 하위 탭 목록. **모르면 null** — 어댑터가 자기 패널(sectionPanels)을 주입한
- * 그룹은 그 패널이 탭을 스스로 정하므로 우리가 알 수 없다. null 이면 부르는 쪽은
- * 「패널 안 탭 줄을 숨기지 않는다」로 가야 한다(숨기고 다른 목록을 그리면 탭이 사라진다).
+ * 이 분야 그룹의 하위 탭 목록.
+ *
+ * - 어댑터가 그 그룹의 목록을 직접 알려 주면(`sectionSubTabs`) 그것이 이긴다. 자기 패널을 주입한
+ *   그룹(예: 일루아 정부지원금 = detail-modal-shared 의 GOV_SUB_TABS)이 여기에 해당한다.
+ * - 알려 주지 않았는데 자기 패널이 있으면 **모름(null)** — 그 패널이 실제로 가진 탭을 단정할 수
+ *   없다(일루아 경정청구 패널은 「정산정보」가 아예 없다). null 이면 부르는 쪽은 「패널 안 탭 줄을
+ *   숨기지 않는다」로 가야 하고, 대신 그 그룹으로 되돌아올 단추 하나를 따로 그려야 한다.
  */
 export function subTabsOfGroup(
   groupKey: string,
   ownDomain: string,
   hasCustomPanel: boolean,
+  adapterSubTabs?: SectionSubTab[] | null,
 ): SectionSubTab[] | null {
+  if (adapterSubTabs?.length) return adapterSubTabs;
   if (hasCustomPanel) return null;
   return groupKey === ownDomain ? OWN_DOMAIN_SUB_TABS : SECTION_SUB_TABS;
 }

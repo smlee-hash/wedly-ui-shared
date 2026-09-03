@@ -3089,9 +3089,14 @@ export default function UnifiedDetailView({
         currentGroup.key,
         adapter.ownDomain,
         Boolean(adapter.components.sectionPanels?.[currentGroup.key]),
+        adapter.components.sectionSubTabs?.[currentGroup.key],
       )
     : null;
   const rightSubTabs = rightRailSubTabs(knownSubTabs);
+  // 목록을 모르는 그룹(어댑터 자기 패널 + sectionSubTabs 미제공)은 오른쪽 줄에 세부 탭이 하나도
+  // 안 그려진다 → 히스토리·파일을 누르면 그 분야로 되돌아올 단추가 없어진다(2026-09-03 리뷰).
+  // ERP 가 커스텀 DB 분야에 쓰는 방식 그대로, 그룹 이름 단추 하나를 대신 그린다.
+  const groupBtnOnRight = rightSubTabs.length === 0;
   // 가운데 고정 조각 — 어느 분야 탭을 골라도 가운데는 이 한 벌만 그린다. 미지정 앱·compact 는 기존 동작.
   const WideCenterPanel = threePane ? adapter.components.wideCenterPanel : undefined;
   const TrackRailBadge = adapter.components.trackRailBadge;
@@ -3543,7 +3548,9 @@ export default function UnifiedDetailView({
               {/* 오른쪽 한 줄 — 히스토리 · 그 분야 세부 탭들 · 파일(원래 상세창 순서 그대로). */}
               <div className="p-2 border-b border-wedly-bd/60 flex-shrink-0 flex items-center gap-1 overflow-x-auto">
                 {sideBtn("history", "히스토리")}
-                {customOnRight && currentGroup && sideBtn("info", currentGroup.label)}
+                {(customOnRight || (infoOnRight && groupBtnOnRight)) &&
+                  currentGroup &&
+                  sideBtn("info", currentGroup.label)}
                 {infoOnRight &&
                   rightSubTabs.map(({ key, label }) => (
                     <button

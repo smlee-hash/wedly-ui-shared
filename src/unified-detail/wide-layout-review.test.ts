@@ -126,6 +126,40 @@ describe("[P1] 세부 탭은 단정하지 않고 패널의 실제 목록을 따�
     expect(src).toContain("hideSubTabBar={Boolean(knownSubTabs)}");
   });
 
+  it("어댑터가 목록을 주면(sectionSubTabs) 그것이 이긴다 — 정부지원금 계약·정산·환불·미팅", () => {
+    const 정부지원금 = [
+      { key: "history", label: "히스토리" },
+      { key: "contract", label: "계약정보" },
+      { key: "settlement", label: "정산정보" },
+      { key: "refund", label: "환불정보" },
+      { key: "meetings", label: "미팅정보" },
+    ] as const;
+    const 목록 = subTabsOfGroup("government-subsidy", "government-subsidy", true, [...정부지원금]);
+    expect(목록).not.toBeNull();
+    // 바깥 줄에 계약정보·정산정보·환불정보·미팅정보가 그려진다.
+    expect(rightRailSubTabs(목록).map((t) => t.label)).toEqual([
+      "계약정보",
+      "정산정보",
+      "환불정보",
+      "미팅정보",
+    ]);
+    // 호출부가 실제로 어댑터 목록을 넘긴다.
+    expect(src).toContain("adapter.components.sectionSubTabs?.[currentGroup.key],");
+  });
+
+  it("커스텀 판이어도 되돌아올 단추가 있다 — 목록이 비면 그룹 이름 단추", () => {
+    // 목록을 모르는 그룹은 오른쪽 줄 세부 탭이 0개다.
+    expect(rightRailSubTabs(subTabsOfGroup("government-subsidy", "government-subsidy", true))).toEqual([]);
+    expect(src).toContain("const groupBtnOnRight = rightSubTabs.length === 0;");
+    // 그럴 때 wideSide 를 "info" 로 되돌릴 단추(그룹 이름)를 그린다.
+    expect(src).toContain(
+      "{(customOnRight || (infoOnRight && groupBtnOnRight)) &&\n                  currentGroup &&\n                  sideBtn(\"info\", currentGroup.label)}",
+    );
+    // 그 단추가 실제로 wideSide 를 바꾼다.
+    expect(src).toContain('const sideBtn = (key: "info" | "history" | "files", label: string) => (');
+    expect(src).toContain("onClick={() => setWideSide(key)}");
+  });
+
   it("패널 SUB_TABS 가 정본 배열을 그대로 쓴다(두 벌이 갈라지지 않게)", () => {
     expect(src).toContain("const SUB_TABS: { key: SubTab; label: string }[] = OWN_DOMAIN_SUB_TABS;");
     expect(src).toContain("const SUB_TABS: { key: SubTab; label: string }[] = SECTION_SUB_TABS;");

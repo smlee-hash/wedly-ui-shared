@@ -7,6 +7,7 @@ import type { CustomerDetailLite, DomainRowLite } from "./lib/customer-detail";
 import type { ColumnDef } from "../types/columns";
 import type { UnifiedComment } from "../unified/history-core";
 import type { SelectDropdownColorFamily } from "@wedly/detail-modal-shared";
+import type { SectionSubTab } from "./section-sub-tabs";
 
 // ── FileFieldDef — 파일 탭 칸 정의 (erp-files-adapter.ts 에서 원본 가져와 로컬 정의) ──
 // 원본: src/app/(erp)/_shared/erp-files-adapter.ts
@@ -228,6 +229,11 @@ export interface UnifiedDetailAdapter {
     SectionSettlementTab: React.ComponentType<any>;
     /** 분야 그룹별 커스텀 편집기. 키 = DomainGroup.key. 제공 시 기본 SectionDetailPanel 대신 렌더(미제공이면 기존 동작). */
     sectionPanels?: Record<string, React.ComponentType<SectionPanelProps>>;
+    /** 커스텀 분야 패널(sectionPanels)이 실제로 가진 하위 탭 목록. 키 = DomainGroup.key.
+     *  wide 오른쪽 줄이 이 목록을 그대로 그리고 패널에는 subTab·hideSubTabBar 를 넘긴다.
+     *  안 주면 껍데기는 그 패널의 탭을 「모름」으로 두고(패널 자기 탭 줄을 살리고) 오른쪽 줄엔
+     *  그 분야로 되돌아올 단추 하나만 그린다 — 목록을 단정해 없는 탭을 그리지 않기 위해서다. */
+    sectionSubTabs?: Record<string, SectionSubTab[]>;
     /** 분야 그룹별 "패널 위에 얹는 머리 조각" — 제공 시 그 그룹 패널(기본·커스텀 모두) 위에 렌더.
      *  미제공이면 기존 동작(하이브·일루아 불변). props 는 sectionPanels 와 동일(SectionPanelProps). */
     sectionPanelHeaders?: Record<string, React.ComponentType<SectionPanelProps>>;
