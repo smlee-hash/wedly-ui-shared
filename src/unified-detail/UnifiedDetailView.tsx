@@ -38,6 +38,12 @@ import type { BasicRecord } from "./adapter-types";
 import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
 import { modalBoxClass, narrowPaneTabs } from "./three-pane-layout";
+import {
+  OWN_DOMAIN_SUB_TABS,
+  SECTION_SUB_TABS,
+  rightRailSubTabs,
+  subTabsOfGroup,
+} from "./section-sub-tabs";
 import { ThreePaneShell } from "./ThreePaneShell";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,13 +248,8 @@ function TaxAmendmentPanel({
   );
 
   // 하이브 순서와 동일: 히스토리·계약정보·정산정보·환불정보·미팅정보·파일
-  const SUB_TABS: { key: SubTab; label: string }[] = [
-    { key: "history",    label: "히스토리" },
-    { key: "contract",   label: "계약정보" },
-    { key: "settlement", label: "정산정보" },
-    { key: "refund",     label: "환불정보" },
-    { key: "meetings",   label: "미팅정보" },
-  ];
+  // ★ 배열 정본은 section-sub-tabs.ts — wide 오른쪽 줄이 같은 목록을 봐야 탭이 사라지지 않는다.
+  const SUB_TABS: { key: SubTab; label: string }[] = OWN_DOMAIN_SUB_TABS;
 
   // ── "탭 편집" — 하위 탭 순서·이름 변경(관리자만, 모두에게 반영). 탭의 실제 기능·저장 위치는 그대로, 표시(순서·이름)만 바뀐다. ──
   const [subOrder, setSubOrder] = useState<string[]>([]);
@@ -777,13 +778,8 @@ function SectionDetailPanel({
     [shared, bizno, sectionKey],
   );
 
-  const SUB_TABS: { key: SubTab; label: string }[] = [
-    { key: "history", label: "히스토리" },
-    { key: "contract", label: "계약정보" },
-    { key: "settlement", label: "정산정보" },
-    { key: "refund", label: "환불정보" },
-    { key: "meetings", label: "미팅정보" },
-  ];
+  // ★ 배열 정본은 section-sub-tabs.ts (위 OwnDomainPanel 과 같은 이유).
+  const SUB_TABS: { key: SubTab; label: string }[] = SECTION_SUB_TABS;
   const displaySubTabs = hiddenSubTabs?.length
     ? SUB_TABS.filter((t) => !hiddenSubTabs.includes(t.key))
     : SUB_TABS;
@@ -2049,6 +2045,7 @@ function GroupDomainPanel({
   hiddenSubTabs,
   hideSubTabBar,
   omitHeader,
+  wideLayout,
 }: {
   group: DomainGroup;
   rows: DomainRowLite[];
@@ -2075,8 +2072,12 @@ function GroupDomainPanel({
   hideSubTabBar?: boolean;
   /** true 면 머리 조각(sectionPanelHeaders)을 그리지 않는다 — 오른쪽 「정보」 칸용(가운데와 중복 방지). */
   omitHeader?: boolean;
+  /** wide(2·3분할)에서 부른 경우에만 true. 머리 조각은 wide 전용이다 — compact 불변 조건. */
+  wideLayout?: boolean;
 }) {
-  const HeaderPanel = omitHeader ? undefined : adapter.components.sectionPanelHeaders?.[group.key];
+  // ★ 머리 조각은 layout="wide" 에서만. compact 는 스위치를 안 켠 앱까지 화면이 달라지면 안 된다
+  //   (2026-09-03 적대적 리뷰: layout 검사 없이 compact GroupDomainPanel 에도 적용됐다).
+  const HeaderPanel = wideLayout && !omitHeader ? adapter.components.sectionPanelHeaders?.[group.key] : undefined;
   const header = HeaderPanel ? (
     <HeaderPanel
       rows={allRows && allRows.length > 0 ? allRows : rows}
@@ -2630,19 +2631,35 @@ function WideGroupHistory({
 
 function WideFilesPane({
   row,
+  detail,
   entryId,
   adapter,
   onSaved,
 }: {
   row: RowData;
+  /** 분야 행 전체 — 파일이 분야별 행에 흩어진 앱(일루아)의 합산에 필요(compact 「리포트」와 같은 계산). */
+  detail: CustomerDetailLite | null;
   entryId: string;
   adapter: UnifiedDetailAdapter;
   onSaved?: () => void;
 }) {
   const ErpFilesPanel = adapter.components.ErpFilesPanel;
+  // ★ 이 칸이 붙는 순간(파일 탭으로 전환) 최신 행을 한 번 다시 읽는다.
+  //   패널이 자체 PATCH 로 저장하면 onPatchField 를 안 거쳐 부모 재조회가 안 일어나, 히스토리 탭을
+  //   갔다 오면 낡은 row 로 다시 마운트돼 방금 올린 파일이 사라져 보였다(2026-09-03 적대적 리뷰).
+  //   훅은 조기 반환보다 위에 둔다 — 아래로 내리면 패널 없는 앱에서 훅 개수가 달라져 화면이 죽는다.
+  const refresh = onSaved;
+  useEffect(() => {
+    refresh?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   if (!ErpFilesPanel) {
     return <WideEmptyNote text="파일 패널이 없는 앱입니다" />;
   }
+  // 매 렌더 재계산(캐시 금지) — BasicFilesField 와 같은 규칙. detail 이 늦게 와도 그때 채워진다.
+  const allFiles = adapter.getAllFiles(row as Record<string, unknown>, detail);
+  // 패널이 스스로 저장한 뒤 알려 줄 수 있게 갱신 콜백도 함께 넘긴다(모르는 패널은 무시 → 미대응 앱 불변).
+  const notifySaved = () => { onSaved?.(); };
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-4">
       <ErpFilesPanel
@@ -2659,6 +2676,10 @@ function WideFilesPane({
         defaultCategoryKey={adapter.ownFileFields[0]?.key ?? "첨부파일"}
         readOnly={false}
         includeSharedFiles
+        // compact 「리포트」 칸과 같은 합산 목록 — 분야 행에 흩어진 파일까지 보인다.
+        allFiles={allFiles}
+        onSaved={notifySaved}
+        onChanged={notifySaved}
       />
     </div>
   );
@@ -3051,26 +3072,26 @@ export default function UnifiedDetailView({
   // 탭 이동 핸들러 (현황표 "탭 열기" 버튼에서 호출)
   const openGroupTab = useCallback((groupKey: string) => {
     setActiveTab(groupKey);
-    setNarrowPane("center");
-  }, []);
+    // 분야 본문(sideContent)이 사는 칸으로 — 레일이 있으면 가운데, 없으면 오른쪽(2981줄과 같은 규칙).
+    setNarrowPane(adapter.components.wideCenterPanel ? "center" : "side");
+  }, [adapter]);
 
   // 현재 그룹 탭에 해당하는 도메인 행들
   const currentGroup = orderedGroups.find((g) => g.key === activeTab) ?? null;
   const currentRows = currentGroup ? rowsOfGroup(detail, currentGroup) : [];
-  // 오른쪽 줄에 직접 그릴 세부 탭 — 자기 분야는 계약·환불·미팅, 그 외 분야는 정산까지.
-  const rightSubTabs =
-    currentGroup?.key === adapter.ownDomain
-      ? ([
-          { key: "contract", label: "계약정보" },
-          { key: "refund", label: "환불정보" },
-          { key: "meetings", label: "미팅정보" },
-        ] as const)
-      : ([
-          { key: "contract", label: "계약정보" },
-          { key: "settlement", label: "정산정보" },
-          { key: "refund", label: "환불정보" },
-          { key: "meetings", label: "미팅정보" },
-        ] as const);
+  // 오른쪽 줄에 직접 그릴 세부 탭 — 패널이 실제로 가진 목록(section-sub-tabs 정본)에서
+  // 오른쪽 줄이 따로 가진 단추(히스토리·파일)만 뺀다. 「자기분야면 정산 없음」식 단정 금지 —
+  // 일루아는 자기분야가 정부지원금이고 그 패널에 「정산정보」가 실제로 있다(2026-09-03 리뷰).
+  // 어댑터가 자기 패널을 주입한 그룹은 탭을 알 수 없으므로 null → 빈 배열이 되고,
+  // 아래 knownSubTabs 검사로 패널 안 탭 줄을 숨기지 않는다.
+  const knownSubTabs = currentGroup
+    ? subTabsOfGroup(
+        currentGroup.key,
+        adapter.ownDomain,
+        Boolean(adapter.components.sectionPanels?.[currentGroup.key]),
+      )
+    : null;
+  const rightSubTabs = rightRailSubTabs(knownSubTabs);
   // 가운데 고정 조각 — 어느 분야 탭을 골라도 가운데는 이 한 벌만 그린다. 미지정 앱·compact 는 기존 동작.
   const WideCenterPanel = threePane ? adapter.components.wideCenterPanel : undefined;
   const TrackRailBadge = adapter.components.trackRailBadge;
@@ -3090,7 +3111,8 @@ export default function UnifiedDetailView({
   useEffect(() => {
     if (!threePane) return;
     if (infoOnRight || customOnRight) {
-      if (infoOnRight) {
+      // 목록을 모르는 그룹(어댑터 자기 패널)은 rightSubTabs 가 비어 있다 — 그때는 지금 탭을 건드리지 않는다.
+      if (infoOnRight && rightSubTabs.length > 0) {
         setSubTab((cur) => (rightSubTabs.some((t) => t.key === cur) ? cur : ("contract" as SubTab)));
       }
       if (historyIntentRef.current) {
@@ -3366,6 +3388,7 @@ export default function UnifiedDetailView({
                               ownTieredFieldsPath={adapter.ownTieredFieldsPath}
                               sectionSettlementBase={adapter.sectionSettlementBase}
                               adapter={adapter}
+                              wideLayout
                               hiddenSubTabs={["history", "files"]}
                             />
                           );
@@ -3459,7 +3482,10 @@ export default function UnifiedDetailView({
                     return (
                       <button
                         key={group.key}
-                        onClick={() => setActiveTab(group.key)}
+                        // narrowPane 도 이 줄이 사는 칸으로 맞춘다 — 안 맞추면 창을 좁혔을 때
+                        // 보던 분야가 다른 칸에 가려 사라진다(2026-09-03 리뷰 P2).
+                        // 이 줄(sideContent)은 레일이 있으면 가운데, 없으면 오른쪽 칸에 들어간다(ThreePaneShell).
+                        onClick={() => { setActiveTab(group.key); setNarrowPane(hasTrackRail ? "center" : "side"); }}
                         className={`${mergeBasic ? "px-2.5" : "px-3"} py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
                           active
                             ? "bg-wedly-bg-blue text-wedly-accent-ink"
@@ -3580,8 +3606,11 @@ export default function UnifiedDetailView({
                       ownTieredFieldsPath={adapter.ownTieredFieldsPath}
                       sectionSettlementBase={adapter.sectionSettlementBase}
                       adapter={adapter}
-                      hiddenSubTabs={["history", "files"]}
-                      hideSubTabBar
+                      wideLayout
+                      // 오른쪽 줄이 패널의 실제 탭을 알 때만 패널 안 탭 줄을 숨긴다.
+                      // 모르면(어댑터 자기 패널) 숨기지 않는다 — 숨기고 빈 목록을 그리면 탭이 통째로 사라진다.
+                      hiddenSubTabs={knownSubTabs ? ["history", "files"] : undefined}
+                      hideSubTabBar={Boolean(knownSubTabs)}
                       omitHeader
                     />
                   )}
@@ -3623,7 +3652,7 @@ export default function UnifiedDetailView({
                   );
                 })()
               ) : (
-                <WideFilesPane row={row} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
+                <WideFilesPane row={row} detail={detail} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
               )}
                 </>
               )}
@@ -3631,6 +3660,10 @@ export default function UnifiedDetailView({
     );
 
     return (
+      {/* ★ compact 경로와 똑같이 이 상자 안에서 그린다 — 분야 행 조회가 실패했는데도
+          아래 분야 패널이 "행 0건"으로 보이면 사용자가 새 계약을 만들어 자료가 어긋난다
+          (2026-09-03 적대적 리뷰 P0). */}
+      <DetailLoadStateProvider rowsLoadFailed={rowsLoadFailed}>
       <FieldOptionsProvider value={adapter.fieldOptions}>
       <div
         className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center"
@@ -3766,6 +3799,7 @@ export default function UnifiedDetailView({
         </div>
       </div>
       </FieldOptionsProvider>
+      </DetailLoadStateProvider>
     );
   }
 
