@@ -40,6 +40,10 @@
     "./ui/required-tokens": {
       "types": "./src/ui/required-tokens.ts",
       "default": "./src/ui/required-tokens.ts"
+    },
+    "./unified-detail/three-pane": {
+      "types": "./src/unified-detail/ThreePaneShell.tsx",
+      "default": "./src/unified-detail/ThreePaneShell.tsx"
     }
   },
   "files": [

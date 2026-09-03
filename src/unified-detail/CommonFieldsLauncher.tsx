@@ -14,6 +14,7 @@ export function CommonFieldsLauncher({
   saveDefs,
   canManageCommon = false,
   onChanged,
+  compact = false,
 }: {
   appSpecificLabels?: string[];
   // 추가 칸 관리(이 둘이 다 있을 때만 노출 — 미배선 앱은 표준 토글만 보임)
@@ -24,10 +25,22 @@ export function CommonFieldsLauncher({
   // 공통 칸 제어 권한 — ERP 상세창만 true(adapter.appName==="ERP"). 파트너 앱은 false → 공통 칸 읽기 전용.
   canManageCommon?: boolean;
   onChanged?: () => void;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
+      {compact ? (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-wedly-bd text-[12px] text-wedly-t2 hover:bg-wedly-bg-gray transition-colors"
+        title="공통 칸 관리 (관리자 전용)"
+        aria-label="공통 칸 관리"
+      >
+        <span aria-hidden>⚙</span>
+      </button>
+      ) : (
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -36,6 +49,7 @@ export function CommonFieldsLauncher({
       >
         <span aria-hidden>⚙</span> 공통 칸 관리
       </button>
+      )}
       {open && (
         <div
           className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/40 p-4"

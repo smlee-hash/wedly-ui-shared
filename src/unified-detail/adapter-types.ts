@@ -228,6 +228,21 @@ export interface UnifiedDetailAdapter {
     SectionSettlementTab: React.ComponentType<any>;
     /** 분야 그룹별 커스텀 편집기. 키 = DomainGroup.key. 제공 시 기본 SectionDetailPanel 대신 렌더(미제공이면 기존 동작). */
     sectionPanels?: Record<string, React.ComponentType<SectionPanelProps>>;
+    /** 분야 그룹별 "패널 위에 얹는 머리 조각" — 제공 시 그 그룹 패널(기본·커스텀 모두) 위에 렌더.
+     *  미제공이면 기존 동작(하이브·일루아 불변). props 는 sectionPanels 와 동일(SectionPanelProps). */
+    sectionPanelHeaders?: Record<string, React.ComponentType<SectionPanelProps>>;
+    /** wide(3분할) 가운데 고정 조각 — 어느 분야 탭을 골라도 가운데엔 이것만 그린다(업무 현황).
+     *  지정하면 모든 분야에서 본 패널이 오른쪽 「정보」 칸으로 간다. 미지정이면 기존 동작. */
+    wideCenterPanel?: React.ComponentType<SectionPanelProps>;
+    /** 접힌 업무 현황 손잡이에 붙는 작은 배지(예: 진행 중 업무 수). 앱이 자료를 알므로 앱이 준다. 미지정이면 배지 없음. */
+    trackRailBadge?: React.ComponentType<{ primaryRow: Record<string, unknown> }>;
+    /** wide(3분할) 전용 — 그 그룹의 본 패널(차수 카드 등)을 오른쪽 「정보」 칸으로 옮긴다.
+     *  값이 "right" 인 그룹은 가운데에 머리 조각(진행 업무)만 남는다. 미지정 그룹·compact 불변. */
+    widePanelPlacement?: Record<string, "right">;
+    /** 분야 그룹별 "3분할 오른쪽 히스토리" — wide 에서 그 그룹이 활성일 때 오른쪽 패널에 렌더.
+     *  커스텀 패널(sectionPanels)을 쓰는 그룹은 히스토리 저장소가 앱 고유라 껍데기가 못 그린다 —
+     *  앱이 같은 저장소를 그리는 조각을 여기로 준다. 미제공이면 기존 동작(안내문). */
+    sectionHistoryPanels?: Record<string, React.ComponentType<SectionPanelProps>>;
   };
 
   /** 자기 도메인(경정청구) 파일 탭 칸 정의 목록 */
@@ -273,6 +288,10 @@ export type SectionPanelProps = {
   isAdmin: boolean;
   onSaved?: () => void;
   adapter: UnifiedDetailAdapter;
+  /** wide(3분할)에서 숨길 하위 탭 키 — 히스토리를 오른쪽 패널로 옮길 때 등. 미전달이면 불변. */
+  hiddenSubTabs?: string[];
+  /** true 면 패널 자체 하위 탭 줄을 그리지 않는다 — 오른쪽 한 줄로 끌어올렸을 때. 미전달이면 불변. */
+  hideSubTabBar?: boolean;
   /** 현재 선택된 하위 탭. 바깥이 탭 줄을 그릴 때 패널 내용을 맞추려면 필요. 미전달이면 패널 내부 초기값. */
   subTab?: string;
   /** 하위 탭 변경 알림. 바깥 탭 줄과 패널 안 상태를 맞출 때. 미전달이면 불변. */
