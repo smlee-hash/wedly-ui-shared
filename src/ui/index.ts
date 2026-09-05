@@ -30,6 +30,7 @@ export { Kbd } from "./Kbd";
 export { MiniCalendar } from "./MiniCalendar";
 export { NotificationBadge } from "./NotificationBadge";
 export { NumberInput } from "./NumberInput";
+export { clampNumberInput, commitWhileTyping } from "./number-input-core";
 export { Pagination } from "./Pagination";
 export { ProgressBar } from "./ProgressBar";
 export { RadioGroup } from "./Radio";

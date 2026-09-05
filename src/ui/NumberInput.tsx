@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { cn } from "./cn";
+import { clampNumberInput, commitWhileTyping } from "./number-input-core";
 
 /**
  * 숫자 입력칸 (2026-08-23 신설) — 양옆 빼기/더하기 단추(앤트·카본·맨틴 공통형).
@@ -29,10 +30,9 @@ export function NumberInput({
 }) {
   const autoId = useId();
   const inputId = id ?? autoId;
-  // 입력 중엔 친 글자를 그대로 두고(음수 부호·비운 칸 허용) 떠날 때만 자른다 — 적대적 리뷰
+  // 입력 중엔 친 글자를 그대로 두고(음수 부호·비운 칸 허용) 떠날 때 자른다 — 적대적 리뷰
   const [draft, setDraft] = useState<string | null>(null);
-  const round = (n: number) => Math.round(n * 1e6) / 1e6;
-  const clamp = (n: number) => round(Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : Math.max(min, Math.min(max, 0)));
+  const clamp = (n: number) => clampNumberInput(n, min, max);
   const btn = "inline-flex h-9 w-9 shrink-0 items-center justify-center text-wedly-t2 hover:bg-wedly-bg-gray disabled:opacity-40 disabled:hover:bg-transparent";
   return (
     <div className={cn("min-w-0", className)}>
@@ -52,7 +52,16 @@ export function NumberInput({
           min={Number.isFinite(min) ? min : undefined}
           max={Number.isFinite(max) ? max : undefined}
           step={step}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            const raw = e.target.value;
+            setDraft(raw);
+            // ★친 값이 **범위 안의 온전한 숫자**면 칸을 떠나기 전에도 바로 넘긴다.
+            //  예전에는 떠날 때만 넘겨서, 20 을 지우고 25 를 친 뒤 곧장 「저장」을 누르면
+            //  옛 값이 저장되고 칸에는 25 가 남았다(독립 화면 검사 2026-09-05).
+            //  범위 밖·빈 값·부호만은 지금처럼 글자로만 두었다가 떠날 때 잘라 넘긴다.
+            const now = commitWhileTyping(raw, min, max);
+            if (now !== null) onChange(now);
+          }}
           onBlur={() => {
             if (draft !== null) onChange(clamp(Number(draft === "" ? NaN : draft)));
             setDraft(null);
