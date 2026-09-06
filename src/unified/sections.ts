@@ -214,7 +214,8 @@ export const COMMON_BASIC_FIELD_SPECS: BasicFieldSpec[] = [
   { label: "내부 DB 분류",   keys: ["54DB분류", "16DB분류", "17소스DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류"], type: "select" },
   { label: "대표자명",      keys: ["03대표자명", "02대표자명", "대표자명"],                 type: "text" },
   { label: "연락처",        keys: ["04연락처", "03대표연락처", "대표연락처", "연락처"],       type: "phone_number" },
-  { label: "이메일",        keys: ["53이메일", "이메일"],                                type: "email" },
+  // 정부지원금·노무지원금 줄은 통합 DB 키 "신청자이메일" 에 주소가 있다(ERP unified-db-columns.ts:54) — 후보에 없으면 상세창 이메일 칸이 빈 채로 보인다(2026-09-06)
+  { label: "이메일",        keys: ["53이메일", "이메일", "신청자이메일"],                  type: "email" },
   { label: "사업자번호",     keys: ["15사업자번호", "04사업자번호", "사업자번호"],           type: "text" },
   { label: "사업장주소지",   keys: ["52사업장주소지", "27주소지", "사업장주소지", "주소지", "주소"], type: "text" },
   { label: "사업자유형",     keys: ["14사업자유형", "사업자유형"],                         type: "select" },
