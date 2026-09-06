@@ -149,6 +149,12 @@ describe("기본정보 사양 분리", () => {
     expect(spec?.keys).toEqual(["custom_1780316171826", "환급금여부"]);
     expect(spec?.type).toBe("select");
   });
+
+  it("이메일 후보키는 신청자이메일까지 포함한다 (정부지원금·노무지원금 통합 DB 키, 2026-09-06)", () => {
+    const spec = COMMON_BASIC_FIELD_SPECS.find((s) => s.label === "이메일");
+    expect(spec?.keys).toEqual(["53이메일", "이메일", "신청자이메일"]);
+    expect(spec?.type).toBe("email");
+  });
 });
 
 // ── buildBasicSection: 기본정보 표준 묶음 (신규 확장) ──
