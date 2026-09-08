@@ -251,6 +251,41 @@ export type TierData = {
   _subSectionId?: string;
 } & Record<string, string | number | null | undefined>;
 
+// ── 수식 칸 수동 수정(관리자 override) ──────────────────────────────────
+// 관리자가 수식 계산값 대신 손으로 넣은 값은 차수 객체 안 "_ovr_<칸키>" 로 저장된다.
+// 이 키가 있으면 evalFormulaForTier 가 수식을 계산하지 않고 이 값을 그대로 돌려주므로
+// 카드 화면·정산 파이프라인·표 연동이 전부 같은 값을 본다. 복원 = 키 삭제.
+export const TIER_OVERRIDE_PREFIX = "_ovr_";
+// ERP's approved formula revision. Values stay in their ordinary field so partner
+// projections can remove hidden amounts without leaking them through metadata.
+export const TIER_MANAGED_PREFIX = "_cf_";
+const managedFieldKey = (key: string) => !!key && !key.startsWith("_") && !["id", "label", "constructor", "prototype"].includes(key);
+const managedNumber = (value: unknown): number | null => {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && !value.trim()) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+export function getManagedTierValue(tier: TierData, fieldKey: string): number | null | undefined {
+  if (!managedFieldKey(fieldKey)) return undefined;
+  const revision = tier[TIER_MANAGED_PREFIX + fieldKey];
+  if (typeof revision !== "string" || !revision) return undefined;
+  const value = tier[fieldKey];
+  return managedNumber(value);
+}
+
+export function overrideKeyOf(fieldKey: string): string {
+  return TIER_OVERRIDE_PREFIX + fieldKey;
+}
+
+/** 차수에 저장된 수동 수정값. 없거나 숫자로 못 읽으면 null. */
+export function getTierOverride(tier: TierData, fieldKey: string): number | null {
+  const raw = tier[overrideKeyOf(fieldKey)];
+  const num = typeof raw === "number" ? raw : typeof raw === "string" && raw !== "" ? Number(raw) : NaN;
+  return Number.isFinite(num) ? num : null;
+}
+
 export const ORDINAL_KO = ["1차", "2차", "3차", "4차", "5차", "6차", "7차", "8차", "9차", "10차", "11차", "12차"];
 
 export function makeEmptyTier(idx: number, fields: FieldDef[]): TierData {
@@ -294,6 +329,29 @@ export function parseTiers(raw: unknown, fields: FieldDef[]): TierData[] {
       } else {
         tier[f.key] = typeof v === "string" ? v : "";
       }
+    }
+      // 수동 수정값(_ovr_*) 보존 — 카드가 읽고 다시 저장할 때 증발하지 않게.
+      // ⚠️ 칸 정의(fields)에 걸지 않고 접두사로 보존한다: 카드 첫 렌더는 정의가 아직
+      // 안 와서 parseTiers(raw, []) 로 도는데, 그 사이 차수 추가·삭제 조작이 저장되면
+      // 정의 기준 보존은 수동값을 통째로 증발시킨다(적대적 리뷰 심각2, 2026-08-19).
+      // 정의가 지워진 잔재 키는 계산에서 안 읽히므로 남아 있어도 무해하다.
+      for (const k of Object.keys(item)) {
+        if (!k.startsWith(TIER_OVERRIDE_PREFIX)) continue;
+        const ov = item[k];
+        const num = typeof ov === "number" ? ov : typeof ov === "string" && ov !== "" ? Number(ov) : NaN;
+        if (Number.isFinite(num)) tier[k] = num;
+      }
+    // Also preserve values while definitions are loading. A missing projected
+    // partner amount remains null; it must never fall back to the legacy formula.
+    for (const key of Object.keys(item)) {
+      if (!key.startsWith(TIER_MANAGED_PREFIX) || typeof item[key] !== "string" || !item[key]) continue;
+      const fieldKey = key.slice(TIER_MANAGED_PREFIX.length);
+      if (!managedFieldKey(fieldKey)) continue;
+      const field = fields.find(f => f.key === fieldKey);
+      if (field && field.type !== "number" && !(field.type === "formula" && (!field.formulaResult || field.formulaResult === "number"))) continue;
+      tier[key] = item[key] as string;
+      const raw = item[fieldKey];
+      tier[fieldKey] = managedNumber(raw);
     }
     return tier;
   });
@@ -540,6 +598,12 @@ export function evalFormulaForTier(
   seen: ReadonlySet<string> = new Set<string>(),
   conditionValues?: Record<string, unknown>,
 ): number | null {
+  // 관리자 수동 수정값이 있으면 수식을 계산하지 않고 그 값을 쓴다.
+  // 다른 수식 칸이 이 칸을 참조(재귀)할 때도 여기로 들어오므로 연쇄 반영이 자동이다.
+  const manual = getTierOverride(tier, field.key);
+  if (manual !== null) return manual;
+  const managed = getManagedTierValue(tier, field.key);
+  if (managed !== undefined) return managed;
   if (seen.has(field.key)) return null; // 순환 참조 차단 (조건 평가에서 자기 칸 참조 대비 먼저)
   const nextSeen = new Set(seen);
   nextSeen.add(field.key);
