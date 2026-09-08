@@ -258,6 +258,24 @@ export type TierData = {
 // 이 키가 있으면 evalFormulaForTier 가 수식을 계산하지 않고 이 값을 그대로 돌려주므로
 // 카드 화면·정산 파이프라인·표 연동이 전부 같은 값을 본다. 복원 = 키 삭제.
 export const TIER_OVERRIDE_PREFIX = "_ovr_";
+// ERP's approved formula revision. Values stay in their ordinary field so partner
+// projections can remove hidden amounts without leaking them through metadata.
+export const TIER_MANAGED_PREFIX = "_cf_";
+const managedFieldKey = (key: string) => !!key && !key.startsWith("_") && !["id", "label", "constructor", "prototype"].includes(key);
+const managedNumber = (value: unknown): number | null => {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && !value.trim()) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+export function getManagedTierValue(tier: TierData, fieldKey: string): number | null | undefined {
+  if (!managedFieldKey(fieldKey)) return undefined;
+  const revision = tier[TIER_MANAGED_PREFIX + fieldKey];
+  if (typeof revision !== "string" || !revision) return undefined;
+  const value = tier[fieldKey];
+  return managedNumber(value);
+}
 
 export function overrideKeyOf(fieldKey: string): string {
   return TIER_OVERRIDE_PREFIX + fieldKey;
@@ -325,6 +343,18 @@ export function parseTiers(raw: unknown, fields: FieldDef[]): TierData[] {
         const num = typeof ov === "number" ? ov : typeof ov === "string" && ov !== "" ? Number(ov) : NaN;
         if (Number.isFinite(num)) tier[k] = num;
       }
+    // Also preserve values while definitions are loading. A missing projected
+    // partner amount remains null; it must never fall back to the legacy formula.
+    for (const key of Object.keys(item)) {
+      if (!key.startsWith(TIER_MANAGED_PREFIX) || typeof item[key] !== "string" || !item[key]) continue;
+      const fieldKey = key.slice(TIER_MANAGED_PREFIX.length);
+      if (!managedFieldKey(fieldKey)) continue;
+      const field = fields.find(f => f.key === fieldKey);
+      if (field && field.type !== "number" && !(field.type === "formula" && (!field.formulaResult || field.formulaResult === "number"))) continue;
+      tier[key] = item[key] as string;
+      const raw = item[fieldKey];
+      tier[fieldKey] = managedNumber(raw);
+    }
     return tier;
   });
 }
@@ -574,6 +604,8 @@ export function evalFormulaForTier(
   // 다른 수식 칸이 이 칸을 참조(재귀)할 때도 여기로 들어오므로 연쇄 반영이 자동이다.
   const manual = getTierOverride(tier, field.key);
   if (manual !== null) return manual;
+  const managed = getManagedTierValue(tier, field.key);
+  if (managed !== undefined) return managed;
   if (seen.has(field.key)) return null; // 순환 참조 차단 (조건 평가에서 자기 칸 참조 대비 먼저)
   const nextSeen = new Set(seen);
   nextSeen.add(field.key);
