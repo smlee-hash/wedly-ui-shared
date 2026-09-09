@@ -131,7 +131,7 @@ export function DesktopTable({
         ref={tableScrollRef}
         className={cn(
           "touch-manipulation overflow-x-scroll overflow-y-auto [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-wedly-bg-gray [&::-webkit-scrollbar-thumb]:bg-wedly-bd-blue [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb:hover]:bg-wedly-accent",
-          "[&_.sticky]:max-md:!static [&_.sticky]:max-md:!left-auto",
+          "[&_.sticky]:max-md:!relative [&_.sticky]:max-md:!left-auto",
           mobileViewMode === "table" ? "block" : "hidden md:block",
         )}
         style={{ maxHeight: "calc(100vh - 320px)", scrollbarWidth: "thin", scrollbarColor: "#74B0FF #F8F9FA" }}
