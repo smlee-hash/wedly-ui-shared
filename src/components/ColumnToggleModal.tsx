@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CustomSelect } from "@wedly/detail-modal-shared";
 import { cn } from "../lib/cn";
+import { DEFAULT_COLUMN_TYPE_OPTIONS } from "../lib/column-type-options-defaults";
 import {
   type ColumnDraft,
   initDraft,
@@ -28,15 +29,11 @@ export type ColumnToggleColumn = {
   type: string;
 };
 
-// 칸 추가/수정 시 고를 수 있는 타입 — 드롭다운은 단일 선택/다중 선택으로 구분.
-export const DEFAULT_COLUMN_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: "text", label: "글자" },
-  { value: "number", label: "숫자" },
-  { value: "date", label: "날짜" },
-  { value: "select", label: "단일 선택" },
-  { value: "multi_select", label: "다중 선택" },
-  { value: "checkbox", label: "체크박스" },
-];
+// 칸 추가/수정 시 고를 수 있는 타입 — 값은 import 가 0개인 잎 모듈에 있다.
+// 이 파일은 `@wedly/detail-modal-shared` 를 부르고 그 꾸러미가 이쪽 배럴을 되부르는
+// 순환 위에 있어서, 여기에 상수를 두면 평가 순서에 따라 TDZ 가 난다(실제 배포본 사고).
+// 자세한 내용은 `../lib/column-type-options-defaults` 주석. 기존 공개 경로를 지키려고 여기서 다시 내보낸다.
+export { DEFAULT_COLUMN_TYPE_OPTIONS };
 
 type Props<TCol extends ColumnToggleColumn> = {
   open: boolean;
