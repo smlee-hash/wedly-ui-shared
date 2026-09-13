@@ -1,34 +1,21 @@
 /**
- * **이 부품들이 쓰는 WEDLY 이름 목록** — 새 앱이 `@wedly/ui-shared/ui` 를 쓰기 전에 반드시 정의해야 한다.
- *
- * ★왜 목록이 따로 필요한가 (2026-08-24 적대적 리뷰가 잡아낸 사고):
- *  Tailwind v4 는 **모르는 이름을 그냥 안 만든다.** 오류도 경고도 없다.
- *  그래서 어떤 앱에 `wedly-bg-sidebar` 가 정의돼 있지 않으면, 그 앱에서 로딩 자리표시자(Skeleton)·
- *  진행 막대(ProgressBar)·단계 표시(Stepper) 는 **배경이 통째로 없는 채로** 그려진다.
- *  사람 이름 동그라미(Avatar)는 흰 글자 + 투명 배경이 되어 이니셜이 아예 안 보인다.
- *  「빌드도 통과하고 오류도 없는데 화면에서만 사라지는」 최악의 유형이라 목록으로 못 박는다.
- *
- *  2026-08-24 실측: ERP 는 25종 전부 정의. **하이브·일루아는 3종이 없다**
- *  (`wedly-bg-sidebar` · `wedly-teal` · `wedly-pink`) — 두 앱이 이 꾸러미를 물기 전에 먼저 넣어야 한다.
- *
- * 이 목록이 낡지 않게 `required-tokens.test.ts` 가 실제 부품 파일에서 다시 뽑아 대조한다.
- *
- * 쓰는 앱의 `globals.css` 에 `--color-<이름>` 또는 `--text-<이름>` 으로 정의돼 있어야 한다.
- * (`wedly-hint`·`wedly-label`·`wedly-sub`·`wedly-value` 는 글자 크기 층이라 `--text-`, 나머지는 `--color-`.)
+ * 부품이 실제로 쓰는 WEDLY 이름과 CSS 변수 계약.
+ * Tailwind는 정의하지 않은 이름의 CSS를 생성하지 않으므로 소비 앱이 각 변수를 제공해야 한다.
+ * 기존 이름 목록은 호환성을 위해 유지한다. 정확한 변수 이름은 REQUIRED_WEDLY_CSS_VARIABLES를 쓴다.
+ * hint·label·sub·value·tablehead는 --text- 글자 크기이며, 색상 클래스는 --color-를 쓴다.
+ * var()로 직접 읽는 --wedly-accent와 --wedly-gold-ink도 별도로 필요하다.
+ * required-tokens.test.ts가 실제 부품의 사용과 두 목록을 대조한다.
  */
+// 2026-09-13: 현재 부품이 쓰는 이름으로 갱신. 실제 사용 대조 시험으로 지킨다.
 export const REQUIRED_WEDLY_TOKENS = [
   "wedly-accent",
+  "wedly-accent-ink",
   "wedly-bd",
-  "wedly-bd-blue",
-  "wedly-bd-green",
-  "wedly-bd-red",
   "wedly-bg-blue",
   "wedly-bg-gray",
-  "wedly-bg-green",
-  "wedly-bg-red",
   "wedly-bg-sidebar",
-  "wedly-bg-yellow",
   "wedly-gold",
+  "wedly-gold-ink",
   "wedly-green",
   "wedly-hint",
   "wedly-label",
@@ -40,6 +27,34 @@ export const REQUIRED_WEDLY_TOKENS = [
   "wedly-sub",
   "wedly-t1",
   "wedly-t2",
+  "wedly-tablehead",
   "wedly-teal",
   "wedly-value",
+] as const;
+
+/** 소비 앱의 globals.css가 제공할 정확한 CSS 변수 이름. */
+export const REQUIRED_WEDLY_CSS_VARIABLES = [
+  "--color-wedly-accent",
+  "--color-wedly-accent-ink",
+  "--color-wedly-bd",
+  "--color-wedly-bg-blue",
+  "--color-wedly-bg-gray",
+  "--color-wedly-bg-sidebar",
+  "--color-wedly-gold",
+  "--color-wedly-green",
+  "--color-wedly-muted",
+  "--color-wedly-navy",
+  "--color-wedly-pink",
+  "--color-wedly-purple",
+  "--color-wedly-red",
+  "--color-wedly-t1",
+  "--color-wedly-t2",
+  "--color-wedly-teal",
+  "--text-wedly-hint",
+  "--text-wedly-label",
+  "--text-wedly-sub",
+  "--text-wedly-tablehead",
+  "--text-wedly-value",
+  "--wedly-accent",
+  "--wedly-gold-ink",
 ] as const;
