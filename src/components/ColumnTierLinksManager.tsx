@@ -141,12 +141,12 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
         )}
         {links.map((l) => (
           <div key={l.columnKey} className="flex items-center justify-between rounded-xl border border-wedly-bd bg-white px-4 py-3 shadow-sm">
-            <div className="text-[13px] text-wedly-t1">
+            <div className="min-w-0 break-words text-[13px] text-wedly-t1">
               <span className="font-semibold">{colLabelMap[l.columnKey] || l.columnKey}</span>
               <span className="text-wedly-muted"> ↔ {sectionLabel(l.section ?? adapter.ownDomain)} · {AREA_LABEL[l.area]} · {l.tierFieldKey}</span>
               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-wedly-bg-blue text-wedly-accent-ink">{l.readonly ? "최신차수(읽기전용)" : l.mode === "sum" ? "합계(읽기전용)" : "최신차수(편집)"}</span>
             </div>
-            <button onClick={() => removeLink(l.columnKey)} disabled={saving} className="px-3 py-2 text-[13px] font-medium text-white bg-wedly-red rounded-lg hover:bg-wedly-red/90 transition-colors">해제</button>
+            <button onClick={() => removeLink(l.columnKey)} disabled={saving} className="shrink-0 whitespace-nowrap px-3 py-2 text-[13px] font-medium text-white bg-wedly-red rounded-lg hover:bg-wedly-red/90 transition-colors">해제</button>
           </div>
         ))}
       </div>

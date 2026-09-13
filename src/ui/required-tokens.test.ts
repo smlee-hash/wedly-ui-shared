@@ -7,7 +7,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { REQUIRED_WEDLY_TOKENS } from "./required-tokens";
+import { REQUIRED_WEDLY_TOKENS, REQUIRED_WEDLY_CSS_VARIABLES } from "./required-tokens";
 
 const 여기 = dirname(fileURLToPath(import.meta.url));
 
@@ -20,5 +20,23 @@ describe("공용 부품이 요구하는 WEDLY 이름 목록", () => {
       }
     }
     expect([...쓰는이름].sort()).toEqual([...REQUIRED_WEDLY_TOKENS].sort());
+  });
+});
+
+
+describe("공용 부품의 CSS 변수 계약", () => {
+  it("글자 크기, 색상, 직접 참조 변수를 구분해서 모두 제공한다", () => {
+    const required = new Set<string>();
+    const sizes = new Set(["wedly-page", "wedly-section", "wedly-value", "wedly-sub", "wedly-hint", "wedly-label", "wedly-tablehead"]);
+    for (const file of readdirSync(여기).filter((name) => name.endsWith(".tsx"))) {
+      const source = readFileSync(join(여기, file), "utf8");
+      for (const match of source.matchAll(/\b(text|bg|border(?:-[trblxy])?|divide|ring)-(wedly-[a-z0-9-]+)/g)) {
+        required.add(`--${match[1] === "text" && sizes.has(match[2]) ? "text" : "color"}-${match[2]}`);
+      }
+      for (const match of source.matchAll(/var\((--wedly-[a-z0-9-]+)/g)) required.add(match[1]);
+    }
+    expect([...REQUIRED_WEDLY_CSS_VARIABLES].sort()).toEqual([...required].sort());
+    expect(REQUIRED_WEDLY_CSS_VARIABLES).toContain("--text-wedly-tablehead");
+    expect(REQUIRED_WEDLY_CSS_VARIABLES).toContain("--wedly-gold-ink");
   });
 });
