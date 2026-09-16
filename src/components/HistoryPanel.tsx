@@ -5,7 +5,7 @@
 
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { useAutoResizeTextarea } from "../hooks/useAutoResizeTextarea";
 import { timeAgo as defaultTimeAgo } from "../lib/utils";
@@ -143,6 +143,8 @@ export function HistoryPanel({
   buildKakaoReport,
   // Hive compat — pageId kept for share URL generation
   pageId,
+  composerExtra,
+  onSent,
 }: {
   /** 공유 링크 URL 생성에 사용 (선택). shareEnabled=true 일 때만 필요. */
   pageId?: string;
@@ -187,6 +189,16 @@ export function HistoryPanel({
    * ★대표자께 보내는 글이라 말투를 다시 써야 한다 — 그 일은 AI 가 한다(ERP 가 꽂는다).
    */
   buildKakaoReport?: (c: UnifiedComment) => Promise<string>;
+  /**
+   * 작성칸(글쓰기 상자) 아래에 앱이 끼워 넣는 칸. 예: ERP 의 「다음 통화 예약」 줄.
+   * 안 넘기면 아무것도 그리지 않는다(다른 앱의 화면은 그대로).
+   */
+  composerExtra?: ReactNode;
+  /**
+   * 글이 실제로 저장된 **뒤** 한 번 불린다. 앱이 그 글과 함께 할 일(예: 통화 예약 만들기)을 할 자리.
+   * 여기서 오류가 나도 히스토리 저장은 이미 끝난 것이므로 저장을 실패로 되돌리지 않는다.
+   */
+  onSent?: (text: string) => void | Promise<void>;
 }) {
   // helper — relative time (R6)
   const tf = timeFormatter ?? defaultTimeAgo;
@@ -636,6 +648,14 @@ export function HistoryPanel({
       setDraft("");
       if (draftId) clearDraft(draftId);
       textareaRef.current?.focus();
+      if (onSent) {
+        try {
+          await onSent(composed);
+        } catch (err) {
+          // 히스토리는 이미 저장됐다 — 뒤따르는 일(예: 통화 예약)이 실패해도 저장을 되돌리지 않는다.
+          console.error("onSent failed after comment save:", err);
+        }
+      }
     } catch (err) {
       // ★전에는 기록만 남기고 사용자에게 아무 안내가 없었다 — 저장된 줄 알고 창을 닫았다.
       console.error("Failed to send comment:", err);
@@ -1205,6 +1225,7 @@ export function HistoryPanel({
             {uploading ? "업로드..." : sending ? "..." : "등록"}
           </button>
         </div>
+        {composerExtra ? <div className="mt-2">{composerExtra}</div> : null}
       </div>
       )}
 
