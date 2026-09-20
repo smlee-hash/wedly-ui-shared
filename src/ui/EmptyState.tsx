@@ -19,7 +19,7 @@ export function EmptyState({
   return (
     <div className={cn("rounded-xl bg-wedly-bg-gray/60 p-6 text-center", className)}>
       <p className="text-wedly-sub font-semibold text-wedly-t1 break-keep">{title}</p>
-      {description && <p className="mt-1 text-wedly-hint text-wedly-muted break-keep">{description}</p>}
+      {description && <p className="mt-1 text-wedly-hint text-wedly-t2 break-keep">{description}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
