@@ -198,7 +198,7 @@ export function DesktopTable({
                       setDragOverColKey(null);
                     }}
                     className={cn(
-                      "py-2.5 px-4 text-left font-semibold text-wedly-muted whitespace-nowrap select-none relative group",
+                      "py-2.5 px-4 text-left font-semibold text-wedly-t2 whitespace-nowrap select-none relative group",
                       isSticky && "sticky z-10",
                       // 고정 칸 배경은 항상 불투명이어야 아래로 지나가는 칸이 비치지 않는다.
                       // 끌어놓기 대상일 때는 아래 파란 배경이 대신 들어간다 —
@@ -234,7 +234,7 @@ export function DesktopTable({
                       ) : (
                         <span
                           className={cn(
-                            "inline-flex items-center gap-1 cursor-pointer hover:text-wedly-t2 transition-colors flex-1 min-w-0",
+                            "inline-flex items-center gap-1 cursor-pointer hover:text-wedly-t1 transition-colors flex-1 min-w-0",
                             getColAccent(col)?.headerTint,
                           )}
                           onClick={() => handleSort(col.key)}

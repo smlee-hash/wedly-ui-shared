@@ -350,7 +350,7 @@ export function TopControls({
         )}
         {/* Infinity 또는 단일 페이지 + 데이터 있을 때만 — 건수 표시 */}
         {(pageSize === Infinity || totalPages <= 1) && totalRows > 0 && (
-          <span className="text-wedly-muted text-[11px] tabular-nums whitespace-nowrap">총 {totalRows}건</span>
+          <span className="text-wedly-t2 text-[11px] tabular-nums whitespace-nowrap">총 {totalRows}건</span>
         )}
         {/* 우측 끝 — 정렬 패널 + 표 최대화 버튼(같은 줄, 구분선으로 페이지 컨트롤과 분리) */}
         {trailingControls && (

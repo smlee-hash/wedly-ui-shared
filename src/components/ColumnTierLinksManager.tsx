@@ -27,7 +27,8 @@ export type TierLinkAdapter = {
 
 const AREA_LABEL: Record<LinkArea, string> = { settlement: "정산", contract: "계약", refund: "환불" };
 
-export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkAdapter }) {
+export default function ColumnTierLinksManager({ adapter, surface = "white" }: { adapter: TierLinkAdapter; surface?: "white" | "tinted" }) {
+  const mutedText = surface === "tinted" ? "text-wedly-t2" : "text-wedly-muted";
   const [links, setLinks] = useState<ColumnTierLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -134,17 +135,17 @@ export default function ColumnTierLinksManager({ adapter }: { adapter: TierLinkA
 
   function removeLink(columnKey: string) { persist(links.filter((x) => x.columnKey !== columnKey)); }
 
-  if (loading) return <div className="py-6 text-center text-[12px] text-wedly-muted">불러오는 중…</div>;
+  if (loading) return <div className={`py-6 text-center text-[12px] ${mutedText}`}>불러오는 중…</div>;
 
   return (
     <div className="px-3 sm:px-6 py-3 sm:py-4 max-w-3xl mx-auto">
       <h1 className="text-wedly-page font-bold text-wedly-navy">차수 ↔ 칸 연결 설정</h1>
-      <p className="mt-1 text-[12px] sm:text-[13px] text-wedly-muted">상위 섹션 → 세부(계약/정산/환불) → 차수 칸을 골라 표 칸과 짝지으면 양쪽이 함께 바뀝니다.</p>
+      <p className={`mt-1 text-[12px] sm:text-[13px] ${mutedText}`}>상위 섹션 → 세부(계약/정산/환불) → 차수 칸을 골라 표 칸과 짝지으면 양쪽이 함께 바뀝니다.</p>
 
       {/* 현재 연결 목록 */}
       <div className="mt-4 space-y-2">
         {links.length === 0 && (
-          <div className="rounded-xl border border-dashed border-wedly-bd p-8 text-center text-[13px] text-wedly-muted">아직 연결이 없습니다. 아래에서 추가하세요.</div>
+          <div className={`rounded-xl border border-dashed border-wedly-bd p-8 text-center text-[13px] ${mutedText}`}>아직 연결이 없습니다. 아래에서 추가하세요.</div>
         )}
         {links.map((l) => (
           <div key={l.columnKey} className="flex items-center justify-between rounded-xl border border-wedly-bd bg-white px-4 py-3 shadow-sm">

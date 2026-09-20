@@ -65,7 +65,7 @@ export function FilterTabs({ tabs, activeId, onSelect, admin, trailing }: Filter
               title={admin ? "클릭=보기 · 더블클릭=이름·조건 편집 · 끌어서 순서 변경" : undefined}
               className={
                 "min-h-[40px] px-3 py-1.5 text-[14px] font-medium transition-colors sm:min-h-[30px] sm:text-[13px] " +
-                (active ? "text-wedly-navy" : "text-wedly-muted hover:text-wedly-t2") +
+                (active ? "text-wedly-navy" : "text-wedly-t2 hover:text-wedly-t1") +
                 (admin ? " cursor-grab active:cursor-grabbing" : "")
               }
             >
@@ -80,7 +80,7 @@ export function FilterTabs({ tabs, activeId, onSelect, admin, trailing }: Filter
           type="button"
           onClick={admin.onAdd}
           title="새 탭 추가"
-          className="flex-shrink-0 rounded-lg px-3 py-1.5 text-[14px] font-medium text-wedly-muted transition-colors hover:bg-white/60 hover:text-wedly-navy sm:text-[13px]"
+          className="flex-shrink-0 rounded-lg px-3 py-1.5 text-[14px] font-medium text-wedly-t2 transition-colors hover:bg-white/60 hover:text-wedly-navy sm:text-[13px]"
         >
           ＋
         </button>
