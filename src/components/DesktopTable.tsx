@@ -134,7 +134,7 @@ export function DesktopTable({
           "[&_.sticky]:max-md:!relative [&_.sticky]:max-md:!left-auto",
           mobileViewMode === "table" ? "block" : "hidden md:block",
         )}
-        style={{ maxHeight: "calc(100vh - 320px)", scrollbarWidth: "thin", scrollbarColor: "#74B0FF #F8F9FA" }}
+        style={{ maxHeight: "calc(100vh - 320px)", scrollbarWidth: "thin", scrollbarColor: "var(--wedly-bd-blue) var(--wedly-bg-gray)" }}
       >
         <table className="text-sm" style={{ tableLayout: "fixed", width: 40 + activeColumns.reduce((sum, c) => sum + (colWidths[c.key] || 100), 0), minWidth: "100%" }}>
           <colgroup>
@@ -331,23 +331,7 @@ export function DesktopTable({
             </tr>
           </thead>
           <tbody>
-            {sortedDataLength === 0 ? (
-              <tr>
-                <td colSpan={activeColumns.length + 1} className="py-20 text-center">
-                  <span className="text-sm text-wedly-muted">
-                    {error || (searchQuery ? "검색 결과가 없습니다" : "데이터가 없습니다")}
-                  </span>
-                  {error && (
-                    <button
-                      onClick={refreshData}
-                      className="block mx-auto mt-2 px-3 py-1.5 text-xs text-wedly-accent border border-wedly-accent/30 rounded-lg"
-                    >
-                      다시 시도
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ) : (
+            {sortedDataLength === 0 ? null : (
               <>
                 {rowVirtualizer.getVirtualItems().length > 0 && (
                   <tr style={{ height: rowVirtualizer.getVirtualItems()[0].start }} />
@@ -370,6 +354,22 @@ export function DesktopTable({
           </tbody>
         </table>
       </div>
+      {sortedDataLength === 0 && (
+        <div className="w-full px-4 py-20 text-center">
+          <span className="text-sm text-wedly-t2">
+            {error || (searchQuery ? "검색 결과가 없습니다" : "데이터가 없습니다")}
+          </span>
+          {error && (
+            <button
+              type="button"
+              onClick={refreshData}
+              className="block mx-auto mt-2 px-3 py-1.5 text-xs text-wedly-accent-ink border border-wedly-accent/30 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wedly-accent"
+            >
+              다시 시도
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
