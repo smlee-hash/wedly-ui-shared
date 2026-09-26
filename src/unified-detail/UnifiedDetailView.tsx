@@ -17,6 +17,7 @@ import {
   saveFailureMessage,
 } from "../lib/persist-failure";
 import { DetailLoadStateProvider } from "./detail-load-state";
+import { detailActionRows } from "./detail-action-rows";
 import { DOMAIN_GROUPS, type DomainGroup } from "./lib/domain-config";
 import { getStatusDotClass } from "./lib/status-dot";
 import { normalizeBizno } from "./lib/secstore";
@@ -3038,6 +3039,14 @@ export default function UnifiedDetailView({
           { key: "meetings", label: "미팅정보" },
         ] as const);
   const WideCenterPanel = threePane ? adapter.components.wideCenterPanel : undefined;
+  const DetailActions = adapter.components.detailActions;
+  const actionRows = detailActionRows(detail);
+  const detailActions = !isNew && !loading && !error && !rowsLoadFailed && actionRows && DetailActions ? (
+    <div className="shrink-0 border-b border-wedly-bd/60">
+      <DetailActions key={String(row._id ?? "")} rows={actionRows}
+        primaryRow={row as unknown as Record<string, unknown>} isAdmin={isAdmin} onSaved={onSaved} adapter={adapter} />
+    </div>
+  ) : null;
   const TrackRailBadge = adapter.components.trackRailBadge;
   // 직접 만든 분야 — 고정 조각이 가운데를 차지하면 이 조각도 오른쪽으로 옮겨야 한다.
   // (안 옮기면 그 탭을 골라도 아무 데도 안 그려져 빈 화면이 된다.)
@@ -3654,6 +3663,8 @@ export default function UnifiedDetailView({
             </button>
           </div>
 
+          {detailActions}
+
           {/* 좁은 화면(휴대폰) — 위쪽 단추로 세 칸 전환(PC 와 같은 짜임: 위=고르기, 아래=내용). */}
           {narrowSwitch && (
             <div className="flex items-stretch gap-1 border-b border-wedly-bd/60 bg-white px-2 py-2 flex-shrink-0">
@@ -3785,6 +3796,8 @@ export default function UnifiedDetailView({
             </svg>
           </button>
         </div>
+
+        {detailActions}
 
         {/* ── 윗줄 탭 바 (기본정보 고정 + 분야 그룹) + 관리자 '탭 편집'(사용자 요청대로 이 줄에 위치) ── */}
         <div className="flex items-center gap-1 bg-wedly-bg-gray/50 border-b border-wedly-bd/60 flex-shrink-0 px-3 sm:px-6 py-2">
