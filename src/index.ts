@@ -220,3 +220,4 @@ export { default as ColumnTierLinksManager } from "./components/ColumnTierLinksM
 export type { TierLinkAdapter, TierFieldDef } from "./components/ColumnTierLinksManager";
 
 export * from "./tiered/government-fee-context";
+export * from "./tiered/fee-calculation-state";
