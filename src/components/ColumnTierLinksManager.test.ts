@@ -149,7 +149,8 @@ describe("ColumnTierLinksManager presentation boundaries", () => {
   });
 
   it.each([undefined, "", "   "])("uses ownDomain for an implicit section (%s) without writing it back", (section) => {
-    const { section: _section, ...legacy } = link();
+    const legacy = link();
+    delete legacy.section;
     const existing: ColumnTierLink = Object.freeze(section === undefined ? legacy : { ...legacy, section });
     const a = adapter({ ownDomain: GOVERNMENT, readonlySections: [GOVERNMENT] });
     expect(badges(manager(a, { links: [existing] })())).toEqual(["최신차수(읽기전용)"]);
