@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateFeeCalculationStateEnvelope } from "./fee-calculation-state";
+import { validateFeeCalculationStateEnvelope, type FeeCalculationStateReasonCode } from "./fee-calculation-state";
 
 const target = { area: "contract", containerKey: "계약정보_차수", tierId: "tier-a" } as const;
 const owner = { sourceTable: "PolicyFundEntry", entryId: "row-a", version: "input-v1" };
@@ -125,4 +125,9 @@ it("중복식별자는scope/container/tier세값으로구별한다",()=>{
 });
 it("정확히표현할수없는ruleIdx는저장근거로허용하지않는다",()=>{
   const s=state();s.result.details.fee.ruleIdx=[Number.MAX_SAFE_INTEGER+1];expect(validate(wrap(s)).ok).toBe(false);
+});
+
+it.each(["fee-value-invalid","fee-vat-basis-unconfirmed","fee-context-invalid","contract-amount-invalid"] satisfies readonly FeeCalculationStateReasonCode[])("기존 헬퍼 blocked 사유 %s를 JSON 재조회까지 보존한다",reason=>{
+ const s=blocked("bad");s.result.reason=reason;const result=validate(JSON.parse(JSON.stringify(wrap(s))));
+ expect(result.ok).toBe(true);if(result.ok){expect(result.value.entries[0].result.reason).toBe(reason);expect(result.value.entries[0].fields.fee).toEqual({value:"bad",source:"manual",automaticValue:null});}
 });
