@@ -10,6 +10,7 @@
 //
 // ⚠️ 기존 메인 표용 FormulaSpec(types/columns.ts)과는 다른 개념이다.
 //    여기 FormulaTerm/FieldDef 는 "차수 카드"용 (여러 항·컬럼끼리 계산·결과 형식 선택 지원).
+import { evalDateFormulaForTier } from "./date-formula";
 
 // "number" 는 일반 숫자, "percent" 는 같은 숫자형이지만 표시·편집 시 % 단위로 다룸
 // "formula" 는 사람이 입력하지 않고 같은 차수의 다른 컬럼들로 자동 계산되는 컬럼(읽기전용)
@@ -30,11 +31,14 @@ export interface FieldDef {
   // ── type === "formula" 조건별 식 (선택적) ──
   //   rules: 위→아래 우선. 먼저 맞는 규칙의 식 사용, 아무 것도 안 맞으면 formula(그 외/기본).
   //   각 규칙: leftKey 칸 값이, right(직접 입력 글자 / 다른 칸 값)와 "같으면" 적용.
+  //   match: 없거나 "first" = 위 설명 그대로(위에서 처음 맞는 규칙). "all" = 우선순위 없이 맞는 규칙을 모두 본다 —
+  //          맞는 규칙들의 결과가 다르거나 날짜 칸이 비어 결과를 못 정하면 계산하지 않고 안내(blocked)를 낸다.
   //   ⚠️ 앞호환: 옛 형식 { conditionFieldKey, rules:[{whenValue, formula}] } 도 resolve 단계에서 그대로 흡수.
   conditional?: {
     /** @deprecated 옛 형식 전용. 새 데이터는 규칙별 leftKey 사용. */
     conditionFieldKey?: string;
     rules: Array<ConditionalRule>;
+    match?: "first" | "all";
   };
   // ── type === "select" 일 때만 사용 (그 외 타입엔 없음) ──
   //   options: 고를 수 있는 보기 값 목록(순서 보존). optionColors: 보기별 색칩(선택, 미지정 시 기본 회색).
@@ -381,87 +385,117 @@ export function isNumericFieldType(type: FieldType): boolean {
   return type === "number" || type === "percent" || type === "formula";
 }
 
+// ── 조건 비교 도우미 ──
+// 첫 일치(resolveConditionalFormula)와 "모든 조건 보기"(evalFormulaForTierDetailed)가 같은 판정을 쓰도록 모듈 밖에 둔다.
+function condValuesOf(raw: unknown): string[] {
+  if (raw === null || raw === undefined) return [];
+  if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter((s) => s !== "");
+  return String(raw).split(/[,\n;]+/).map((x) => x.trim()).filter((s) => s !== "");
+}
+// 한 값을 글자로 — 배열이면 쉼표로 이어 붙임(부분 포함 비교용).
+function condAsText(raw: unknown): string {
+  if (raw === null || raw === undefined) return "";
+  if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter((s) => s !== "").join(", ");
+  return String(raw).trim();
+}
+// 크기 비교(이후/이전)용 값 환산. 날짜면 YYYY-MM-DD 로 맞춰서, 숫자면 숫자로 본다.
+// 둘 다 아니면 null → 매칭 안 함. 글자끼리 크기를 견주면 사람이 예상 못 한 결과가 나오기 때문.
+//   날짜 구분자는 - . / 를 모두 받고 한 자리 월·일(2026.8.5)도 채워 넣는다 —
+//   대량 업로드·외부 연동으로 들어온 값이 형식 때문에 조용히 조건에서 빠지면 사람이 못 잡는다.
+function condComparable(s: string): { kind: "date" | "number"; v: string | number } | null {
+  const d = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/.exec(s);
+  if (d) {
+    const mm = d[2].padStart(2, "0"), dd = d[3].padStart(2, "0");
+    return { kind: "date", v: `${d[1]}-${mm}-${dd}` };
+  }
+  const n = Number(s.replace(/,/g, ""));
+  if (s.trim() !== "" && Number.isFinite(n)) return { kind: "number", v: n };
+  return null;
+}
+// op 별 일치 판정. 기준 칸/비교 값 중 하나라도 비면 어떤 op 도 매칭 안 함 → 기본식.
+function condMatches(op: ConditionOp, a: unknown, b: unknown): boolean {
+  const A = condValuesOf(a), B = condValuesOf(b);
+  if (A.length === 0 || B.length === 0) return false;
+  // 크기 비교(이후·이전): 값 전체를 하나의 날짜·숫자로 본다(쉼표로 쪼개면 "1,500,000" 이 1 이 된다).
+  if (op === "gte" || op === "lte") {
+    const L = condComparable(condAsText(a));
+    const R = condComparable(condAsText(b));
+    if (!L || !R || L.kind !== R.kind) return false;
+    const cmp = L.kind === "date"
+      ? String(L.v).localeCompare(String(R.v))
+      : Number(L.v) - Number(R.v);
+    return op === "gte" ? cmp >= 0 : cmp <= 0;
+  }
+  const tokenEq = A.some((x) => B.includes(x)); // 토큰(쉼표/줄바꿈) 교집합 = 같음 기준
+  if (op === "neq") return !tokenEq;
+  // 포함/미포함: 비교값을 토큰으로 나눠(같음과 같은 축) 그 중 하나라도 기준칸 글자에 부분 포함되면 일치.
+  //   (비교값이 단일 값이면 "기준칸이 그 글자를 부분 포함" 과 동일. 콤마 다중값이면 OR 로 일관.)
+  if (op === "contains") return B.some((t) => condAsText(a).includes(t));
+  if (op === "notContains") return !B.some((t) => condAsText(a).includes(t));
+  return tokenEq; // "eq" 및 미지정 기본
+}
+// 한 규칙의 조건 절 목록: 새 형식(clauses) 우선, 없으면 옛 단일 조건 1개로 구성.
+function condClausesOf(
+  cond: NonNullable<FieldDef["conditional"]>,
+  rule: ConditionalRule,
+): ConditionClause[] {
+  if (Array.isArray(rule.clauses) && rule.clauses.length > 0) {
+    return rule.clauses.filter((c) => c && !!c.leftKey);
+  }
+  const leftKey = rule.leftKey ?? cond.conditionFieldKey;
+  if (!leftKey) return [];
+  const right = rule.right ?? { kind: "text" as const, value: rule.whenValue ?? "" };
+  return [{ leftKey, right, op: rule.op ?? "eq" }];
+}
+
+// 위에서부터 처음 맞는 규칙 고르기 — 식과 함께 그 규칙의 cond.rules 안 원래 번호를 돌려준다(기본식이면 []).
+// resolveConditionalFormula 와 evalFormulaForTierDetailed(첫 일치 모드)가 이 한 곳을 같이 쓴다.
+function pickFirstConditional(
+  field: FieldDef,
+  test: (c: ConditionClause) => { r: CondTri; blocked?: FormulaBlock },
+): { terms: FormulaTerm[] | undefined; ruleIdx: number[]; blocked?: FormulaBlock } {
+  const cond = field.conditional;
+  if (!cond || !Array.isArray(cond.rules) || cond.rules.length === 0) return { terms: field.formula, ruleIdx: [] };
+  for (let i = 0; i < cond.rules.length; i++) {
+    const rule = cond.rules[i];
+    if (!rule || !Array.isArray(rule.formula)) continue;
+    const clauses = condClausesOf(cond, rule);
+    if (clauses.length === 0) continue;
+    const isOr = rule.combine === "or";
+    let decisive = false;
+    let blocked: FormulaBlock | undefined;
+    for (const clause of clauses) {
+      const result = test(clause);
+      // OR의 참·AND의 거짓이 나오면 다른 절의 막힘은 선택에 영향을 주지 않는다.
+      if (result.r === (isOr ? "T" : "F")) { decisive = true; break; }
+      if (!blocked && result.r === "U") blocked = result.blocked;
+    }
+    if (decisive) {
+      if (isOr) return { terms: rule.formula, ruleIdx: [i] };
+      continue;
+    }
+    if (blocked) return { terms: undefined, ruleIdx: [i], blocked };
+    if (!isOr) return { terms: rule.formula, ruleIdx: [i] };
+  }
+  return { terms: field.formula, ruleIdx: [] };
+}
+
 // 조건별 식 고르기 — 규칙마다 leftKey 칸 값과 right(글자/다른 칸) 를 "같음" 비교. 먼저 맞는 규칙의 식.
 //   getValue(key): 그 키의 값을 돌려줌(정산정보 칸 우선, 없으면 기본정보 평면 — 호출부가 구성).
 //   매칭: 양쪽을 글자로 보고, 다중값(배열/콤마·줄바꿈)은 공통 값 하나라도 있으면 일치. 빈 값은 매칭 안 함.
 //   옛 형식(conditionFieldKey + whenValue)도 흡수.
+//   ⚠️ conditional.match 는 여기서 보지 않는다 — 이 함수는 "첫 일치" 전용이다.
+//      match="all"(맞는 조건을 모두 봄)은 evalFormulaForTierDetailed 가 처리한다.
 export function resolveConditionalFormula(
   field: FieldDef,
   getValue: (key: string) => unknown,
 ): FormulaTerm[] | undefined {
-  const cond = field.conditional;
-  if (!cond || !Array.isArray(cond.rules) || cond.rules.length === 0) return field.formula;
-  const valuesOf = (raw: unknown): string[] => {
-    if (raw === null || raw === undefined) return [];
-    if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter((s) => s !== "");
-    return String(raw).split(/[,\n;]+/).map((x) => x.trim()).filter((s) => s !== "");
-  };
-  // 한 값을 글자로 — 배열이면 쉼표로 이어 붙임(부분 포함 비교용).
-  const asText = (raw: unknown): string => {
-    if (raw === null || raw === undefined) return "";
-    if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter((s) => s !== "").join(", ");
-    return String(raw).trim();
-  };
-  // 크기 비교(이후/이전)용 값 환산. 날짜면 YYYY-MM-DD 로 맞춰서, 숫자면 숫자로 본다.
-  // 둘 다 아니면 null → 매칭 안 함. 글자끼리 크기를 견주면 사람이 예상 못 한 결과가 나오기 때문.
-  //   날짜 구분자는 - . / 를 모두 받고 한 자리 월·일(2026.8.5)도 채워 넣는다 —
-  //   대량 업로드·외부 연동으로 들어온 값이 형식 때문에 조용히 조건에서 빠지면 사람이 못 잡는다.
-  const comparable = (s: string): { kind: "date" | "number"; v: string | number } | null => {
-    const d = /^(\d{4})[-./](\d{1,2})[-./](\d{1,2})/.exec(s);
-    if (d) {
-      const mm = d[2].padStart(2, "0"), dd = d[3].padStart(2, "0");
-      return { kind: "date", v: `${d[1]}-${mm}-${dd}` };
-    }
-    const n = Number(s.replace(/,/g, ""));
-    if (s.trim() !== "" && Number.isFinite(n)) return { kind: "number", v: n };
-    return null;
-  };
-  // op 별 일치 판정. 기준 칸/비교 값 중 하나라도 비면 어떤 op 도 매칭 안 함 → 기본식.
-  const matches = (op: ConditionOp, a: unknown, b: unknown): boolean => {
-    const A = valuesOf(a), B = valuesOf(b);
-    if (A.length === 0 || B.length === 0) return false;
-    // 크기 비교(이후·이전): 값 전체를 하나의 날짜·숫자로 본다(쉼표로 쪼개면 "1,500,000" 이 1 이 된다).
-    if (op === "gte" || op === "lte") {
-      const L = comparable(asText(a));
-      const R = comparable(asText(b));
-      if (!L || !R || L.kind !== R.kind) return false;
-      const cmp = L.kind === "date"
-        ? String(L.v).localeCompare(String(R.v))
-        : Number(L.v) - Number(R.v);
-      return op === "gte" ? cmp >= 0 : cmp <= 0;
-    }
-    const tokenEq = A.some((x) => B.includes(x)); // 토큰(쉼표/줄바꿈) 교집합 = 같음 기준
-    if (op === "neq") return !tokenEq;
-    // 포함/미포함: 비교값을 토큰으로 나눠(같음과 같은 축) 그 중 하나라도 기준칸 글자에 부분 포함되면 일치.
-    //   (비교값이 단일 값이면 "기준칸이 그 글자를 부분 포함" 과 동일. 콤마 다중값이면 OR 로 일관.)
-    if (op === "contains") return B.some((t) => asText(a).includes(t));
-    if (op === "notContains") return !B.some((t) => asText(a).includes(t));
-    return tokenEq; // "eq" 및 미지정 기본
-  };
-  // 한 규칙의 조건 절 목록: 새 형식(clauses) 우선, 없으면 옛 단일 조건 1개로 구성.
-  const clausesOf = (rule: ConditionalRule): ConditionClause[] => {
-    if (Array.isArray(rule.clauses) && rule.clauses.length > 0) {
-      return rule.clauses.filter((c) => c && !!c.leftKey);
-    }
-    const leftKey = rule.leftKey ?? cond.conditionFieldKey;
-    if (!leftKey) return [];
-    const right = rule.right ?? { kind: "text" as const, value: rule.whenValue ?? "" };
-    return [{ leftKey, right, op: rule.op ?? "eq" }];
-  };
-  const test = (c: ConditionClause): boolean => {
+  return pickFirstConditional(field, (c) => {
+    if (c.right.kind === "text" && condValuesOf(c.right.value).length === 0) return { r: "F" };
     const left = getValue(c.leftKey);
     const rv = c.right.kind === "field" ? getValue(c.right.key) : c.right.value;
-    return matches(c.op ?? "eq", left, rv);
-  };
-  for (const rule of cond.rules) {
-    if (!rule || !Array.isArray(rule.formula)) continue;
-    const clauses = clausesOf(rule);
-    if (clauses.length === 0) continue;
-    // combine=or → 하나라도 만족, 그 외(and/미지정) → 모두 만족.
-    const ok = rule.combine === "or" ? clauses.some(test) : clauses.every(test);
-    if (ok) return rule.formula;
-  }
-  return field.formula;
+    return { r: condMatches(c.op ?? "eq", left, rv) ? "T" : "F" };
+  }).terms;
 }
 
 // 이 formula 칸의 계산 결과가 (차수 밖 평면 기본정보에서) 달라질 수 있는 "의존 평면 칸 키"들.
@@ -588,6 +622,66 @@ function evalTermChain(
   return { v: cur, has: curHas && !dead };
 }
 
+// ── 계산 막힘 (모든 조건의 결과 충돌·누락과 수식 참조의 막힘) ──
+// 맞는 조건이 둘 이상인데 결과가 다르거나, 날짜 칸이 비어 어느 조건이 맞는지 몰라 결과를 못 정하면
+// 그 칸을 자동 계산하지 않는다(value=null + blocked). 수식 칸을 참조하는 다른 칸도 같은 이유로 막힌다
+// (막힌 칸을 0 으로 읽어 틀린 금액을 만들지 않기 위해). 참조로 번질 때 객체는 그대로 넘겨 from 을 유지한다.
+export type FormulaBlock =
+  | { kind: "conflict"; from: string; ruleIdx: number[] }   // 맞는 조건 둘 이상·결과 다름
+  | { kind: "missing"; from: string; keys: string[] };      // 비어 있는 칸 때문에 결과를 못 정함
+// from = 그 막힘을 정한 수식 칸의 key.
+
+export interface FormulaEvalDetail {
+  value: number | null;
+  /** 있으면 value 는 null. */
+  blocked?: FormulaBlock;
+  /** 계산에 쓴 규칙의 cond.rules 안 원래 번호(0부터). 기본식이면 []. 직접 입력·관리 값·순환이면 없음. */
+  ruleIdx?: number[];
+}
+
+/** 막힌 칸에 값 대신 보여 줄 짧은 표시. 자세한 사유는 formulaBlockMessage. */
+export const FORMULA_BLOCK_TAG = "계산 안 함";
+
+// 받침 있으면 "이", 없으면 "가", 한글이 아니면 "이(가)".
+function josaIGa(text: string): string {
+  const code = text ? text.charCodeAt(text.length - 1) : 0;
+  if (code < 0xac00 || code > 0xd7a3) return "이(가)";
+  return (code - 0xac00) % 28 !== 0 ? "이" : "가";
+}
+
+/** 막힘 사유를 화면 문구로. labelOf: 칸 key → 이름표(없으면 key 를 그대로 씀). selfKey: 문구를 보이는 칸의 key. */
+export function formulaBlockMessage(
+  block: FormulaBlock,
+  labelOf: (key: string) => string | null | undefined,
+  selfKey?: string,
+): string {
+  if (block.kind === "missing") {
+    const names = block.keys.map((k) => labelOf(k)?.trim() || k).join("·");
+    return `${names}${josaIGa(names)} 입력되지 않아 수수료 계산이 불가능합니다`;
+  }
+  // 다른 칸에서 번진 막힘이면 원래 칸 이름을 알린다.
+  if (selfKey && block.from !== selfKey) {
+    return `${labelOf(block.from)?.trim() || block.from}의 조건 결과가 달라 함께 계산하지 않았습니다`;
+  }
+  return "맞는 조건이 둘 이상인데 결과가 달라 수수료를 자동 계산하지 않았습니다";
+}
+
+// 두 계산 결과가 같은가 — 소수 계산 오차(700,000 × 70% = 489,999.99999999994)는 같은 금액으로 본다.
+function sameFormulaResult(a: number, b: number): boolean {
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  if (a === b) return true;
+  if (Number.isSafeInteger(a) && Number.isSafeInteger(b)) return false;
+  return Math.abs(a - b) <= Math.min(1e-7, 8 * Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b)));
+}
+
+function sameFormulaValue(a: number | null, b: number | null): boolean {
+  return a === null || b === null ? a === b : sameFormulaResult(a, b);
+}
+
+// 조건 절 하나의 판정 — 참(T)·거짓(F)·모름(U). 모름이면 빠진 칸(missing)과 막힌 칸의 막힘(causes)을 함께 가진다.
+type CondTri = "T" | "F" | "U";
+interface CondTriClause { r: CondTri; missing: string[]; causes: FormulaBlock[] }
+
 // 한 차수(tier)에서 수식 컬럼(field)의 값을 계산한다.
 //   - 숫자 컬럼: 저장값 그대로
 //   - 퍼센트 컬럼/퍼센트 값: 0~1 비율로 환산 (10% → 0.1) — 곱셈이 자연스럽게 맞도록
@@ -600,65 +694,247 @@ export function evalFormulaForTier(
   seen: ReadonlySet<string> = new Set<string>(),
   conditionValues?: Record<string, unknown>,
 ): number | null {
+  return evalFormulaForTierDetailed(field, tier, fields, seen, conditionValues).value;
+}
+
+// evalFormulaForTier 의 상세판 — 값과 함께 막힘(blocked)·쓴 규칙 번호(ruleIdx)를 돌려준다.
+//   - conditional.match 가 없거나 "first": 위에서 처음 맞는 조건의 식(옛 동작 그대로). 선택에 영향을 주는 참조 막힘은 보존한다.
+//   - conditional.match === "all" (규칙이 하나 이상): 우선순위 없이 맞는 조건을 모두 본다.
+//       맞는 조건(T)들의 결과가 다르면 conflict, 맞는지 모르는 조건(U — 날짜 칸이 빔 등)이 결과를
+//       바꿀 수 있으면 missing 으로 막는다. 안 바뀌면(U 의 식 결과가 정한 값과 같으면) 막지 않는다.
+export function evalFormulaForTierDetailed(
+  field: FieldDef,
+  tier: TierData,
+  fields: FieldDef[],
+  seen: ReadonlySet<string> = new Set<string>(),
+  conditionValues?: Record<string, unknown>,
+): FormulaEvalDetail {
   // 관리자 수동 수정값이 있으면 수식을 계산하지 않고 그 값을 쓴다.
   // 다른 수식 칸이 이 칸을 참조(재귀)할 때도 여기로 들어오므로 연쇄 반영이 자동이다.
   const manual = getTierOverride(tier, field.key);
-  if (manual !== null) return manual;
+  if (manual !== null) return { value: manual };
   const managed = getManagedTierValue(tier, field.key);
-  if (managed !== undefined) return managed;
-  if (seen.has(field.key)) return null; // 순환 참조 차단 (조건 평가에서 자기 칸 참조 대비 먼저)
+  if (managed !== undefined) return { value: managed };
+  if (seen.has(field.key)) return { value: null }; // 순환 참조 차단 (조건 평가에서 자기 칸 참조 대비 먼저)
   const nextSeen = new Set(seen);
   nextSeen.add(field.key);
   const byKey = new Map(fields.map((f) => [f.key, f]));
   // 조건 비교용 값 조회: 정산정보 칸(수식 칸이면 계산값, 그 외 저장값) 우선 → 없으면 기본정보 평면 값.
-  const getCondValue = (key: string): unknown => {
+  // 수식 칸이 막혔으면 값은 null 이고 막힘을 함께 돌려준다.
+  const readCond = (key: string): { value: unknown; blocked?: FormulaBlock } => {
     const ref = byKey.get(key);
     if (ref && ref.type === "formula") {
-      return evalFormulaForTier(ref, tier, fields, nextSeen, conditionValues);
+      if (ref.formulaResult === "date") {
+        return { value: evalDateFormulaForTier(ref, tier, fields, nextSeen, conditionValues) };
+      }
+      const d = evalFormulaForTierDetailed(ref, tier, fields, nextSeen, conditionValues);
+      return d.blocked ? { value: d.value, blocked: d.blocked } : { value: d.value };
     }
     const tv = ref ? tier[key] : undefined;
-    if (tv !== undefined && tv !== null && tv !== "") return tv;
-    return conditionValues?.[key];
-  };
-  const terms = resolveConditionalFormula(field, getCondValue);
-  if (!Array.isArray(terms) || terms.length === 0) return null;
-
-  // 한 항의 값 + "실제 입력이 있었는지" 반환
-  const operand = (t: FormulaTerm): { v: number; has: boolean } => {
-    if (t.unit === "group") {
-      const inner = Array.isArray(t.terms) ? t.terms : [];
-      if (inner.length === 0) return { v: 0, has: false };
-      const r = evalTermChain(inner, operand); // 묶음 안 먼저 계산
-      return r.has ? { v: r.v, has: true } : { v: 0, has: false };
-    }
-    if (t.unit === "number") {
-      const v = typeof t.value === "number" && Number.isFinite(t.value) ? t.value : 0;
-      return { v, has: true };
-    }
-    if (t.unit === "percent") {
-      const v = typeof t.value === "number" && Number.isFinite(t.value) ? t.value : 0;
-      return { v: v / 100, has: true };
-    }
-    // unit === "column"
-    const ref = t.columnKey ? byKey.get(t.columnKey) : undefined;
-    if (!ref) return { v: 0, has: false };
-    if (ref.type === "formula") {
-      const r = evalFormulaForTier(ref, tier, fields, nextSeen, conditionValues);
-      return r === null ? { v: 0, has: false } : { v: r, has: true };
-    }
-    const raw = tier[ref.key];
-    if (raw === null || raw === undefined || raw === "") return { v: 0, has: false };
-    const num = typeof raw === "number" ? raw : Number(raw);
-    if (!Number.isFinite(num)) return { v: 0, has: false };
-    const scaled = ref.type === "percent" ? num / 100 : num;
-    // 환불 차수카드: 기준금액칸에 negateOnRead 가 붙으면 계산할 때만 음수로 읽는다(저장값·화면은 그대로).
-    // scaled !== 0 가드: 저장값이 0이면 뒤집어도 -0 이 되어 "-0원"으로 보이는 표시 버그 방지.
-    return { v: ref.negateOnRead && scaled !== 0 ? -scaled : scaled, has: true };
+    if (tv !== undefined && tv !== null && tv !== "") return { value: tv };
+    return { value: conditionValues?.[key] };
   };
 
-  const result = evalTermChain(terms, operand);
-  if (!result.has || !Number.isFinite(result.v)) return null;
-  return result.v;
+  // 식 하나를 계산 — 규칙 식마다 따로 막힘을 추적한다. 수식 칸을 참조하는 항(묶음 안 포함)이 막혀 있으면
+  // 그 식 전체가 막힌다(처음 막힘만 기록). 값이 없는(막히지 않은) 참조는 지금처럼 { v: 0, has: false }.
+  const evalTerms = (terms: FormulaTerm[] | undefined): { value: number | null; blocked?: FormulaBlock } => {
+    if (!Array.isArray(terms) || terms.length === 0) return { value: null };
+    const track: { blocked?: FormulaBlock } = {};
+    // 한 항의 값 + "실제 입력이 있었는지" 반환
+    const operand = (t: FormulaTerm): { v: number; has: boolean } => {
+      if (t.unit === "group") {
+        const inner = Array.isArray(t.terms) ? t.terms : [];
+        if (inner.length === 0) return { v: 0, has: false };
+        const r = evalTermChain(inner, operand); // 묶음 안 먼저 계산
+        return r.has ? { v: r.v, has: true } : { v: 0, has: false };
+      }
+      if (t.unit === "number") {
+        const v = typeof t.value === "number" && Number.isFinite(t.value) ? t.value : 0;
+        return { v, has: true };
+      }
+      if (t.unit === "percent") {
+        const v = typeof t.value === "number" && Number.isFinite(t.value) ? t.value : 0;
+        return { v: v / 100, has: true };
+      }
+      // unit === "column"
+      const ref = t.columnKey ? byKey.get(t.columnKey) : undefined;
+      if (!ref) return { v: 0, has: false };
+      if (ref.type === "formula") {
+        const d = evalFormulaForTierDetailed(ref, tier, fields, nextSeen, conditionValues);
+        if (d.blocked) {
+          if (!track.blocked) track.blocked = d.blocked;
+          return { v: 0, has: false };
+        }
+        return d.value === null ? { v: 0, has: false } : { v: d.value, has: true };
+      }
+      const raw = tier[ref.key];
+      if (raw === null || raw === undefined || raw === "") return { v: 0, has: false };
+      const num = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(num)) return { v: 0, has: false };
+      const scaled = ref.type === "percent" ? num / 100 : num;
+      // 환불 차수카드: 기준금액칸에 negateOnRead 가 붙으면 계산할 때만 음수로 읽는다(저장값·화면은 그대로).
+      // scaled !== 0 가드: 저장값이 0이면 뒤집어도 -0 이 되어 "-0원"으로 보이는 표시 버그 방지.
+      return { v: ref.negateOnRead && scaled !== 0 ? -scaled : scaled, has: true };
+    };
+    const result = evalTermChain(terms, operand);
+    if (track.blocked) return { value: null, blocked: track.blocked };
+    if (!result.has || !Number.isFinite(result.v)) return { value: null };
+    return { value: result.v };
+  };
+
+  const cond = field.conditional;
+  // 조건 절 판정. 비교 쪽 칸이 막힌 수식 칸이면 모름(원인 = 그 막힘).
+  // 모든 조건 보기의 크기 비교(gte·lte)는 빈 칸이면 모름. 첫 일치는 일반 빈 칸을 옛 동작대로 거짓으로 본다.
+  // 그 밖의 비교(같음·다름·포함·미포함)는 빈 값이면 지금처럼 거짓.
+  const evalClause = (c: ConditionClause): CondTriClause => {
+    const op = c.op ?? "eq";
+    const isRange = op === "gte" || op === "lte";
+    // 빈 직접 글자는 왼쪽 칸의 누락·막힘과 관계없이 거짓이다.
+    if (c.right.kind === "text" && condValuesOf(c.right.value).length === 0) {
+      return { r: "F", missing: [], causes: [] };
+    }
+    // 크기 비교가 불가능한 직접값도 왼쪽 값을 기다릴 필요 없이 거짓이다.
+    if (c.right.kind === "text" && isRange && !condComparable(condAsText(c.right.value))) {
+      return { r: "F", missing: [], causes: [] };
+    }
+    const left = readCond(c.leftKey);
+    const right: { value: unknown; blocked?: FormulaBlock } =
+      c.right.kind === "field" ? readCond(c.right.key) : { value: c.right.value };
+    // 막힘으로 생긴 null은 일반 빈값이 아니다. 일반 빈값이 거짓을 확정하면 반대쪽 막힘은 무관하다.
+    const leftEmpty = !left.blocked && condValuesOf(left.value).length === 0;
+    const rightEmpty = !right.blocked && condValuesOf(right.value).length === 0;
+    const missingRange = cond?.match === "all" && isRange;
+    if (!missingRange && (leftEmpty || rightEmpty)) return { r: "F", missing: [], causes: [] };
+    const missing: string[] = [];
+    const causes: FormulaBlock[] = [];
+    if (left.blocked) causes.push(left.blocked);
+    if (right.blocked) causes.push(right.blocked);
+    if (missingRange) {
+      if (leftEmpty) missing.push(c.leftKey);
+      if (c.right.kind === "field" && rightEmpty) {
+        missing.push(c.right.key);
+      }
+    }
+    if (missing.length > 0 || causes.length > 0) return { r: "U", missing, causes };
+    return { r: condMatches(op, left.value, right.value) ? "T" : "F", missing, causes };
+  };
+
+  if (!cond || cond.match !== "all" || !Array.isArray(cond.rules) || cond.rules.length === 0) {
+    // 첫 일치 — 일반 빈 값과 순서를 보존하고, 선택에 영향을 주는 하위 수식의 막힘만 넘긴다.
+    const pick = pickFirstConditional(field, (c) => {
+      const result = evalClause(c);
+      return { r: result.r, blocked: result.causes[0] };
+    });
+    if (pick.blocked) return { value: null, blocked: pick.blocked, ruleIdx: pick.ruleIdx };
+    return { ...evalTerms(pick.terms), ruleIdx: pick.ruleIdx };
+  }
+
+  // ── 모든 조건 보기 ──
+  // 규칙마다 참·거짓·모름을 가린다. or: 참 하나면 참 → 모름 있으면 모름 → 거짓. and/미지정: 거짓 하나면 거짓 → 모름 → 참.
+  const tRules: Array<{ idx: number; formula: FormulaTerm[] }> = [];
+  const uRules: Array<{ idx: number; formula: FormulaTerm[]; missing: string[]; causes: FormulaBlock[] }> = [];
+  for (let i = 0; i < cond.rules.length; i++) {
+    const rule = cond.rules[i];
+    if (!rule || !Array.isArray(rule.formula)) continue;
+    const clauses = condClausesOf(cond, rule);
+    if (clauses.length === 0) continue;
+    const cs = clauses.map(evalClause);
+    const has = (r: CondTri): boolean => cs.some((x) => x.r === r);
+    const state: CondTri = rule.combine === "or"
+      ? (has("T") ? "T" : has("U") ? "U" : "F")
+      : (has("F") ? "F" : has("U") ? "U" : "T");
+    if (state === "T") {
+      tRules.push({ idx: i, formula: rule.formula });
+    } else if (state === "U") {
+      const us = cs.filter((x) => x.r === "U");
+      uRules.push({
+        idx: i,
+        formula: rule.formula,
+        missing: [...new Set(us.flatMap((x) => x.missing))],
+        causes: us.flatMap((x) => x.causes),
+      });
+    }
+  }
+  const tIdx = tRules.map((r) => r.idx);
+
+  // 1) 맞는 조건(T)마다 식 계산 — 하나라도 막히면 그 막힘(규칙 순서상 처음)으로 막는다.
+  const tOut = tRules.map((r) => ({ idx: r.idx, ...evalTerms(r.formula) }));
+  const tBlocked = tOut.find((o) => o.blocked);
+  if (tBlocked) return { value: null, blocked: tBlocked.blocked, ruleIdx: tIdx };
+
+  // 2) null도 결과다. 맞는 조건의 null/숫자가 다르면 우선순위로 고르지 않고 막는다.
+  for (let i = 0; i < tOut.length; i++) {
+    for (let j = i + 1; j < tOut.length; j++) {
+      if (!sameFormulaValue(tOut[i].value, tOut[j].value)) {
+        return {
+          value: null,
+          blocked: { kind: "conflict", from: field.key, ruleIdx: tIdx },
+          ruleIdx: tIdx,
+        };
+      }
+    }
+  }
+
+  // 3) 정한 값 — 맞는 조건이 있으면 그 결과, 하나도 없으면 기본식.
+  let resolved: number | null;
+  if (tRules.length > 0) {
+    resolved = tOut[0].value;
+  } else {
+    const base = evalTerms(field.formula);
+    if (base.blocked) return { value: null, blocked: base.blocked, ruleIdx: [] };
+    resolved = base.value;
+  }
+
+  // 4) 맞는지 모르는 조건(U)이 결과나 충돌 여부를 바꿀 수 있는지 본다.
+  //    오차 범위의 같음은 추이적이지 않으므로 U/T와 U/U의 모든 쌍을 대조한다. T가 없으면 기본식도 본다.
+  //    U/U에서 같은 칸의 단일 gte/lte 조건이고 하한 > 상한인 쌍만 동시 성립 불가로 제외한다.
+  //    막히지 않은 null끼리는 같다. null/숫자 차이와 후보 식의 막힘은 결과를 바꿀 수 있다.
+  const exclusiveUnknownRules = (a: ConditionalRule, b: ConditionalRule): boolean => {
+    const aClauses = condClausesOf(cond, a), bClauses = condClausesOf(cond, b);
+    if (aClauses.length !== 1 || bClauses.length !== 1) return false;
+    const A = aClauses[0], B = bClauses[0];
+    if (A.leftKey !== B.leftKey || A.right.kind !== "text" || B.right.kind !== "text") return false;
+    if (!((A.op === "gte" && B.op === "lte") || (A.op === "lte" && B.op === "gte"))) return false;
+    const aBound = condComparable(condAsText(A.right.value)), bBound = condComparable(condAsText(B.right.value));
+    if (!aBound || !bBound || aBound.kind !== bBound.kind) return false;
+    const lower = A.op === "gte" ? aBound : bBound, upper = A.op === "lte" ? aBound : bBound;
+    // condMatches와 같은 크기 비교로, 하한 > 상한인 단일 조건만 동시 성립 불가를 증명한다.
+    return lower.kind === "date"
+      ? String(lower.v).localeCompare(String(upper.v)) > 0
+      : Number(lower.v) - Number(upper.v) > 0;
+  };
+  const uOut = uRules.map((u) => ({ u, ...evalTerms(u.formula) }));
+  const changeable: Array<{ u: (typeof uRules)[number]; blocked?: FormulaBlock }> = [];
+  for (const uv of uOut) {
+    const { u } = uv;
+    if (uv.blocked) { changeable.push({ u, blocked: uv.blocked }); continue; }
+    const changesResult = tOut.length > 0
+      ? tOut.some((t) => !sameFormulaValue(uv.value, t.value))
+      : !sameFormulaValue(uv.value, resolved);
+    const changesConflict = uOut.some((other) => !other.blocked && !sameFormulaValue(uv.value, other.value)
+      && !exclusiveUnknownRules(cond.rules[u.idx], cond.rules[other.u.idx]));
+    if (changesResult || changesConflict) changeable.push({ u });
+  }
+
+  // 5) 바꿀 수 있는 U 가 있으면 막는다 — 빠진 칸(규칙의 빠진 칸 → 원인 막힘의 빠진 칸 → 식 막힘의 빠진 칸, 중복 제거)을
+  //    알리고, 빠진 칸이 하나도 없으면 처음 원인 막힘(conflict)을 그대로 넘긴다.
+  if (changeable.length > 0) {
+    const keys: string[] = [];
+    const addKeys = (ks: string[]) => { for (const k of ks) if (!keys.includes(k)) keys.push(k); };
+    for (const c of changeable) addKeys(c.u.missing);
+    for (const c of changeable) for (const b of c.u.causes) if (b.kind === "missing") addKeys(b.keys);
+    for (const c of changeable) if (c.blocked && c.blocked.kind === "missing") addKeys(c.blocked.keys);
+    let block: FormulaBlock | undefined;
+    if (keys.length > 0) {
+      block = { kind: "missing", from: field.key, keys };
+    } else {
+      block = changeable.flatMap((c) => c.u.causes)[0] ?? changeable.find((c) => c.blocked)?.blocked;
+    }
+    if (block) return { value: null, blocked: block, ruleIdx: tIdx };
+  }
+
+  // 6) 막을 이유가 없다 — 정한 값.
+  return { value: resolved !== null && Number.isFinite(resolved) ? resolved : null, ruleIdx: tIdx };
 }
 
 // 코드리뷰 Finding 3(Minor): 값을 "읽는" 자리(evalFormulaForTier operand, scaled !== 0 가드)는
