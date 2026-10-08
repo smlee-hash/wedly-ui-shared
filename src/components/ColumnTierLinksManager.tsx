@@ -5,6 +5,7 @@ import {
   buildLinkableColumns,
   buildColumnLabelMap,
   isLatestOnlyLinkType,
+  linkSection,
   type ColumnTierLink,
   type LinkArea,
   type LinkMode,
@@ -15,6 +16,7 @@ export type TierFieldDef = { key: string; label: string; type: string };
 export type TierLinkAdapter = {
   ownDomain: string;                              // 예 "tax-amendment"
   sections: { key: string; label: string }[];     // DOMAIN_GROUPS 매핑
+  readonlySections?: readonly string[];           // 표시용: 저장된 mode·readonly 및 콜백은 바꾸지 않음
   staticColumns: TierFieldDef[];                   // 정적 표 컬럼
   customColumns?: TierFieldDef[];                  // 직접 추가 칸
   erpCustomColumns?: TierFieldDef[];               // ERP 미러 칸(하이브용, 없으면 생략)
@@ -67,6 +69,8 @@ export default function ColumnTierLinksManager({ adapter, surface = "white" }: {
     && (!!(tierField as { dateFormula?: unknown } | undefined)?.dateFormula
       || (tierField as { formulaResult?: string } | undefined)?.formulaResult === "date");
   const sectionLabel = (k: string) => adapter.sections.find((s) => s.key === k)?.label ?? k;
+  const sectionIsReadonly = adapter.readonlySections?.includes(section) === true;
+  const latestModeLabel = sectionIsReadonly ? "최신차수(읽기전용)" : "최신차수(편집)";
 
   useEffect(() => { if (isLatestOnlyLinkType(selectedColType) && mode !== "latest") setMode("latest"); }, [selectedColType, mode]);
   // 날짜 수식만 최신차수로 강제(합계 불가). 금액 수식은 사용자가 합계/최신 선택.
@@ -152,7 +156,7 @@ export default function ColumnTierLinksManager({ adapter, surface = "white" }: {
             <div className="min-w-0 break-words text-[13px] text-wedly-t1">
               <span className="font-semibold">{colLabelMap[l.columnKey] || l.columnKey}</span>
               <span className="text-wedly-muted"> ↔ {sectionLabel(l.section ?? adapter.ownDomain)} · {AREA_LABEL[l.area]} · {l.tierFieldKey}</span>
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-wedly-bg-blue text-wedly-accent-ink">{l.readonly ? "최신차수(읽기전용)" : l.mode === "sum" ? "합계(읽기전용)" : "최신차수(편집)"}</span>
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-wedly-bg-blue text-wedly-accent-ink">{l.readonly ? "최신차수(읽기전용)" : l.mode === "sum" ? "합계(읽기전용)" : adapter.readonlySections?.includes(linkSection(l, adapter.ownDomain)) ? "최신차수(읽기전용)" : "최신차수(편집)"}</span>
             </div>
             <button onClick={() => removeLink(l.columnKey)} disabled={saving} className="shrink-0 whitespace-nowrap px-3 py-2 text-[13px] font-medium text-white bg-wedly-red rounded-lg hover:bg-wedly-red/90 transition-colors">해제</button>
           </div>
@@ -213,10 +217,15 @@ export default function ColumnTierLinksManager({ adapter, surface = "white" }: {
               <span className="mt-1 block text-[11px] text-wedly-muted">자동계산 칸이라 표에서는 편집할 수 없습니다(읽기전용).</span>
             </>
           ) : (
-            <div className="flex gap-2">
-              <button onClick={() => setMode("sum")} disabled={isLatestOnlyLinkType(selectedColType)} title={isLatestOnlyLinkType(selectedColType) ? "드롭다운·비율(%) 칸은 최신차수(편집)로만 연결됩니다." : undefined} className={`px-3 py-2 rounded-lg text-[13px] border disabled:opacity-40 disabled:cursor-not-allowed ${mode === "sum" ? "bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>합계(읽기전용)</button>
-              <button onClick={() => setMode("latest")} className={`px-3 py-2 rounded-lg text-[13px] border ${mode === "latest" ? "bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>최신차수(편집)</button>
-            </div>
+            <>
+              <div className="flex gap-2">
+                <button onClick={() => setMode("sum")} disabled={isLatestOnlyLinkType(selectedColType)} title={isLatestOnlyLinkType(selectedColType) ? `드롭다운·비율(%) 칸은 ${latestModeLabel}로만 연결됩니다.` : undefined} className={`px-3 py-2 rounded-lg text-[13px] border disabled:opacity-40 disabled:cursor-not-allowed ${mode === "sum" ? "bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>합계(읽기전용)</button>
+                <button onClick={() => setMode("latest")} className={`px-3 py-2 rounded-lg text-[13px] border ${mode === "latest" ? "bg-wedly-bg-blue text-wedly-accent-ink border-wedly-bd-blue font-semibold" : "bg-white text-wedly-t2 border-wedly-bd"}`}>{latestModeLabel}</button>
+              </div>
+              {sectionIsReadonly && section === "government-subsidy" && (
+                <span className="mt-1 block text-[11px] text-wedly-muted">정부지원금 칸은 ERP 값을 그대로 보여 주는 칸이라 표에서 편집할 수 없습니다.</span>
+              )}
+            </>
           )}
         </div>
 
