@@ -218,3 +218,5 @@ export * from "./tier-link/config";
 export * from "./tier-link/sync";
 export { default as ColumnTierLinksManager } from "./components/ColumnTierLinksManager";
 export type { TierLinkAdapter, TierFieldDef } from "./components/ColumnTierLinksManager";
+
+export * from "./tiered/government-fee-context";
