@@ -799,6 +799,11 @@ export function evalFormulaForTierDetailed(
     // 막힘으로 생긴 null은 일반 빈값이 아니다. 일반 빈값이 거짓을 확정하면 반대쪽 막힘은 무관하다.
     const leftEmpty = !left.blocked && condValuesOf(left.value).length === 0;
     const rightEmpty = !right.blocked && condValuesOf(right.value).length === 0;
+    // 읽은 값이 비지 않고 비교 불가이면 반대쪽 빈값·막힘과 무관하게 거짓을 확정한다.
+    if (isRange && (
+      (!left.blocked && !leftEmpty && condComparable(condAsText(left.value)) === null) ||
+      (!right.blocked && !rightEmpty && condComparable(condAsText(right.value)) === null)
+    )) return { r: "F", missing: [], causes: [] };
     const missingRange = cond?.match === "all" && isRange;
     if (!missingRange && (leftEmpty || rightEmpty)) return { r: "F", missing: [], causes: [] };
     const missing: string[] = [];
