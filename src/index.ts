@@ -227,3 +227,4 @@ export { ExcelImportWizard } from "./components/ExcelImportWizard";
 export type { ExcelImportWizardProps, MappingPreset, ImportResult } from "./components/ExcelImportWizard";
 
 export * from "./tiered/government-fee-context";
+export * from "./tiered/fee-calculation-state";
