@@ -63,6 +63,18 @@ export type BasicRecord = {
   }>;
 };
 
+/** 이번 주소 저장 응답 하나가 행과 회사 보관함을 함께 저장했다는 확인. */
+export type AtomicAddressSaveReceipt = {
+  kind: "atomic-address";
+  version: 1;
+  entryId: string;
+  sourceFieldKey: string;
+  bizno: string;
+  fieldId: "사업장주소지";
+  value: string;
+  record: BasicRecord;
+};
+
 export interface UnifiedDetailApi {
   // ── 앱마다 경로/형태가 다른 것 (반드시 주입) ──
 
@@ -73,7 +85,7 @@ export interface UnifiedDetailApi {
   getCachedDomainRows(key: string): CustomerDetailLite | null;
 
   /** 자기 분야 칸 1개 저장 — ERP: PATCH /api/tax-amendment/{id} */
-  saveOwnField(entryId: string, key: string, value: string | number | boolean | null): Promise<void>;
+  saveOwnField(entryId: string, key: string, value: string | number | boolean | null): Promise<void | { atomicAddress: AtomicAddressSaveReceipt }>;
 
   /** 신규 행 등록 — ERP: POST /api/tax-amendment */
   createEntry(payload: Record<string, unknown>): Promise<{ id: string }>;

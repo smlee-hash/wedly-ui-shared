@@ -39,7 +39,7 @@ import {
 } from "./lib/unified-sections";
 import { basicFieldOptionsFromRow, isCommonBasicLabel } from "../unified/sections";
 import { applyTabConfig } from "./lib/unified-tab-config";
-import type { BasicRecord } from "./adapter-types";
+import type { AtomicAddressSaveReceipt, BasicRecord, UnifiedDetailApi } from "./adapter-types";
 import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
 import { modalBoxClass, narrowPaneTabs } from "./three-pane-layout";
@@ -56,7 +56,53 @@ function isSubTabKey(v: string): v is SubTab {
 }
 
 // saveOwnField 콜백 타입 — 내부 컴포넌트들이 공유
-type SaveOwnFieldFn = (entryId: string, key: string, value: string | number | boolean | null) => Promise<void>;
+type SaveOwnFieldFn = UnifiedDetailApi["saveOwnField"];
+
+const ADDRESS_FIELD_ID = "사업장주소지";
+const ADDRESS_FIELD_KEYS = BASIC_FIELD_SPECS.find((spec) => spec.label === ADDRESS_FIELD_ID)?.keys ?? [];
+function addressFieldFromRecord(record: unknown): BasicRecord["fields"][string] | null {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return null;
+  const { fields, log } = record as Partial<BasicRecord>;
+  if (!fields || typeof fields !== "object" || Array.isArray(fields) || !Array.isArray(log)
+    || !Object.prototype.hasOwnProperty.call(fields, ADDRESS_FIELD_ID)) return null;
+  const field = fields[ADDRESS_FIELD_ID];
+  return field && typeof field === "object" && !Array.isArray(field) && typeof field.value === "string"
+    && typeof field.updatedAt === "string" && typeof field.updatedByApp === "string"
+    && typeof field.updatedByUser === "string" ? field : null;
+}
+function mergeAddressRecord(previous: BasicRecord | null, record: BasicRecord): BasicRecord {
+  const seen = new Set<string>();
+  const addressLog = record.log.filter((entry) => entry && entry.fieldId === ADDRESS_FIELD_ID
+    && typeof entry.app === "string" && typeof entry.user === "string" && typeof entry.at === "string");
+  const log = [...addressLog, ...previous?.log ?? []].filter((entry) => {
+    if (entry.fieldId !== ADDRESS_FIELD_ID) return true;
+    const id = JSON.stringify([entry.fieldId, entry.from, entry.to, entry.app, entry.user, entry.at]);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  return { fields: { ...previous?.fields, [ADDRESS_FIELD_ID]: { ...record.fields[ADDRESS_FIELD_ID] } }, log };
+}
+function preserveAddressRecord(previous: BasicRecord | null, record: BasicRecord): BasicRecord {
+  const fields = { ...record.fields };
+  delete fields[ADDRESS_FIELD_ID];
+  if (previous?.fields[ADDRESS_FIELD_ID]) fields[ADDRESS_FIELD_ID] = previous.fields[ADDRESS_FIELD_ID];
+  return { fields, log: [
+    ...previous?.log.filter((entry) => entry.fieldId === ADDRESS_FIELD_ID) ?? [],
+    ...record.log.filter((entry) => entry.fieldId !== ADDRESS_FIELD_ID),
+  ] };
+}
+function matchesAddressReceipt(receipt: unknown, target: {
+  entryId: string; key: string; fieldId: string; bizno: string; value: string;
+}): receipt is AtomicAddressSaveReceipt {
+  if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) return false;
+  const r = receipt as Partial<AtomicAddressSaveReceipt>;
+  return r.kind === "atomic-address" && r.version === 1 && r.entryId === target.entryId
+    && ADDRESS_FIELD_KEYS.includes(target.key) && target.fieldId === ADDRESS_FIELD_ID
+    && typeof r.sourceFieldKey === "string" && ADDRESS_FIELD_KEYS.includes(r.sourceFieldKey)
+    && !!target.bizno && r.bizno === target.bizno && r.fieldId === ADDRESS_FIELD_ID
+    && r.value === target.value && addressFieldFromRecord(r.record)?.value === target.value;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: 그룹에 속한 영역 행 목록 (데이터 있는 것만)
@@ -1491,17 +1537,30 @@ function BasicInfoPanel({
   // 기본정보 값 입력·저장 — 칸을 클릭해 바로 입력/수정. 저장은 경정청구 항목(_id)에 반영(표시 출처와 동일).
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
   const [basicRow, setBasicRow] = useState<Record<string, unknown>>(() => ({ ...(row as Record<string, unknown>) }));
+  // 현재 대상의 세대만 보관한다. 오래된 응답이 새 주소나 다른 회사에 적용되지 않게 한다.
+  const addressOwnerRef = useRef({ entryId, bizno, adapter, source: saveOwnField, generation: 0, hasValue: false, value: null as unknown, pending: false, active: true });
+  if (addressOwnerRef.current.entryId !== entryId || addressOwnerRef.current.bizno !== bizno
+    || addressOwnerRef.current.adapter !== adapter || addressOwnerRef.current.source !== saveOwnField) {
+    addressOwnerRef.current = { entryId, bizno, adapter, source: saveOwnField, generation: 0, hasValue: false, value: null, pending: false, active: true };
+  }
+  const addressOwner = addressOwnerRef.current;
   // row 객체가 새로 들어오면(저장 후 갱신 등) 값 동기화 — 같은 객체면 입력 중 값 보존.
   const basicRowRef = useRef(row);
   useEffect(() => {
     if (basicRowRef.current !== row) {
       basicRowRef.current = row;
-      setBasicRow({ ...(row as Record<string, unknown>) });
+      // 주소 표시의 보호는 행의 별칭 키가 아닌 canonical 값 하나에서 한다.
+      setBasicRow((current) => addressOwnerRef.current === addressOwner ? { ...(row as Record<string, unknown>) } : current);
     }
-  }, [row]);
+  }, [row, addressOwner]);
 
   // ── 공용 보관함 읽기 — 변경 내역 표시 + 비어 있는 칸만 보관함 값으로 채움(기존 행 값은 보호) ──
   const [basicRecord, setBasicRecord] = useState<BasicRecord | null>(null);
+  useEffect(() => {
+    addressOwner.active = true;
+    setBasicRecord(null);
+    return () => { addressOwner.active = false; };
+  }, [addressOwner]);
   const [showBasicLog, setShowBasicLog] = useState(false);
   const appLabel = useCallback((a: string) => (a === "erp" ? "ERP" : a === "hive" ? "하이브" : a === "illua" ? "일루아" : a), []);
   const fmtVal = useCallback((v: unknown) => (v == null || v === "" ? "(빈값)" : typeof v === "object" ? JSON.stringify(v) : String(v)), []);
@@ -1514,14 +1573,33 @@ function BasicInfoPanel({
   useEffect(() => {
     if (!bizno) { setBasicRecord(null); return; }
     let cancelled = false;
-    adapter.api.loadBasicStore(bizno).then((rec) => {
-      if (cancelled || !rec) return;
-      setBasicRecord(rec);
+    let generation = addressOwner.generation;
+    let addressPending = false;
+    const sameOwner = () => !cancelled && addressOwner.active && addressOwnerRef.current === addressOwner;
+    const currentAddress = () => sameOwner() && addressOwner.generation === generation
+      && !addressPending && !addressOwner.pending;
+    Promise.resolve().then(() => {
+      if (!sameOwner()) return null;
+      // 조회가 실제 출발한 시점의 주소 세대로 응답을 대조한다.
+      generation = addressOwner.generation; addressPending = addressOwner.pending;
+      return adapter.api.loadBasicStore(bizno);
+    }).then((rec) => {
+      if (!sameOwner() || !rec) return;
+      const field = addressFieldFromRecord(rec);
+      const keepAddress = () => !currentAddress() || (addressOwner.hasValue && !field);
+      if (addressOwner.hasValue && !keepAddress() && field) {
+        generation = ++addressOwner.generation;
+        addressOwner.value = field.value;
+      }
+      // 현재 GET은 기존 전체 기록을 소비한다. 오래된 주소만 보호하고 다른 칸·이력은 갱신한다.
+      setBasicRecord((previous) => sameOwner() ? keepAddress() ? preserveAddressRecord(previous, rec) : rec : previous);
       setBasicRow((r) => {
+        if (!sameOwner()) return r;
         const next = { ...r };
         // 표준칸뿐 아니라 공통추가·커스텀 칸까지(allBasicFields) 회사 보관소 값으로 빈칸을 채운다.
         // → 모든 기본정보가 회사 단위로 보관·표시(분야 기록 1순위, 보관소는 빈칸만).
         for (const f of allBasicFields) {
+          if (ADDRESS_FIELD_KEYS.includes(f.key) && keepAddress()) continue;
           const entry = rec.fields[f.label];
           if (entry && entry.value != null && entry.value !== "") {
             const cur = next[f.key];
@@ -1532,53 +1610,142 @@ function BasicInfoPanel({
         }
         return next;
       });
-    });
+    }).catch(() => {});
     return () => { cancelled = true; };
-  }, [bizno, allBasicFields, adapter]);
+  }, [bizno, allBasicFields, adapter, addressOwner]);
 
   const handleBasicUpdate = useCallback(
     async (key: string, newVal: string | number | boolean | null) => {
       if (isNew) { onDraftChange?.(key, newVal); return; } // 신규 등록: 서버 저장 대신 임시 보관
       if (!entryId) return;
-      const prev = basicRow[key];
-      setBasicRow((r) => ({ ...r, [key]: newVal }));
-      try {
-        await saveOwnField(entryId, key, newVal);
-        adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, key));
-        // 공통·커스텀 칸 모두 회사 보관소(basic-store)에도 기록(누가·앱·이전→새값) — 실패해도 행 저장은 유지.
-        // 커스텀칸은 그 칸의 라벨(keyToFieldId)을 보관소 키로 사용 → 읽기 빈칸채움(allBasicFields 루프)이 같은 라벨로 되읽음.
-        const fieldId = commonFieldIdForKey(key) || keyToFieldId.get(key) || "";
-        if (fieldId && bizno) {
-          void adapter.api.saveBasicField(bizno, "erp", fieldId, newVal).then((rec) => { if (rec) setBasicRecord(rec); });
-        }
-        onSaved?.();
-      } catch (e) {
-        // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
-        const m = e instanceof Error ? e.message : "";
-        const kind = saveFailureKindOf(e);
-        const bridge = adapter.unsaved;
-        // 잠깐 실패(배포 교체·통신 끊김)·로그인 만료면 ★값을 지우지 않는다★ — 앱의 저장 실패 막대에 담아
-        // 사용자가 '다시 저장'할 수 있게 한다. 지우면 배포 순간에 친 글자가 통째로 사라진다.
-        if (bridge && kind !== "permanent") {
-          const id = bridge.makeId(bridge.scope, entryId, key);
-          bridge.report({
-            id, scope: bridge.scope, rowId: entryId, fieldKey: key,
-            rowLabel: String(row["02상호명"] ?? "") || "이 항목",
-            fieldLabel: key, value: newVal,
-            error: m || `'${key}' 저장에 실패했습니다.`, kind,
-            retry: async () => {
-              try { await saveOwnField(entryId, key, newVal); return true; } catch { return false; }
-            },
-            revert: () => setBasicRow((r) => ({ ...r, [key]: prev })),
-          });
-          return;
-        }
-        // 규칙상 저장할 수 없는 값(권한·잠긴 칸·값 오류)은 다시 시도해도 소용없다 → 되돌리고 사유를 알린다.
-        setBasicRow((r) => ({ ...r, [key]: prev }));
-        alert(m || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
+      // await 전에 이번 대상과 값을 고정한다. 서버의 실제 키(27/52)는 같은 주소 의미로 대조한다.
+      const fieldId = ADDRESS_FIELD_KEYS.includes(key) ? ADDRESS_FIELD_ID
+        : commonFieldIdForKey(key) || keyToFieldId.get(key) || "";
+      const target = { entryId, key, fieldId, bizno, value: String(newVal ?? "") };
+      const owner = addressOwner;
+      const sameOwner = () => owner.active && addressOwnerRef.current === owner;
+      if (!sameOwner()) return;
+      const isAddress = ADDRESS_FIELD_KEYS.includes(key);
+      const prev = isAddress ? owner.hasValue ? owner.value
+        : resolveBasicFieldValue(basicRow, detail, key, ADDRESS_FIELD_KEYS) : basicRow[key];
+      if (isAddress) {
+        owner.generation++; owner.hasValue = true; owner.value = newVal ?? ""; owner.pending = true;
       }
+      let generation = owner.generation;
+      const current = () => sameOwner() && owner.generation === generation;
+      let finished = false;
+      let inFlight = false;
+      const settle = () => {
+        generation = ++owner.generation;
+        if (isAddress) owner.pending = false;
+        finished = true;
+      };
+      const applyAddress = (rec: unknown) => {
+        const field = addressFieldFromRecord(rec);
+        if (!field || !current()) return;
+        // 저장 중 시작한 조회/PUT 응답도 무효화하고, 과거 전체 기록 대신 주소만 갱신한다.
+        settle();
+        setBasicRecord((previous) => current() ? mergeAddressRecord(previous, rec as BasicRecord) : previous);
+        if (isAddress) owner.value = field.value;
+        if (isAddress) setBasicRow((r) => current() ? { ...r, [key]: field.value } : r);
+      };
+      const revert = () => {
+        if (!sameOwner() || (isAddress && (!current() || finished))) return;
+        if (isAddress) { settle(); owner.value = prev; }
+        setBasicRow((r) => sameOwner() && (!isAddress || current()) ? { ...r, [key]: prev } : r);
+      };
+      setBasicRow((r) => sameOwner() && (!isAddress || current()) ? { ...r, [key]: newVal } : r);
+      // 최초 저장과 retry가 같은 응답 검문/실패 경계를 실행한다. retry는 세대를 새로 만들지 않는다.
+      const persist = async (): Promise<boolean> => {
+        if (!sameOwner() || (isAddress && (!current() || finished || inFlight))) return false;
+        inFlight = true;
+        try {
+          const result = await saveOwnField(target.entryId, target.key, newVal);
+          const claimsAtomic = result != null && typeof result === "object"
+            && Object.prototype.hasOwnProperty.call(result, "atomicAddress");
+          if (claimsAtomic || (isAddress && result === null)) {
+            const receipt = (result as { atomicAddress?: unknown } | null)?.atomicAddress;
+            if (!matchesAddressReceipt(receipt, target)) {
+              if (!current()) return false;
+              settle();
+              alert("주소 저장 확인이 필요합니다. 현재 정보를 다시 불러옵니다.");
+              // 확인 실패를 저장 실패로 바꾸지 않는다. 재전송·되돌리기·실패 장부 등록도 하지 않는다.
+              try { applyAddress(await adapter.api.loadBasicStore(target.bizno)); } catch { /* 저장 확인 필요 상태 유지 */ }
+              return false;
+            }
+            if (!current()) return false;
+            applyAddress(receipt.record);
+            adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, target.entryId, target.key));
+            onSaved?.();
+            return true;
+          }
+          if (!sameOwner() || (isAddress && !current())) return false;
+          if (isAddress) settle();
+          adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, key));
+          // 공통·커스텀 칸 모두 회사 보관소(basic-store)에도 기록(누가·앱·이전→새값) — 실패해도 행 저장은 유지.
+          // 커스텀칸은 그 칸의 라벨(keyToFieldId)을 보관소 키로 사용 → 읽기 빈칸채움(allBasicFields 루프)이 같은 라벨로 되읽음.
+          if (fieldId && bizno) {
+            if (isAddress) owner.pending = true;
+            // 행 저장 대기가 끝나고 공용 PUT이 실제 출발할 때 주소 세대를 관측한다.
+            let putGeneration = owner.generation;
+            const addressPending = owner.pending;
+            const currentAddress = () => sameOwner() && owner.generation === putGeneration
+              && !addressPending && !owner.pending;
+            void adapter.api.saveBasicField(target.bizno, "erp", target.fieldId, newVal).then((rec) => {
+              if (!sameOwner()) return;
+              if (isAddress) {
+                if (!current()) return;
+                if (addressFieldFromRecord(rec)) applyAddress(rec);
+                else settle();
+              } else if (rec) {
+                const field = addressFieldFromRecord(rec);
+                const keepAddress = () => !currentAddress() || (owner.hasValue && !field);
+                if (owner.hasValue && !keepAddress() && field) {
+                  putGeneration = ++owner.generation;
+                  owner.value = field.value;
+                }
+                setBasicRecord((previous) => sameOwner() ? keepAddress() ? preserveAddressRecord(previous, rec) : rec : previous);
+              }
+            }).catch(() => {
+              if (isAddress && current()) settle();
+              // 행 저장은 유지한다. 공용 PUT 실패로 입력을 재전송하지 않는다.
+            });
+          }
+          if (sameOwner() && (!isAddress || current())) onSaved?.();
+          return true;
+        } catch (e) {
+          if (!sameOwner() || (isAddress && !current())) return false;
+          // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
+          const m = e instanceof Error ? e.message : "";
+          const kind = saveFailureKindOf(e);
+          const bridge = adapter.unsaved;
+          // 잠깐 실패(배포 교체·통신 끊김)·로그인 만료면 ★값을 지우지 않는다★ — 앱의 저장 실패 막대에 담아
+          // 사용자가 '다시 저장'할 수 있게 한다. 지우면 배포 순간에 친 글자가 통째로 사라진다.
+          if (bridge && kind !== "permanent") {
+            const id = bridge.makeId(bridge.scope, entryId, key);
+            bridge.report({
+              id, scope: bridge.scope, rowId: entryId, fieldKey: key,
+              rowLabel: String(row["02상호명"] ?? "") || "이 항목",
+              fieldLabel: key, value: newVal,
+              error: m || `'${key}' 저장에 실패했습니다.`, kind,
+              retry: isAddress ? persist : async () => {
+                try { await saveOwnField(entryId, key, newVal); return true; } catch { return false; }
+              },
+              revert,
+            });
+            return false;
+          }
+          // 규칙상 저장할 수 없는 값(권한·잠긴 칸·값 오류)은 다시 시도해도 소용없다 → 되돌리고 사유를 알린다.
+          revert();
+          alert(m || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
+          return false;
+        } finally {
+          inFlight = false;
+        }
+      };
+      await persist();
     },
-    [basicRow, entryId, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter],
+    [basicRow, detail, entryId, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter, addressOwner],
   );
 
   return (
@@ -1789,7 +1956,7 @@ function BasicInfoPanel({
                           row={r}
                           adapter={adapter}
                           entryId={String(r["_id"] ?? "")}
-                          saveOwnField={saveOwnField}
+                          saveOwnField={async (...args) => { await saveOwnField(...args); }}
                           onSaved={onSaved}
                         />
                       </div>
@@ -1800,7 +1967,9 @@ function BasicInfoPanel({
                   <EditableFieldRow
                     key={f.key}
                     col={col}
-                    value={isNew ? (draft?.[f.key] ?? null) : (resolveBasicFieldValue(basicRow, detail, f.key, BASIC_FIELD_SPECS.find((s) => s.label === f.label)?.keys) ?? null)}
+                    value={isNew ? (draft?.[f.key] ?? null) : ADDRESS_FIELD_KEYS.includes(f.key) && addressOwner.hasValue
+                      ? addressOwner.value ?? null
+                      : (resolveBasicFieldValue(basicRow, detail, f.key, BASIC_FIELD_SPECS.find((s) => s.label === f.label)?.keys) ?? null)}
                     onUpdate={handleBasicUpdate}
                     isAdmin={isAdmin}
                     colorCommon
