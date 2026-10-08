@@ -3,6 +3,10 @@ import type { FormulaEvalDetail } from "./index";
 /** Stable codes only; adapters supply their own user-facing messages. */
 export const FEE_CALCULATION_STATE_REASON_CODES = Object.freeze([
   "fee-base-vat-basis-unconfirmed",
+  "fee-vat-basis-unconfirmed",
+  "fee-context-invalid",
+  "fee-value-invalid",
+  "contract-amount-invalid",
   "fee-rule-blocked",
   "fee-rule-unmatched",
   "fee-base-amount-missing",
