@@ -24,7 +24,7 @@ import { pickHistoryTargetGroup } from "./lib/history-target";
 import HistoryPanel, { type HistoryPanelApi } from "./HistoryPanel";
 import { FieldOptionsProvider } from "./field-options-context";
 import SectionHistoryPanel from "./SectionHistoryPanel";
-import { EditableFieldRow, BasicScopeBadge } from "./editors";
+import { EditableFieldRow, BasicScopeBadge, type FieldEditCapture } from "./editors";
 import BasicFilesField from "./BasicFilesField";
 import NewEntryReportUpload, { type DraftFile } from "./NewEntryReportUpload";
 import { CommonFieldsLauncher } from "./CommonFieldsLauncher";
@@ -39,7 +39,7 @@ import {
 } from "./lib/unified-sections";
 import { basicFieldOptionsFromRow, isCommonBasicLabel } from "../unified/sections";
 import { applyTabConfig } from "./lib/unified-tab-config";
-import type { AtomicAddressSaveReceipt, BasicRecord, UnifiedDetailApi } from "./adapter-types";
+import type { AddressEditContextV1, AddressEditObservationV1, AddressEditPreparation, AddressEditSaveResult, AddressRevisionToken, AddressSaveExecution, AddressSourceTable, AddressUnsavedAttemptOwnership, AddressUnsavedEditOwnership, AtomicAddressSaveReceipt, BasicRecord, UnifiedDetailApi, UnsavedBridge } from "./adapter-types";
 import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
 import { modalBoxClass, narrowPaneTabs } from "./three-pane-layout";
@@ -99,9 +99,126 @@ function matchesAddressReceipt(receipt: unknown, target: {
   const r = receipt as Partial<AtomicAddressSaveReceipt>;
   return r.kind === "atomic-address" && r.version === 1 && r.entryId === target.entryId
     && ADDRESS_FIELD_KEYS.includes(target.key) && target.fieldId === ADDRESS_FIELD_ID
-    && typeof r.sourceFieldKey === "string" && ADDRESS_FIELD_KEYS.includes(r.sourceFieldKey)
+    && typeof r.sourceFieldKey === "string" && (ADDRESS_FIELD_KEYS.includes(r.sourceFieldKey) || r.sourceFieldKey === "businessAddress")
     && !!target.bizno && r.bizno === target.bizno && r.fieldId === ADDRESS_FIELD_ID
     && r.value === target.value && addressFieldFromRecord(r.record)?.value === target.value;
+}
+
+// 주소 capability의 wire 경계만 검사한다. 현재 권한과 CAS는 매 저장마다 서버가 확인한다.
+const ADDRESS_SOURCE_TABLES: readonly AddressSourceTable[] = [
+  "TaxAmendmentEntry", "PolicyFundEntry", "LaborSubsidyEntry",
+  "FreeSubsidyEntry", "CertEntry", "PatentEntry",
+];
+const ADDRESS_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$(?![\s\S])/i;
+function addressObject(value: unknown, keys: string[]): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value)
+    && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+    && Reflect.ownKeys(value).length === keys.length
+    && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+function cloneAddressToken(value: unknown): AddressRevisionToken | null {
+  if (addressObject(value, ["kind"]) && value.kind === "baseline") return Object.freeze({ kind: "baseline" });
+  if (addressObject(value, ["kind", "uuid"]) && value.kind === "revision"
+    && typeof value.uuid === "string" && ADDRESS_UUID.test(value.uuid)) {
+    return Object.freeze({ kind: "revision", uuid: value.uuid.toLowerCase() });
+  }
+  return null;
+}
+function cloneAddressObservation(value: unknown): AddressEditObservationV1 | null {
+  if (!addressObject(value, ["version", "generation", "source", "canonical"])
+    || value.version !== 1 || typeof value.generation !== "string" || !ADDRESS_UUID.test(value.generation)
+    || !addressObject(value.source, ["identity", "exists", "token"])
+    || !addressObject(value.canonical, ["identity", "exists", "token"])) return null;
+  const { source, canonical } = value;
+  if (!addressObject(source.identity, ["kind", "table", "id"])
+    || source.identity.kind !== "source" || typeof source.identity.table !== "string"
+    || !ADDRESS_SOURCE_TABLES.includes(source.identity.table as AddressSourceTable)
+    || typeof source.identity.id !== "string" || !source.identity.id.trim() || source.identity.id.includes("\u0000")
+    || !addressObject(canonical.identity, ["kind", "key"]) || canonical.identity.kind !== "canonical"
+    || typeof canonical.identity.key !== "string" || !/^secstore:[0-9]{8,13}:basic$(?![\s\S])/.test(canonical.identity.key)
+    || typeof source.exists !== "boolean" || typeof canonical.exists !== "boolean") return null;
+  const sourceToken = cloneAddressToken(source.token);
+  const canonicalToken = cloneAddressToken(canonical.token);
+  if (!sourceToken || !canonicalToken) return null;
+  return Object.freeze({
+    version: 1, generation: value.generation.toLowerCase(),
+    source: Object.freeze({
+      identity: Object.freeze({ kind: "source", table: source.identity.table as AddressSourceTable, id: source.identity.id }),
+      exists: source.exists, token: sourceToken,
+    }),
+    canonical: Object.freeze({
+      identity: Object.freeze({ kind: "canonical", key: canonical.identity.key }),
+      exists: canonical.exists, token: canonicalToken,
+    }),
+  });
+}
+function cloneAddressPreparation(value: unknown, target: {
+  entryId: string; key: string; bizno: string;
+}): AddressEditPreparation | null {
+  if (!addressObject(value, ["value", "editContext"]) || (value.value !== null && typeof value.value !== "string")
+    || !addressObject(value.editContext, ["version", "entryId", "sourceFieldKey", "bizno", "observation"])) return null;
+  const context = value.editContext;
+  const observation = cloneAddressObservation(context.observation);
+  if (context.version !== 1 || !target.entryId.trim() || target.entryId.includes("\u0000")
+    || context.entryId !== target.entryId || context.sourceFieldKey !== target.key
+    || !ADDRESS_FIELD_KEYS.includes(target.key) || !/^[0-9]{8,13}$(?![\s\S])/.test(target.bizno)
+    || context.bizno !== target.bizno || !observation || !observation.source.exists
+    || observation.source.identity.id !== target.entryId
+    || observation.canonical.identity.key !== `secstore:${target.bizno}:basic`) return null;
+  return Object.freeze({ value: value.value as string | null, editContext: Object.freeze({
+    version: 1, entryId: target.entryId, sourceFieldKey: target.key, bizno: target.bizno, observation,
+  }) });
+}
+type AddressCaptureOwnership = Readonly<{
+  bridge: UnsavedBridge | undefined; id: string | undefined; edit: AddressUnsavedEditOwnership | null;
+}>;
+function addressOwnershipCurrent(handle: { isCurrent: () => boolean }): boolean {
+  try { return handle.isCurrent() === true; } catch { return false; }
+}
+// 원본 핸들의 메서드까지 지금 고정한다. 이후 props나 핸들 객체 변경으로 시도를 재배정하지 않는다.
+function freezeAddressAttemptOwnership(value: unknown): AddressUnsavedAttemptOwnership | null {
+  if (!value || typeof value !== "object" || !("isCurrent" in value) || !("report" in value) || !("resolve" in value)) return null;
+  const { isCurrent, report, resolve } = value;
+  const beginRetry = "beginRetry" in value ? value.beginRetry : undefined;
+  if (typeof isCurrent !== "function" || typeof report !== "function" || typeof resolve !== "function"
+    || (beginRetry !== undefined && typeof beginRetry !== "function")) return null;
+  const handle: AddressUnsavedAttemptOwnership = Object.freeze({
+    isCurrent: () => isCurrent.call(value) === true,
+    report: (entry: Parameters<UnsavedBridge["report"]>[0]) => report.call(value, entry) === true,
+    resolve: () => resolve.call(value) === true,
+    ...(beginRetry ? { beginRetry: () => freezeAddressAttemptOwnership(beginRetry.call(value)) } : {}),
+  });
+  return addressOwnershipCurrent(handle) ? handle : null;
+}
+function freezeAddressEditOwnership(value: unknown): AddressUnsavedEditOwnership | null {
+  if (!value || typeof value !== "object" || !("isCurrent" in value) || !("beginAttempt" in value) || !("cancelUnused" in value)) return null;
+  const { isCurrent, beginAttempt, cancelUnused } = value;
+  if (typeof isCurrent !== "function" || typeof beginAttempt !== "function" || typeof cancelUnused !== "function") return null;
+  return Object.freeze({
+    isCurrent: () => isCurrent.call(value) === true,
+    beginAttempt: () => freezeAddressAttemptOwnership(beginAttempt.call(value)),
+    cancelUnused: () => cancelUnused.call(value) === true,
+  });
+}
+function matchesPreparedAddressReceipt(receipt: unknown, target: {
+  entryId: string; key: string; fieldId: string; bizno: string; value: string; context: AddressEditContextV1;
+}): receipt is AtomicAddressSaveReceipt {
+  if (!matchesAddressReceipt(receipt, target)) return false;
+  const actual = cloneAddressObservation(receipt.observation);
+  const expected = target.context.observation;
+  const nativeKey = target.context.sourceFieldKey === "52사업장주소지"
+    ? ({ PolicyFundEntry: "27주소지", LaborSubsidyEntry: "사업장 주소지", FreeSubsidyEntry: "businessAddress" } as Partial<Record<AddressSourceTable, string>>)[expected.source.identity.table] ?? target.context.sourceFieldKey
+    : target.context.sourceFieldKey;
+  return receipt.sourceFieldKey === nativeKey && !!actual
+    && actual.generation === expected.generation && actual.source.exists && actual.canonical.exists
+    && actual.source.identity.table === expected.source.identity.table && actual.source.identity.id === expected.source.identity.id
+    && actual.canonical.identity.key === expected.canonical.identity.key
+    && (["source", "canonical"] as const).every((part) => {
+      const before = expected[part], after = actual[part];
+      if (before.token.kind === "revision" && after.token.kind !== "revision") return false;
+      return before.exists === after.exists || (after.token.kind === "revision"
+        && (before.token.kind !== "revision" || before.token.uuid !== after.token.uuid));
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1538,10 +1655,31 @@ function BasicInfoPanel({
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
   const [basicRow, setBasicRow] = useState<Record<string, unknown>>(() => ({ ...(row as Record<string, unknown>) }));
   // 현재 대상의 세대만 보관한다. 오래된 응답이 새 주소나 다른 회사에 적용되지 않게 한다.
-  const addressOwnerRef = useRef({ entryId, bizno, adapter, source: saveOwnField, generation: 0, hasValue: false, value: null as unknown, pending: false, active: true });
+  const loadAddressEdit = adapter.api.loadAddressEdit;
+  const supportsAddressEdit = adapter.api.supportsAddressEdit;
+  const addressEditSupported = !!loadAddressEdit && supportsAddressEdit?.(entryId) !== false;
+  const addressKey = baseSection.fields.find((field) => ADDRESS_FIELD_KEYS.includes(field.key))?.key ?? "";
+  const makeAddressOwner = () => ({
+    entryId, bizno, adapter, source: saveOwnField, loadAddressEdit, supportsAddressEdit, addressEditSupported, addressKey, ownDomain,
+    generation: 0, intent: 0, inputVersion: 0, hasValue: false, value: null as unknown, pending: false, active: true,
+    preparation: null as AddressEditPreparation | null,
+    preparing: null as Promise<AddressEditPreparation> | null,
+    preparationEpoch: 0,
+    multiDraft: null as {
+      preparation: AddressEditPreparation; intent: number; ownership: AddressCaptureOwnership;
+      value: string | number | boolean | null; inputVersion: number; savedInputVersion: number;
+      pending: boolean; serial: Promise<AddressEditSaveResult> | null;
+      serialVersion: number; failedAttemptId: string | null;
+    } | null,
+  });
+  const addressOwnerRef = useRef(makeAddressOwner());
   if (addressOwnerRef.current.entryId !== entryId || addressOwnerRef.current.bizno !== bizno
-    || addressOwnerRef.current.adapter !== adapter || addressOwnerRef.current.source !== saveOwnField) {
-    addressOwnerRef.current = { entryId, bizno, adapter, source: saveOwnField, generation: 0, hasValue: false, value: null, pending: false, active: true };
+    || addressOwnerRef.current.adapter !== adapter || addressOwnerRef.current.source !== saveOwnField
+    || addressOwnerRef.current.loadAddressEdit !== loadAddressEdit
+    || addressOwnerRef.current.supportsAddressEdit !== supportsAddressEdit
+    || addressOwnerRef.current.addressEditSupported !== addressEditSupported
+    || (loadAddressEdit && (addressOwnerRef.current.addressKey !== addressKey || addressOwnerRef.current.ownDomain !== ownDomain))) {
+    addressOwnerRef.current = makeAddressOwner();
   }
   const addressOwner = addressOwnerRef.current;
   // row 객체가 새로 들어오면(저장 후 갱신 등) 값 동기화 — 같은 객체면 입력 중 값 보존.
@@ -1618,6 +1756,10 @@ function BasicInfoPanel({
     async (key: string, newVal: string | number | boolean | null) => {
       if (isNew) { onDraftChange?.(key, newVal); return; } // 신규 등록: 서버 저장 대신 임시 보관
       if (!entryId) return;
+      if (ADDRESS_FIELD_KEYS.includes(key) && addressEditSupported) {
+        if (addressOwner.active && addressOwnerRef.current === addressOwner) alert("주소 편집 정보를 먼저 준비해 주세요.");
+        return;
+      }
       // await 전에 이번 대상과 값을 고정한다. 서버의 실제 키(27/52)는 같은 주소 의미로 대조한다.
       const fieldId = ADDRESS_FIELD_KEYS.includes(key) ? ADDRESS_FIELD_ID
         : commonFieldIdForKey(key) || keyToFieldId.get(key) || "";
@@ -1745,8 +1887,307 @@ function BasicInfoPanel({
       };
       await persist();
     },
-    [basicRow, detail, entryId, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter, addressOwner],
+    [basicRow, detail, entryId, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter, addressOwner, addressEditSupported],
   );
+
+  const [, setAddressPreparationVersion] = useState(0);
+  const prepareAddress = useCallback((): Promise<AddressEditPreparation> => {
+    const owner = addressOwner;
+    const live = () => owner.active && addressOwnerRef.current === owner;
+    if (!live() || !owner.addressEditSupported || !owner.loadAddressEdit || isNew || !owner.entryId || !owner.addressKey) {
+      return Promise.reject(new Error("주소 편집 대상을 확인해 주세요."));
+    }
+    if (owner.preparation) return Promise.resolve(owner.preparation);
+    if (owner.preparing) return owner.preparing;
+    const epoch = ++owner.preparationEpoch;
+    const promise = Promise.resolve().then(() => {
+      if (!live() || owner.preparationEpoch !== epoch) throw new Error("주소 편집 대상이 바뀌었습니다.");
+      return owner.loadAddressEdit!(owner.entryId, owner.addressKey, owner.bizno);
+    }).then((result) => {
+      if (!live() || owner.preparationEpoch !== epoch) throw new Error("주소 편집 대상이 바뀌었습니다.");
+      const prepared = cloneAddressPreparation(result, {
+        entryId: owner.entryId, key: owner.addressKey, bizno: owner.bizno,
+      });
+      if (!prepared) throw new Error("주소 편집 정보를 확인할 수 없습니다. 다시 열어 주세요.");
+      owner.preparation = prepared;
+      setAddressPreparationVersion((version) => version + 1);
+      return prepared;
+    }).finally(() => {
+      if (owner.preparationEpoch === epoch) owner.preparing = null;
+    });
+    owner.preparing = promise;
+    return promise;
+  }, [addressOwner, isNew]);
+  useEffect(() => {
+    if (addressEditSupported && !isNew && entryId && addressKey) void prepareAddress().catch(() => {});
+  }, [addressEditSupported, isNew, entryId, addressKey, prepareAddress]);
+
+  const saveCapturedAddress = useCallback(async (
+    preparation: AddressEditPreparation, intent: number, key: string,
+    newVal: string | number | boolean | null, inputVersion: number,
+    ownership: AddressCaptureOwnership,
+    storeExpectation?: Readonly<{ attemptId: string | undefined }>, uiOpen?: () => boolean,
+  ): Promise<AddressEditSaveResult> => {
+    const owner = addressOwner;
+    const stopped: AddressEditSaveResult = Object.freeze({ kind: "stopped" });
+    if (!owner.active || !owner.addressEditSupported || addressOwnerRef.current !== owner || owner.intent !== intent) return stopped;
+    const capturedDraft = owner.multiDraft;
+    const { bridge, id, edit } = ownership;
+    let attemptOwnership: AddressUnsavedAttemptOwnership | null = null;
+    if (edit) {
+      if (!addressOwnershipCurrent(edit)) return stopped;
+      try { attemptOwnership = edit.beginAttempt(); } catch { return stopped; }
+      if (!attemptOwnership) return stopped;
+    }
+    const priorAttemptId = edit ? undefined : storeExpectation ? storeExpectation.attemptId : id ? bridge?.getCurrentAttemptId?.(id) : undefined;
+    // 값/대상/관측/전송 함수는 이 시도 하나에 고정한다. UI 수명과는 별개다.
+    const attempt = Object.freeze({
+      attemptId: globalThis.crypto.randomUUID(), entryId: owner.entryId, key, bizno: owner.bizno,
+      fieldId: ADDRESS_FIELD_ID, value: newVal, context: preparation.editContext,
+      previousValue: preparation.value, source: owner.source, intent, inputVersion, ownership: attemptOwnership,
+    });
+    const state = { inFlight: false, finished: false, reported: false,
+      retryOwnership: attempt.ownership, execution: null as object | null };
+    const transmissionCurrent = (handle: AddressUnsavedAttemptOwnership | null) => {
+      if (addressOwnerRef.current !== owner || state.finished) return false;
+      // Provider가 허용한 새 실행은 미사용 B의 UI intent와 별개다.
+      if (handle) return addressOwnershipCurrent(handle);
+      if (owner.intent !== attempt.intent) return false;
+      if (!id || !bridge?.getCurrentAttemptId) return true;
+      try {
+        const stored = bridge.getCurrentAttemptId(id);
+        return state.reported ? stored === attempt.attemptId
+          : stored === undefined || stored === attempt.attemptId || stored === priorAttemptId;
+      } catch { return false; }
+    };
+    const uiCurrent = () => owner.active && addressOwnerRef.current === owner && owner.intent === attempt.intent
+      && owner.inputVersion === attempt.inputVersion && (!uiOpen || uiOpen());
+    const persist = async (retry = false): Promise<AddressEditSaveResult> => {
+      if (state.finished || state.inFlight || addressOwnerRef.current !== owner) return stopped;
+      let handle = state.retryOwnership;
+      if (retry && handle?.beginRetry) {
+        try { handle = handle.beginRetry(); } catch { return stopped; }
+        if (!handle) return stopped;
+      }
+      if (!transmissionCurrent(handle)) return stopped;
+      // 최신 핸들은 다음 명시 호출에만 쓴다. 이미 시작한 실행은 자기 핸들을 끝까지 보유한다.
+      const executionOwnership = handle;
+      const executionId = Object.freeze({});
+      let ended = false;
+      state.retryOwnership = executionOwnership;
+      state.execution = executionId;
+      const current = () => !ended && state.execution === executionId && transmissionCurrent(executionOwnership);
+      const execution: AddressSaveExecution = Object.freeze({ shouldContinue: current });
+      const revert = () => {
+        if (state.execution !== executionId || !transmissionCurrent(executionOwnership)) return;
+        if (executionOwnership && !executionOwnership.resolve()) return;
+        state.finished = true;
+        if (!uiCurrent()) return;
+        const revertedIntent = ++owner.intent;
+        ++owner.generation; owner.pending = false; owner.value = attempt.previousValue;
+        owner.multiDraft = null;
+        setBasicRow((previous) => owner.active && addressOwnerRef.current === owner
+          && owner.intent === revertedIntent && owner.inputVersion === attempt.inputVersion
+          ? { ...previous, [key]: attempt.previousValue } : previous);
+      };
+      state.inFlight = true;
+      try {
+        if (!current()) return stopped;
+        const result = await attempt.source(attempt.entryId, attempt.key, attempt.value, attempt.context, execution);
+        if (!current()) return stopped;
+        const receipt = result != null && typeof result === "object" && !Array.isArray(result)
+          && Object.prototype.hasOwnProperty.call(result, "atomicAddress")
+          ? (result as { atomicAddress?: unknown }).atomicAddress : undefined;
+        if (!matchesPreparedAddressReceipt(receipt, {
+          entryId: attempt.entryId, key: attempt.key, fieldId: attempt.fieldId, bizno: attempt.bizno,
+          value: String(attempt.value ?? ""), context: attempt.context,
+        })) {
+          throw Object.assign(new Error("주소 저장 확인이 필요합니다. 입력값을 보관했습니다."), { saveFailureKind: "confirmation-needed" });
+        }
+        const nextPreparation = cloneAddressPreparation({
+          value: receipt.value, editContext: { ...attempt.context, observation: receipt.observation },
+        }, { entryId: attempt.entryId, key: attempt.key, bizno: attempt.bizno });
+        if (!nextPreparation) throw Object.assign(new Error("주소 저장 확인이 필요합니다. 입력값을 보관했습니다."), {
+          saveFailureKind: "confirmation-needed",
+        });
+        // 첫 성공은 앞 실패를, 재시도 성공은 자기 실패만 조건부로 정리한다.
+        if (executionOwnership) {
+          if (!executionOwnership.resolve()) return stopped;
+        } else if (id) bridge?.resolve(id, state.reported ? attempt.attemptId : priorAttemptId ?? attempt.attemptId);
+        state.finished = true;
+        const draft = owner.multiDraft;
+        if (draft && draft === capturedDraft && draft.intent === attempt.intent && draft.ownership === ownership) {
+          // boolean retry 밖에서도 자기 receipt의 관측을 보존한다. A 성공은 최신 B 저장이 아니다.
+          draft.preparation = nextPreparation;
+          draft.savedInputVersion = Math.max(draft.savedInputVersion, attempt.inputVersion);
+          draft.failedAttemptId = null;
+          if (retry || (uiOpen && !uiOpen())) {
+            ++draft.serialVersion;
+            draft.serial = null;
+            draft.pending = false;
+          }
+        }
+        if (uiCurrent()) {
+          ++owner.generation; owner.pending = false; owner.hasValue = true; owner.value = receipt.value;
+          setBasicRecord((previous) => uiCurrent() ? mergeAddressRecord(previous, receipt.record) : previous);
+          setBasicRow((previous) => uiCurrent() ? { ...previous, [key]: receipt.value } : previous);
+          if (uiCurrent()) onSaved?.();
+        }
+        return Object.freeze({ kind: "saved", preparation: nextPreparation });
+      } catch (error) {
+        if (!current()) return stopped;
+        const message = error instanceof Error ? error.message : "";
+        if (bridge && id) {
+          // 403/409와 확인 불가 응답도 고정 입력을 지우지 않는다. 옛 A는 후속 B를 재등록하지 못한다.
+          const entry: Parameters<UnsavedBridge["report"]>[0] = {
+            id, attemptId: attempt.attemptId, restorable: false,
+            scope: bridge.scope, rowId: attempt.entryId, fieldKey: attempt.key,
+            rowLabel: String(row["02상호명"] ?? "") || "이 항목", fieldLabel: key, value: attempt.value,
+            error: message || "주소 저장에 실패했습니다.", kind: saveFailureKindOf(error),
+            retry: async () => (await persist(true)).kind === "saved", revert,
+          };
+          if (executionOwnership) {
+            if (!executionOwnership.report(entry)) { state.finished = true; return stopped; }
+          } else bridge.report(entry);
+          state.reported = true;
+        } else if (uiCurrent()) alert(message || "주소 저장에 실패했습니다. 입력값을 확인해 주세요.");
+        const draft = owner.multiDraft;
+        if (draft && draft === capturedDraft && draft.intent === attempt.intent && draft.ownership === ownership) draft.failedAttemptId = attempt.attemptId;
+        return stopped;
+      } finally {
+        ended = true;
+        state.inFlight = false;
+      }
+    };
+    return persist();
+  }, [addressOwner, onSaved, row]);
+
+  const captureAddressEdit = useCallback((key: string, isOpen: () => boolean = () => true): FieldEditCapture | null | Promise<FieldEditCapture | null> => {
+    const owner = addressOwner;
+    if (!owner.active || !owner.addressEditSupported || addressOwnerRef.current !== owner || !owner.loadAddressEdit || key !== owner.addressKey) return null;
+    // 같은 소유자의 미전송 입력/진행 중 시도는 입력창 수명과 별개로 보존한다.
+    const retained = owner.multiDraft && owner.multiDraft.intent === owner.intent
+      && (owner.multiDraft.pending || owner.multiDraft.inputVersion !== owner.multiDraft.savedInputVersion)
+      ? owner.multiDraft : null;
+    let ownership = retained?.ownership;
+    if (!ownership) {
+      const bridge = owner.adapter.unsaved;
+      const id = bridge?.makeId(bridge.scope, owner.entryId, key);
+      let edit: AddressUnsavedEditOwnership | null = null;
+      if (bridge && bridge.beginAddressEdit !== undefined) {
+        if (typeof bridge.beginAddressEdit !== "function" || !id) return null;
+        try { edit = freezeAddressEditOwnership(bridge.beginAddressEdit(id)); } catch { return null; }
+        if (!edit) return null;
+      }
+      ownership = Object.freeze({ bridge, id, edit });
+    }
+    const fixedOwnership = ownership;
+    if (fixedOwnership.edit && !addressOwnershipCurrent(fixedOwnership.edit)) {
+      if (!retained) fixedOwnership.edit.cancelUnused();
+      return null;
+    }
+    const intent = retained ? retained.intent : ++owner.intent;
+    if (!retained) owner.multiDraft = null;
+    const fixedSave = saveCapturedAddress;
+    let used = false;
+    let released = false;
+    let unusedCancelled = false;
+    const cancelUnused = () => {
+      if (used || retained || unusedCancelled) return;
+      unusedCancelled = true;
+      fixedOwnership.edit?.cancelUnused();
+    };
+    const isCurrent = () => !released && isOpen() && owner.active && addressOwnerRef.current === owner && owner.intent === intent
+      && (!fixedOwnership.edit || addressOwnershipCurrent(fixedOwnership.edit));
+    const capture = (prepared: AddressEditPreparation): FieldEditCapture | null => {
+      if (!isCurrent()) {
+        cancelUnused();
+        if (addressOwnerRef.current === owner && owner.intent === intent) {
+          ++owner.preparationEpoch; owner.preparation = null; owner.preparing = null;
+        }
+        return null;
+      }
+      ++owner.generation; owner.pending = true; owner.hasValue = true; owner.value = retained ? retained.value : prepared.value;
+      setAddressPreparationVersion((version) => version + 1);
+      const draft = retained ?? {
+        preparation: prepared, intent, ownership: fixedOwnership, value: prepared.value as string | number | boolean | null,
+        inputVersion: owner.inputVersion, savedInputVersion: owner.inputVersion,
+        pending: false, serial: null as Promise<AddressEditSaveResult> | null,
+        serialVersion: 0, failedAttemptId: null as string | null,
+      };
+      const stopped: AddressEditSaveResult = Object.freeze({ kind: "stopped" });
+      const publishInput = (value: string | number | boolean | null) => {
+        const inputVersion = ++owner.inputVersion;
+        ++owner.generation; owner.hasValue = true; owner.value = value ?? ""; owner.pending = true;
+        setBasicRow((previous) => isCurrent() && owner.inputVersion === inputVersion ? { ...previous, [key]: value } : previous);
+        return inputVersion;
+      };
+      return Object.freeze({
+        initialValue: retained ? retained.value : prepared.value, isCurrent,
+        onUpdate: (requestedKey: string, value: string | number | boolean | null) => {
+          if (!isCurrent() || used || requestedKey !== key) return;
+          used = true;
+          const inputVersion = publishInput(value);
+          return fixedSave(prepared, intent, key, value, inputVersion, fixedOwnership).then(() => {});
+        },
+        onToggle: (requestedKey: string, value: string | number | boolean | null) => {
+          if (!isCurrent() || requestedKey !== key) return;
+          used = true;
+          // 입력은 지금 고정하고 관측은 직전의 검증된 자기 성공에서 한 번만 할당한다.
+          const entered = Object.freeze({ value, inputVersion: publishInput(value) });
+          draft.value = entered.value; draft.inputVersion = entered.inputVersion;
+          owner.multiDraft = draft;
+          const { bridge, id, edit } = fixedOwnership;
+          // 같은 편집의 A 알림만 지운 경우에는 원래 준비값으로 다음 명시 CAS를 허용한다.
+          // foreign 항목/편집은 isCurrent에서 거절하며 GET으로 관측을 바꾸지 않는다.
+          const dismissed = draft.failedAttemptId !== null && edit && id && bridge?.getCurrentAttemptId
+            && addressOwnershipCurrent(edit) && bridge.getCurrentAttemptId(id) === undefined;
+          if (dismissed || (!draft.pending && draft.failedAttemptId === null)) {
+            ++draft.serialVersion;
+            draft.serial = null;
+            draft.failedAttemptId = null;
+          }
+          draft.pending = true;
+          const serialVersion = draft.serialVersion;
+          const firstStoreAttempt = !edit && id ? bridge?.getCurrentAttemptId?.(id) : undefined;
+          const send = (baseline: AddressEditPreparation, storeAttemptId: string | undefined): Promise<AddressEditSaveResult> => isCurrent() && draft.serialVersion === serialVersion
+            ? fixedSave(baseline, intent, key, entered.value, entered.inputVersion, fixedOwnership, Object.freeze({ attemptId: storeAttemptId }), isCurrent)
+            : Promise.resolve(stopped);
+          const serial = draft.serial ? draft.serial.then((result) => result.kind === "saved"
+            ? send(result.preparation, undefined) : stopped) : send(draft.preparation, firstStoreAttempt);
+          draft.serial = serial;
+          return serial.then((result) => {
+            if (draft.serialVersion !== serialVersion) return;
+            if (result.kind === "saved") {
+              draft.preparation = result.preparation;
+              draft.savedInputVersion = Math.max(draft.savedInputVersion, entered.inputVersion);
+            }
+            if (draft.serial === serial) draft.pending = false;
+          });
+        },
+        release: () => {
+          if (released) return;
+          cancelUnused();
+          released = true;
+          if (addressOwnerRef.current !== owner || owner.intent !== intent) return;
+          ++owner.preparationEpoch; owner.preparation = null; owner.preparing = null;
+          // 저장을 시작한 입력기는 닫혀도 attempt를 취소하지 않는다.
+          if (!used && !retained) {
+            ++owner.intent; ++owner.generation; owner.pending = false;
+            if (owner.active) setAddressPreparationVersion((version) => version + 1);
+          }
+        },
+      });
+    };
+    if (retained) return capture(retained.preparation);
+    if (owner.preparation) return capture(owner.preparation);
+    return prepareAddress().then(capture).catch((error) => {
+      const canAlert = isCurrent();
+      cancelUnused();
+      if (canAlert) alert(error instanceof Error ? error.message : "주소 편집 정보를 준비하지 못했습니다.");
+      return null;
+    });
+  }, [addressOwner, prepareAddress, saveCapturedAddress]);
 
   return (
     <div className="p-4 space-y-4">
@@ -1969,8 +2410,12 @@ function BasicInfoPanel({
                     col={col}
                     value={isNew ? (draft?.[f.key] ?? null) : ADDRESS_FIELD_KEYS.includes(f.key) && addressOwner.hasValue
                       ? addressOwner.value ?? null
+                      : ADDRESS_FIELD_KEYS.includes(f.key) && addressOwner.preparation
+                        ? addressOwner.preparation.value
                       : (resolveBasicFieldValue(basicRow, detail, f.key, BASIC_FIELD_SPECS.find((s) => s.label === f.label)?.keys) ?? null)}
                     onUpdate={handleBasicUpdate}
+                    captureEdit={!isNew && !!entryId && addressEditSupported && ADDRESS_FIELD_KEYS.includes(f.key)
+                      ? (isOpen) => captureAddressEdit(f.key, isOpen) : undefined}
                     isAdmin={isAdmin}
                     colorCommon
                     commonOverride={commonOverride}

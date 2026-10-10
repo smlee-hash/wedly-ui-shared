@@ -208,6 +208,7 @@ function MultiSelectEditor({
   onSave,
   onClose,
   canDelete = false,
+  retainDraft = false,
 }: {
   value: string;
   options: string[];
@@ -216,9 +217,14 @@ function MultiSelectEditor({
   onClose: () => void;
   /** 옵션 삭제 버튼 노출 여부 — 단일선택 SelectEditor 의 canDelete(isAdmin)와 동일 게이팅 */
   canDelete?: boolean;
+  /** 관측을 고정한 주소는 응답/부모 렌더 전에 들어온 후속 토글도 즉시 보인다. */
+  retainDraft?: boolean;
 }) {
   const fo = useFieldOptions();
-  const selected = new Set(value ? value.split(", ") : []);
+  const [localDraft, setLocalDraft] = useState(value);
+  const draftRef = useRef(value);
+  const shownValue = retainDraft ? localDraft : value;
+  const selected = new Set(shownValue ? shownValue.split(", ") : []);
   const ref = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; width: number } | null>(null);
@@ -258,10 +264,12 @@ function MultiSelectEditor({
     if (adding) addInputRef.current?.focus();
   }, [adding]);
   const toggle = (opt: string) => {
-    const next = new Set(selected);
+    const next = retainDraft ? new Set(draftRef.current ? draftRef.current.split(", ") : []) : new Set(selected);
     if (next.has(opt)) next.delete(opt);
     else next.add(opt);
-    onSave(Array.from(next).join(", "));
+    const nextValue = Array.from(next).join(", ");
+    if (retainDraft) { draftRef.current = nextValue; setLocalDraft(nextValue); }
+    onSave(nextValue);
   };
   const handleAdd = () => {
     const name = newOpt.trim();
@@ -285,10 +293,11 @@ function MultiSelectEditor({
     fo.removeCustomOption(fieldKey, opt);
     setLiveOptions((prev) => prev.filter((o) => o !== opt));
     // 삭제한 옵션이 현재 행 값에 선택돼 있으면 값에서도 해제 — 옵션 행이 사라진 뒤 해제할 UI 경로가 없어지는 것 방지
-    if (selected.has(opt)) {
-      const next = new Set(selected);
-      next.delete(opt);
-      onSave(Array.from(next).join(", "));
+    const next = retainDraft ? new Set(draftRef.current ? draftRef.current.split(", ") : []) : new Set(selected);
+    if (next.delete(opt)) {
+      const nextValue = Array.from(next).join(", ");
+      if (retainDraft) { draftRef.current = nextValue; setLocalDraft(nextValue); }
+      onSave(nextValue);
     }
     setColorPickerOpt(null);
     forceRerender((n) => n + 1);
@@ -706,10 +715,22 @@ export function BasicScopeBadge({ label, override }: { label: string; override?:
   );
 }
 
+/** 편집 시작 때 함께 고정할 표시값과 저장 함수. release는 입력 UI의 수명만 끝낸다. */
+export type FieldEditCapture = Readonly<{
+  initialValue: unknown;
+  onUpdate: (key: string, newVal: string | number | boolean | null) => void;
+  /** 다중 선택은 토글별 입력을 즉시 보관하고 자기 성공 응답 뒤 직렬로 보낸다. */
+  onToggle?: (key: string, newVal: string | number | boolean | null) => void | Promise<void>;
+  isCurrent?: () => boolean;
+  release?: () => void;
+}>;
+export type CaptureFieldEdit = (isOpen?: () => boolean) => FieldEditCapture | null | Promise<FieldEditCapture | null>;
+
 export function EditableFieldRow({
   col,
   value,
   onUpdate,
+  captureEdit,
   isAdmin = false,
   colorCommon = false,
   commonOverride,
@@ -719,6 +740,8 @@ export function EditableFieldRow({
   col: ColumnDef;
   value: unknown;
   onUpdate: (key: string, newVal: string | number | boolean | null) => void;
+  /** 제공한 칸은 준비가 끝난 뒤 고정된 값/콜백으로 입력을 연다. 미제공 칸은 기존 동작. */
+  captureEdit?: CaptureFieldEdit;
   isAdmin?: boolean;
   /** 기본정보 섹션에서만 true — 공통 칸 제목을 파랑(앱별=회색). */
   colorCommon?: boolean;
@@ -732,7 +755,81 @@ export function EditableFieldRow({
   const fo = useFieldOptions();
   const [editing, setEditing] = useState(false);
   // 저장 직전 확인 모달 대기 상태 — 값이 실제로 바뀌면 styled 확인창(ConfirmEditDialog)을 띄운다.
-  const [pendingSave, setPendingSave] = useState<{ newVal: string | number | boolean | null } | null>(null);
+  const [pendingSave, setPendingSave] = useState<{
+    newVal: string | number | boolean | null;
+    capture?: FieldEditCapture;
+    key?: string;
+  } | null>(null);
+  const pendingSaveRef = useRef<typeof pendingSave>(null);
+  const captureRef = useRef<FieldEditCapture | null>(null);
+  const [captureDraft, setCaptureDraft] = useState<string | undefined>(undefined);
+  const captureEpoch = useRef(0);
+  const preparingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const releaseCapture = useCallback((capture = captureRef.current) => {
+    ++captureEpoch.current;
+    preparingRef.current = false;
+    if (captureRef.current === capture) captureRef.current = null;
+    capture?.release?.();
+  }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; releaseCapture(); };
+  }, [releaseCapture]);
+  useEffect(() => {
+    const capture = captureRef.current;
+    if (capture && capture.isCurrent && !capture.isCurrent()) {
+      releaseCapture(capture);
+      setEditing(false);
+      pendingSaveRef.current = null;
+      setPendingSave(null);
+    }
+  }, [col.key, captureEdit, releaseCapture]);
+  const startEdit = useCallback(() => {
+    if (!captureEdit) { setEditing(true); return; }
+    if (preparingRef.current || captureRef.current) return;
+    const epoch = ++captureEpoch.current;
+    preparingRef.current = true;
+    const accept = (capture: FieldEditCapture | null) => {
+      if (!mountedRef.current || captureEpoch.current !== epoch || (capture?.isCurrent && !capture.isCurrent())) {
+        capture?.release?.();
+        return;
+      }
+      preparingRef.current = false;
+      if (!capture) return; // 준비 실패를 기존 저장 통로로 우회하지 않는다.
+      captureRef.current = capture;
+      setCaptureDraft(undefined);
+      setEditing(true);
+    };
+    try {
+      const result = captureEdit(() => mountedRef.current && captureEpoch.current === epoch);
+      if (result && typeof (result as Promise<FieldEditCapture | null>).then === "function") {
+        void Promise.resolve(result).then(accept).catch(() => {
+          if (captureEpoch.current === epoch) preparingRef.current = false;
+        });
+      } else accept(result as FieldEditCapture | null);
+    } catch {
+      if (captureEpoch.current === epoch) preparingRef.current = false;
+    }
+  }, [captureEdit]);
+  const editingCapture = captureRef.current;
+  const closeEdit = () => {
+    if (captureEdit && captureRef.current !== editingCapture) return;
+    // 선택 본문은 저장 뒤 같은 stack에서 닫는다. 확인창이 소유한 capture는 유지한다.
+    if (!pendingSaveRef.current?.capture) releaseCapture();
+    setEditing(false);
+  };
+  const inputValue = captureRef.current
+    ? col.type === "multi_select" && captureDraft !== undefined ? captureDraft : captureRef.current.initialValue
+    : value;
+  const handleMultiSave = (next: string) => {
+    if (!captureEdit) { onUpdate(col.key, next || null); return; }
+    const capture = editingCapture;
+    if (captureRef.current !== capture) return;
+    if (!capture || (capture.isCurrent && !capture.isCurrent())) { closeEdit(); return; }
+    setCaptureDraft(next);
+    (capture.onToggle ?? capture.onUpdate)(col.key, next || null);
+  };
   // 편집 가능한 형식만 입력칸을 띄운다. person·읽기전용 타입은 표시만(빈 입력칸 방지).
   // multi_select·file은 편집 가능 — isReadonly에서 제외.
   const isReadonly = fo.READONLY_TYPES.has(col.type) || fo.isReadonlyPerson(col);
@@ -740,17 +837,27 @@ export function EditableFieldRow({
 
   const handleSave = useCallback(
     (newVal: string | number | boolean | null) => {
-      setEditing(false);
-      // 의도치 않은 수정 방지 — 단일 값 저장 직전 확인 모달. 값이 있던 칸을 고칠 때만 띄운다.
-      // 빈 칸 최초 입력(NO.44)·multi_select 토글은 묻지 않고 바로 저장.
-      // 통합 상세창의 기본정보·일반 칸이 모두 이 관문(EditableFieldRow)을 거친다.
-      if (shouldConfirmFieldEdit({ oldVal: value, newVal, type: col.type, isNew: false })) {
-        setPendingSave({ newVal });
+      const capture = editingCapture;
+      if (captureEdit && captureRef.current !== capture) return;
+      if (captureEdit && (!capture || (capture.isCurrent && !capture.isCurrent()))) {
+        releaseCapture();
+        setEditing(false);
         return;
       }
-      onUpdate(col.key, newVal);
+      if (capture && pendingSaveRef.current) return;
+      setEditing(false);
+      const oldVal = capture ? capture.initialValue : value;
+      // 확인창까지 최초 표시값과 저장 콜백을 함께 보존한다.
+      if (shouldConfirmFieldEdit({ oldVal, newVal, type: col.type, isNew: false })) {
+        const pending = { newVal, ...(capture ? { capture, key: col.key } : {}) };
+        pendingSaveRef.current = pending;
+        setPendingSave(pending);
+        return;
+      }
+      (capture?.onUpdate ?? onUpdate)(col.key, newVal);
+      if (capture) releaseCapture(capture);
     },
-    [col.key, col.type, value, onUpdate],
+    [col.key, col.type, value, onUpdate, captureEdit, editingCapture, releaseCapture],
   );
 
   // 표시용 값 — 하이브 EditableFieldRow 와 100% 동일한 형태(빈값 문구·선택 배지·남색 글자·글씨크기).
@@ -872,43 +979,44 @@ export function EditableFieldRow({
               col.type === "title" ||
               col.type === "email" ||
               col.type === "phone_number") && (
-              <TextEditor value={String(value ?? "")} onSave={handleSave} />
+              <TextEditor value={String(inputValue ?? "")} onSave={handleSave} onCancel={captureEdit ? closeEdit : undefined} />
             )}
             {(col.type === "number" || col.type === "percent") && (
               <NumberEditor
-                value={value != null && value !== "" ? Number(value) : null}
+                value={inputValue != null && inputValue !== "" ? Number(inputValue) : null}
                 onSave={handleSave}
               />
             )}
             {col.type === "date" && (
-              <DateEditor value={String(value ?? "")} onSave={handleSave} />
+              <DateEditor value={String(inputValue ?? "")} onSave={handleSave} />
             )}
             {(col.type === "select" || col.type === "status") && (
               <SelectEditor
-                value={String(value ?? "")}
+                value={String(inputValue ?? "")}
                 options={mergeColOptions(col.options, optionsWithMirror((k) => fo.getFieldOptions(k), col.key))}
                 fieldKey={col.key}
                 onSave={(v) => handleSave(v || null)}
-                onClose={() => setEditing(false)}
+                onClose={closeEdit}
                 canDelete={isAdmin}
               />
             )}
             {col.type === "multi_select" && (
               <MultiSelectEditor
-                value={String(value ?? "")}
+                value={String(inputValue ?? "")}
                 options={mergeColOptions(col.options, optionsWithMirror((k) => fo.getFieldOptions(k), col.key))}
                 fieldKey={col.key}
                 /* 토글마다 저장하되 창은 닫지 않음(여러 개 선택 가능). 바깥 클릭(onClose) 때만 닫는다. */
-                onSave={(v) => onUpdate(col.key, v || null)}
-                onClose={() => setEditing(false)}
+                onSave={handleMultiSave}
+                retainDraft={!!captureEdit}
+                onClose={closeEdit}
                 canDelete={isAdmin}
               />
             )}
             {col.type === "person" && (
               <PersonEditor
-                value={String(value ?? "")}
+                value={String(inputValue ?? "")}
                 onSave={(v) => handleSave(v)}
-                onClose={() => setEditing(false)}
+                onClose={closeEdit}
                 loadManagers={loadManagers ?? (() => Promise.resolve([]))}
               />
             )}
@@ -939,7 +1047,7 @@ export function EditableFieldRow({
         ) : (
           // 값 영역 전체를 누르면 바로 편집 — 하이브와 동일. 옆에 따라붙던 '편집' 버튼은 제거.
           <div
-            onClick={effectiveReadonly ? undefined : () => setEditing(true)}
+            onClick={effectiveReadonly ? undefined : startEdit}
             className={`rounded-md px-2 sm:px-1 py-1.5 sm:py-0.5 -mx-1 min-h-[40px] sm:min-h-[26px] flex items-center justify-between gap-2 ${
               !effectiveReadonly ? "cursor-pointer hover:bg-wedly-bg-gray transition-colors active:bg-wedly-bg-blue/30" : ""
             }`}
@@ -951,13 +1059,23 @@ export function EditableFieldRow({
       {pendingSave && (
         <ConfirmEditDialog
           label={col.label || col.key}
-          oldVal={value}
+          oldVal={pendingSave.capture ? pendingSave.capture.initialValue : value}
           newVal={pendingSave.newVal}
           onConfirm={() => {
-            onUpdate(col.key, pendingSave.newVal);
+            const capture = pendingSave.capture;
+            if (capture && pendingSaveRef.current !== pendingSave) return;
+            pendingSaveRef.current = null;
+            if (!capture || !capture.isCurrent || capture.isCurrent()) {
+              (capture?.onUpdate ?? onUpdate)(pendingSave.key ?? col.key, pendingSave.newVal);
+            }
+            if (capture) releaseCapture(capture);
             setPendingSave(null);
           }}
-          onCancel={() => setPendingSave(null)}
+          onCancel={() => {
+            if (pendingSave.capture && pendingSaveRef.current !== pendingSave) return;
+            pendingSaveRef.current = null;
+            releaseCapture(); setPendingSave(null);
+          }}
         />
       )}
     </div>

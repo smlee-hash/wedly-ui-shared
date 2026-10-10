@@ -63,6 +63,44 @@ export type BasicRecord = {
   }>;
 };
 
+// 서버 wire DTO만 공유한다. 서버 저장 모듈은 클라이언트에서 불러오지 않는다.
+export type AddressSourceTable = "PolicyFundEntry" | "TaxAmendmentEntry" | "LaborSubsidyEntry"
+  | "FreeSubsidyEntry" | "CertEntry" | "PatentEntry";
+export type AddressRevisionToken = Readonly<{ kind: "baseline" } | { kind: "revision"; uuid: string }>;
+export type AddressEditObservationV1 = Readonly<{
+  version: 1;
+  generation: string;
+  source: Readonly<{
+    identity: Readonly<{ kind: "source"; table: AddressSourceTable; id: string }>;
+    exists: boolean;
+    token: AddressRevisionToken;
+  }>;
+  canonical: Readonly<{
+    identity: Readonly<{ kind: "canonical"; key: string }>;
+    exists: boolean;
+    token: AddressRevisionToken;
+  }>;
+}>;
+export type AddressEditContextV1 = Readonly<{
+  version: 1;
+  entryId: string;
+  sourceFieldKey: string;
+  bizno: string;
+  observation: AddressEditObservationV1;
+}>;
+export type AddressEditPreparation = Readonly<{
+  value: string | null;
+  editContext: AddressEditContextV1;
+}>;
+
+/** 검증한 자기 저장 응답만 다음 별도 시도의 준비값으로 전달한다. */
+export type AddressEditSaveResult = Readonly<
+  { kind: "saved"; preparation: AddressEditPreparation } | { kind: "stopped" }
+>;
+
+/** 전송 실행 하나에 고정한 클라이언트 검사. 서버 관측이나 저장 본문에는 넣지 않는다. */
+export type AddressSaveExecution = Readonly<{ shouldContinue: () => boolean }>;
+
 /** 이번 주소 저장 응답 하나가 행과 회사 보관함을 함께 저장했다는 확인. */
 export type AtomicAddressSaveReceipt = {
   kind: "atomic-address";
@@ -73,6 +111,8 @@ export type AtomicAddressSaveReceipt = {
   fieldId: "사업장주소지";
   value: string;
   record: BasicRecord;
+  /** 관측을 전달한 저장은 같은 generation의 source/canonical 확인을 각각 반환한다. */
+  observation?: AddressEditObservationV1;
 };
 
 export interface UnifiedDetailApi {
@@ -85,7 +125,13 @@ export interface UnifiedDetailApi {
   getCachedDomainRows(key: string): CustomerDetailLite | null;
 
   /** 자기 분야 칸 1개 저장 — ERP: PATCH /api/tax-amendment/{id} */
-  saveOwnField(entryId: string, key: string, value: string | number | boolean | null): Promise<void | { atomicAddress: AtomicAddressSaveReceipt }>;
+  saveOwnField(entryId: string, key: string, value: string | number | boolean | null, editContext?: AddressEditContextV1, execution?: AddressSaveExecution): Promise<void | { atomicAddress: AtomicAddressSaveReceipt }>;
+
+  /** 어댑터 자체 행만 false로 기존 저장을 선택한다. 생략하면 기존 loader의 주소 편집 기능을 유지한다. */
+  supportsAddressEdit?(entryId: string): boolean;
+
+  /** 기존 주소의 표시값과 source/canonical 관측을 같은 snapshot에서 준비한다. */
+  loadAddressEdit?(entryId: string, key: string, expectedBizno: string): Promise<AddressEditPreparation>;
 
   /** 신규 행 등록 — ERP: POST /api/tax-amendment */
   createEntry(payload: Record<string, unknown>): Promise<{ id: string }>;
@@ -176,6 +222,19 @@ export interface UnifiedDetailApi {
  *
  * 안 넘기는 앱은 예전 그대로 동작한다(되돌리기 + 경고창).
  */
+/** 앱 보관함의 구체 항목·편집 세대에 묶인 주소 소유권. Provider 구현은 앱이 맡는다. */
+export type AddressUnsavedAttemptOwnership = Readonly<{
+  isCurrent: () => boolean;
+  beginRetry?: () => AddressUnsavedAttemptOwnership | null;
+  report: (entry: Parameters<UnsavedBridge["report"]>[0]) => boolean;
+  resolve: () => boolean;
+}>;
+export type AddressUnsavedEditOwnership = Readonly<{
+  isCurrent: () => boolean;
+  beginAttempt: () => AddressUnsavedAttemptOwnership | null;
+  cancelUnused: () => boolean;
+}>;
+
 export type UnsavedBridge = {
   /** 이 화면의 이름 — 앱의 표와 같은 글자여야 같은 칸의 실패가 한 항목으로 묶인다. */
   scope: string;
@@ -190,10 +249,18 @@ export type UnsavedBridge = {
     value: string | number | boolean | null;
     error: string;
     kind: string;
+    /** 주소 시도는 직렬화한 고정 관측이 없으므로 새 세션 복원 대상에서 제외한다. */
+    attemptId?: string;
+    restorable?: boolean;
     retry: () => Promise<boolean>;
     revert?: () => void;
   }) => void;
-  resolve: (id: string) => void;
+  /** expectedAttemptId가 있으면 그 시도가 현재 항목일 때만 지운다. */
+  resolve: (id: string, expectedAttemptId?: string) => void;
+  /** 이미 다른 시도로 교체/취소된 주소 retry를 거절하는 앱 보관함 조회. */
+  getCurrentAttemptId?: (id: string) => string | undefined;
+  /** 실제 주소 편집 시작에만 호출한다. 제공한 앱의 거절을 기존 저장으로 우회하지 않는다. */
+  beginAddressEdit?: (id: string) => AddressUnsavedEditOwnership;
 };
 
 /** 저장이 실패한 이유의 종류 — 앱 어댑터가 던지는 오류에 실어 보낸다. */

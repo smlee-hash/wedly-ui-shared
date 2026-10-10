@@ -24,16 +24,28 @@ const BASE_CLASS =
   "w-full rounded-lg border border-wedly-bd bg-white px-2 py-1 text-sm text-wedly-navy outline-none focus:border-wedly-accent focus:ring-1 focus:ring-wedly-accent/30";
 
 // ── 글자 입력 ──
-export function TextEditor({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+export function TextEditor({ value, onSave, onCancel }: {
+  value: string;
+  onSave: (v: string) => void;
+  onCancel?: () => void;
+}) {
   const [draft, setDraft] = useState(value);
   const ref = useRef<HTMLInputElement>(null);
+  const original = useRef({ value, onSave, onCancel });
+  const settled = useRef(false);
 
   useEffect(() => {
     ref.current?.focus();
     ref.current?.select();
   }, []);
 
-  const commit = () => onSave(draft);
+  const commit = () => {
+    if (original.current.onCancel) {
+      if (settled.current) return;
+      settled.current = true;
+      original.current.onSave(draft);
+    } else onSave(draft);
+  };
 
   return (
     <input
@@ -49,7 +61,13 @@ export function TextEditor({ value, onSave }: { value: string; onSave: (v: strin
           commit();
         }
         if (e.key === "Escape") {
-          onSave(value);
+          if (original.current.onCancel) {
+            e.preventDefault();
+            if (settled.current) return;
+            settled.current = true;
+            setDraft(original.current.value);
+            original.current.onCancel();
+          } else onSave(value);
         }
       }}
     />
