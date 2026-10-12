@@ -3340,7 +3340,11 @@ export default function UnifiedDetailView({
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  // StrictMode 는 마운트 효과를 정리→재실행한다 — 재실행 때 다시 true 로 돌려야 이후 비동기 응답이 버려지지 않는다.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const company = nameValue.trim() || "통합 보기";
   const saveName = useCallback(async (v: string) => {
     const orig = String(row["02상호명"] ?? "");
