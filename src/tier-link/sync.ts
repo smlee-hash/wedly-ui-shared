@@ -7,7 +7,7 @@ import {
   type ColumnTierLink,
   type LinkArea,
 } from "./config";
-import { evalFormulaForTier, evalDateFormulaForTier, type FieldDef, type TierData } from "../tiered";
+import { evalFormulaForTier, evalFormulaForTierDetailed, evalDateFormulaForTier, type FieldDef, type TierData } from "../tiered";
 
 type Tier = Record<string, unknown>;
 
@@ -53,14 +53,19 @@ export function computeLinkedValue(tiers: Tier[], link: ColumnTierLink, ctx?: Co
   const isDateFml = isDateFormulaField(field);
   // formula 차수 칸은 값이 저장돼 있지 않다 → 차수 카드와 동일한 계산기로 그때그때 계산(PARITY, 조건값 포함).
   // 합계용 숫자값 — 날짜 수식은 더할 수 없어 제외(null).
-  const numAt = (t: Tier): number | null =>
-    isFormula
-      ? (isDateFml ? null : evalFormulaForTier(field as FieldDef, t as unknown as TierData, fields, undefined, cond))
-      : toNum(t[link.tierFieldKey]);
   if (link.mode === "sum") {
+    if (isDateFml) return null;
     let any = false, total = 0;
     for (const t of tiers) {
-      const n = numAt(t);
+      let n: number | null;
+      if (isFormula) {
+        const result = evalFormulaForTierDetailed(field as FieldDef, t as unknown as TierData, fields, undefined, cond);
+        // 하나라도 막히면 부분 합계를 표 값이나 동기화 값으로 내보내지 않는다.
+        if (result.blocked) return null;
+        n = result.value;
+      } else {
+        n = toNum(t[link.tierFieldKey]);
+      }
       if (n !== null) { any = true; total += n; }
     }
     return any ? total : null;

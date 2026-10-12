@@ -223,3 +223,9 @@ export { default as SectionSettlementTab } from "./unified-detail/SectionSettlem
 export const __MODULE_VERSION__ = "0.41.0";
 // 차수↔컬럼 연결은 메인 배럴에 넣지 않는다 — 서버는 ./tier-link(순수), 화면부품은 ./tier-link-ui(클라이언트)로 분리.
 // (배럴에 클라이언트 부품을 추가하면 배럴을 거치는 서버 라우트가 Turbopack 경계 오류를 낸다.)
+
+export * from "./tiered/government-fee-context";
+
+export * from "./tiered/fee-calculation-state";
+
+export type { FeePublicOwnerV1, FeePublicEditObservationV1, FeePublicReasonV1, FeePublicTargetV1, FeePublicViewV1 } from "./tiered/fee-public-view";
