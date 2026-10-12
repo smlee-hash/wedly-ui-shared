@@ -454,19 +454,6 @@ function TaxAmendmentPanel({
 // 저장은 모두 고객(경정청구) 기록에 분야 이름표(uc:{분야}:{항목}) 칸으로 — 기존 분야 페이지와 안 섞이고,
 // 잘못된 표로 새지 않는다. 정산=독립 표(편집), 미팅·파일·히스토리=분야별 독립, 계약·환불=준비 중(3b).
 // ─────────────────────────────────────────────────────────────────────────────
-function SectionComingSoon({ title }: { title: string }) {
-  return (
-    <div className="p-4">
-      <div className="rounded-xl border border-wedly-bd bg-white overflow-hidden">
-        <div className="px-4 py-2.5 bg-wedly-bg-gray/50 border-b border-wedly-bd/60">
-          <span className="text-[12px] font-semibold text-wedly-t2">{title}</span>
-        </div>
-        <div className="px-4 py-8 text-center text-[13px] text-wedly-muted">곧 분야별 회차 구조로 제공될 예정입니다.</div>
-      </div>
-    </div>
-  );
-}
-
 function SectionDetailPanel({
   sectionKey,
   primaryId,
@@ -565,7 +552,6 @@ function SectionDetailPanel({
     }
     return [];
     // 섹션 전환은 key 로 재마운트되어 새로 읽힘 — primaryRow 최초값 기준.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKey]);
 
   // 사업자번호 있으면 공용 보관함에서 정산/히스토리를 불러온다. 비어 있으면 기존 행 값으로 폴백.
@@ -640,7 +626,6 @@ function SectionDetailPanel({
       alive = false;
     };
     // historyInitial은 sectionKey 기준 안정값. bizno/sectionKey 바뀔 때만 재로드.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared, bizno, sectionKey]);
 
   const saveSecstore = useCallback(
@@ -1075,7 +1060,6 @@ function BasicInfoPanel({
   saveColumnConfig,
   loadManagers,
   adapter,
-  hiddenColumnKeys = [],
   stacked,
   hideHeader,
   toolsSlot,
@@ -2434,7 +2418,6 @@ function WideSectionHistory({
       }
     }
     return [];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKey]);
 
   const base = useMemo(
@@ -2474,7 +2457,6 @@ function WideSectionHistory({
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared, base]);
 
   // ★삼키지 않고 다시 던진다 — 안내는 히스토리 부품 한 곳에서만.
@@ -2651,7 +2633,6 @@ function WideFilesPane({
   const refresh = onSaved;
   useEffect(() => {
     refresh?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (!ErpFilesPanel) {
     return <WideEmptyNote text="파일 패널이 없는 앱입니다" />;
@@ -2781,7 +2762,6 @@ export default function UnifiedDetailView({
   useEffect(() => {
     if (!narrowSwitch && narrowPane === "side") setTrackRailOpen(true);
     // narrowPane 은 일부러 의존 목록에서 뺀다 — 넓은 화면에서 값이 남아 있다고 다시 열면 안 된다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narrowSwitch]);
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
@@ -2794,7 +2774,10 @@ export default function UnifiedDetailView({
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const company = nameValue.trim() || "통합 보기";
   const saveName = useCallback(async (v: string) => {
     const orig = String(row["02상호명"] ?? "");
@@ -2890,7 +2873,6 @@ export default function UnifiedDetailView({
   useEffect(() => {
     if (isNew) { setLoading(false); return; } // 신규 등록은 불러올 기존 데이터가 없음
     loadDetail(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 어떤 칸이든 저장되면: 모달의 분야 데이터(detail)를 조용히 새로고침
@@ -3129,7 +3111,6 @@ export default function UnifiedDetailView({
     } else {
       setWideSide((cur) => (cur === "info" ? "history" : cur));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threePane, infoOnRight, customOnRight, currentGroup?.key]);
 
   // 창을 닫기 직전, 입력 중이던 칸의 포커스를 풀어 그 칸의 자동 저장(포커스가 빠질 때 실행)이
