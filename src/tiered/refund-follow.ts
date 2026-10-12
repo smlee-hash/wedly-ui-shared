@@ -78,6 +78,8 @@ function substConditional(cond: FieldDef["conditional"], map: KeyMap): FieldDef[
   if (cond.conditionFieldKey) {
     out.conditionFieldKey = map.get(cond.conditionFieldKey) ?? cond.conditionFieldKey;
   }
+  // "모든 조건 보기" 표시도 함께 옮긴다 — 빠지면 환불 칸이 조용히 첫 일치로 계산된다.
+  if (cond.match) out.match = cond.match;
   return out;
 }
 
