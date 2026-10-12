@@ -4221,6 +4221,7 @@ export default function UnifiedDetailView({
     );
 
     return (
+      <DetailLoadStateProvider rowsLoadFailed={rowsLoadFailed}>
       <FieldOptionsProvider value={adapter.fieldOptions}>
       <div
         className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center"
@@ -4356,6 +4357,7 @@ export default function UnifiedDetailView({
         </div>
       </div>
       </FieldOptionsProvider>
+      </DetailLoadStateProvider>
     );
   }
 
