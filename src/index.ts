@@ -228,3 +228,5 @@ export type { ExcelImportWizardProps, MappingPreset, ImportResult } from "./comp
 
 export * from "./tiered/government-fee-context";
 export * from "./tiered/fee-calculation-state";
+
+export type { FeePublicOwnerV1, FeePublicEditObservationV1, FeePublicReasonV1, FeePublicTargetV1, FeePublicViewV1 } from "./tiered/fee-public-view";
