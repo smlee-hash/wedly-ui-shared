@@ -687,14 +687,16 @@ interface CondTriClause { r: CondTri; missing: string[]; causes: FormulaBlock[] 
 //   - 퍼센트 컬럼/퍼센트 값: 0~1 비율로 환산 (10% → 0.1) — 곱셈이 자연스럽게 맞도록
 //   - 수식 컬럼 참조: 재귀 계산 (순환 참조는 0 으로 차단)
 // 반환: 계산된 "자연값". 입력이 하나도 없으면 null (화면에 "-" 표시).
+// readBlock: 화면에서 읽을 수 없는 칸의 막힘을 실제 조회 때 전달한다. 생략하면 기존 동작 그대로다.
 export function evalFormulaForTier(
   field: FieldDef,
   tier: TierData,
   fields: FieldDef[],
   seen: ReadonlySet<string> = new Set<string>(),
   conditionValues?: Record<string, unknown>,
+  readBlock?: (field: FieldDef) => FormulaBlock | undefined,
 ): number | null {
-  return evalFormulaForTierDetailed(field, tier, fields, seen, conditionValues).value;
+  return evalFormulaForTierDetailed(field, tier, fields, seen, conditionValues, readBlock).value;
 }
 
 // evalFormulaForTier 의 상세판 — 값과 함께 막힘(blocked)·쓴 규칙 번호(ruleIdx)를 돌려준다.
@@ -702,13 +704,17 @@ export function evalFormulaForTier(
 //   - conditional.match === "all" (규칙이 하나 이상): 우선순위 없이 맞는 조건을 모두 본다.
 //       맞는 조건(T)들의 결과가 다르면 conflict, 맞는지 모르는 조건(U — 날짜 칸이 빔 등)이 결과를
 //       바꿀 수 있으면 missing 으로 막는다. 안 바뀌면(U 의 식 결과가 정한 값과 같으면) 막지 않는다.
+// readBlock은 저장하지 않는 표시용 정보다. 명시적으로 막힌 자기 칸은 수동 수정값보다 먼저 확인한다.
 export function evalFormulaForTierDetailed(
   field: FieldDef,
   tier: TierData,
   fields: FieldDef[],
   seen: ReadonlySet<string> = new Set<string>(),
   conditionValues?: Record<string, unknown>,
+  readBlock?: (field: FieldDef) => FormulaBlock | undefined,
 ): FormulaEvalDetail {
+  const blocked = readBlock?.(field);
+  if (blocked) return { value: null, blocked };
   // 관리자 수동 수정값이 있으면 수식을 계산하지 않고 그 값을 쓴다.
   // 다른 수식 칸이 이 칸을 참조(재귀)할 때도 여기로 들어오므로 연쇄 반영이 자동이다.
   const manual = getTierOverride(tier, field.key);
@@ -723,11 +729,13 @@ export function evalFormulaForTierDetailed(
   // 수식 칸이 막혔으면 값은 null 이고 막힘을 함께 돌려준다.
   const readCond = (key: string): { value: unknown; blocked?: FormulaBlock } => {
     const ref = byKey.get(key);
+    const blocked = ref ? readBlock?.(ref) : undefined;
+    if (blocked) return { value: null, blocked };
     if (ref && ref.type === "formula") {
       if (ref.formulaResult === "date") {
         return { value: evalDateFormulaForTier(ref, tier, fields, nextSeen, conditionValues) };
       }
-      const d = evalFormulaForTierDetailed(ref, tier, fields, nextSeen, conditionValues);
+      const d = evalFormulaForTierDetailed(ref, tier, fields, nextSeen, conditionValues, readBlock);
       return d.blocked ? { value: d.value, blocked: d.blocked } : { value: d.value };
     }
     const tv = ref ? tier[key] : undefined;
@@ -760,12 +768,17 @@ export function evalFormulaForTierDetailed(
       const ref = t.columnKey ? byKey.get(t.columnKey) : undefined;
       if (!ref) return { v: 0, has: false };
       if (ref.type === "formula") {
-        const d = evalFormulaForTierDetailed(ref, tier, fields, nextSeen, conditionValues);
+        const d = evalFormulaForTierDetailed(ref, tier, fields, nextSeen, conditionValues, readBlock);
         if (d.blocked) {
           if (!track.blocked) track.blocked = d.blocked;
           return { v: 0, has: false };
         }
         return d.value === null ? { v: 0, has: false } : { v: d.value, has: true };
+      }
+      const blocked = readBlock?.(ref);
+      if (blocked) {
+        if (!track.blocked) track.blocked = blocked;
+        return { v: 0, has: false };
       }
       const raw = tier[ref.key];
       if (raw === null || raw === undefined || raw === "") return { v: 0, has: false };
