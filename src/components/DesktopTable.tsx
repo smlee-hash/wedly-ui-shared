@@ -119,6 +119,7 @@ export function DesktopTable({
     getScrollElement: () => tableScrollRef.current,
     estimateSize: () => 37,
     overscan: 15,
+    useAnimationFrameWithResizeObserver: true,
   });
 
   return (
