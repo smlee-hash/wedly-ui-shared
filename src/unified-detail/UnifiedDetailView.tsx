@@ -1,5 +1,6 @@
 "use client";
 
+import type { BasicRestoreOriginal } from "./adapter-types";
 import { useEffect, useState, useCallback, useRef, useMemo, type DragEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, refreshCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
@@ -25,6 +26,7 @@ import NewEntryReportUpload, { type DraftFile } from "./NewEntryReportUpload";
 import { CommonFieldsLauncher } from "./CommonFieldsLauncher";
 import { UNIFIED_TYPE_OPTIONS } from "./lib/column-type-options";
 import { useFieldOrder } from "./lib/use-field-order";
+import { beginBasicIntent, enqueueBasicFieldWrite, finishBasicIntent, isCurrentBasicIntent, mergeIncomingRow, nextBasicIntentSeq } from "./lib/basic-field-sync";
 import {
   BASIC_FIELD_SPECS,
   ERP_APP_BASIC_FIELDS,
@@ -58,6 +60,24 @@ function isSubTabKey(v: string): v is SubTab {
 
 // saveOwnField 콜백 타입 — 내부 컴포넌트들이 공유
 type SaveOwnFieldFn = (entryId: string, key: string, value: string | number | boolean | null) => Promise<void>;
+
+// 기본정보 화면의 '주인' — 어느 회사(entryId·사업자번호)를 어떤 어댑터·저장 함수로 보고 있는지.
+// 주인이 바뀌면(회사 전환·창 닫힘) 이전 주인의 늦은 화면 반응(되돌리기·경고·재시도)은 새 화면에 닿지 않는다.
+// 이미 받아들인 저장 요청 자체는 주인과 무관하게 끝까지 간다(basic-field-sync 의 줄).
+type BasicOwner = {
+  entryId: string;
+  bizno: string;
+  adapter: UnifiedDetailAdapter;
+  saveOwnField: SaveOwnFieldFn;
+  active: boolean;
+  /** 칸별 이 주인의 가장 새 입력 번호 */
+  intent: Map<string, number>;
+  /** 칸별 마지막으로 서버가 받아들인 값 — 영구 실패 때 되돌릴 자리 */
+  confirmed: Map<string, { original?: BasicRestoreOriginal; applyToTable?: (original: BasicRestoreOriginal) => void }>;
+  /** 저장 중이거나 저장 실패로 입력을 붙들고 있는 칸 — 새 행·보관소 읽기가 덮어쓰지 못한다 */
+  pending: Set<string>;
+};
+type BasicLocalState = { owner: BasicOwner; seen: Record<string, unknown>; incoming: Record<string, unknown>; local: Record<string, unknown> };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: 그룹에 속한 영역 행 목록 (데이터 있는 것만)
@@ -454,19 +474,6 @@ function TaxAmendmentPanel({
 // 저장은 모두 고객(경정청구) 기록에 분야 이름표(uc:{분야}:{항목}) 칸으로 — 기존 분야 페이지와 안 섞이고,
 // 잘못된 표로 새지 않는다. 정산=독립 표(편집), 미팅·파일·히스토리=분야별 독립, 계약·환불=준비 중(3b).
 // ─────────────────────────────────────────────────────────────────────────────
-function SectionComingSoon({ title }: { title: string }) {
-  return (
-    <div className="p-4">
-      <div className="rounded-xl border border-wedly-bd bg-white overflow-hidden">
-        <div className="px-4 py-2.5 bg-wedly-bg-gray/50 border-b border-wedly-bd/60">
-          <span className="text-[12px] font-semibold text-wedly-t2">{title}</span>
-        </div>
-        <div className="px-4 py-8 text-center text-[13px] text-wedly-muted">곧 분야별 회차 구조로 제공될 예정입니다.</div>
-      </div>
-    </div>
-  );
-}
-
 function SectionDetailPanel({
   sectionKey,
   primaryId,
@@ -565,7 +572,6 @@ function SectionDetailPanel({
     }
     return [];
     // 섹션 전환은 key 로 재마운트되어 새로 읽힘 — primaryRow 최초값 기준.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKey]);
 
   // 사업자번호 있으면 공용 보관함에서 정산/히스토리를 불러온다. 비어 있으면 기존 행 값으로 폴백.
@@ -640,7 +646,6 @@ function SectionDetailPanel({
       alive = false;
     };
     // historyInitial은 sectionKey 기준 안정값. bizno/sectionKey 바뀔 때만 재로드.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared, bizno, sectionKey]);
 
   const saveSecstore = useCallback(
@@ -1075,7 +1080,6 @@ function BasicInfoPanel({
   saveColumnConfig,
   loadManagers,
   adapter,
-  hiddenColumnKeys = [],
   stacked,
   hideHeader,
   toolsSlot,
@@ -1455,18 +1459,39 @@ function BasicInfoPanel({
 
   // 기본정보 값 입력·저장 — 칸을 클릭해 바로 입력/수정. 저장은 경정청구 항목(_id)에 반영(표시 출처와 동일).
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
-  const [basicRow, setBasicRow] = useState<Record<string, unknown>>(() => ({ ...(row as Record<string, unknown>) }));
-  // row 객체가 새로 들어오면(저장 후 갱신 등) 값 동기화 — 같은 객체면 입력 중 값 보존.
-  const basicRowRef = useRef(row);
+  const rowData = row as Record<string, unknown>;
+  // 화면의 주인 — entryId·사업자번호·어댑터·저장 함수 중 하나라도 바뀌면 새 주인(값 상태를 새 행으로 초기화). 같은 입력이면 같은 객체.
+  const ownerRef = useRef<BasicOwner | null>(null);
+  let ownerNow = ownerRef.current;
+  if (!ownerNow || ownerNow.entryId !== entryId || ownerNow.bizno !== bizno || ownerNow.adapter !== adapter || ownerNow.saveOwnField !== saveOwnField) {
+    ownerNow = { entryId, bizno, adapter, saveOwnField, active: true, intent: new Map(), confirmed: new Map(), pending: new Set() };
+    ownerRef.current = ownerNow;
+  }
+  const owner: BasicOwner = ownerNow;
   useEffect(() => {
-    if (basicRowRef.current !== row) {
-      basicRowRef.current = row;
-      setBasicRow({ ...(row as Record<string, unknown>) });
-    }
-  }, [row]);
+    owner.active = true;
+    return () => { owner.active = false; };
+  }, [owner]);
+  // 화면용 값 — 새 주인이면 새 행으로 초기화, 같은 주인에 새 행이 오면(저장 후 갱신 등) 칸별로 병합한다:
+  // 이전 행과 같은 값인 칸은 화면에서 고친 값을 보존하고, 서버에서 바뀐 칸만 반영(저장 중인 칸 제외). false·null·삭제도 실제 값.
+  const [basicState, setBasicState] = useState<BasicLocalState>(() => ({ owner, seen: rowData, incoming: rowData, local: { ...rowData } }));
+  let basicNow = basicState;
+  if (basicState.owner !== owner) {
+    basicNow = { owner, seen: rowData, incoming: rowData, local: { ...rowData } };
+    setBasicState(basicNow);
+  } else if (basicState.seen !== rowData) {
+    const { merged, changedKeys, baseline } = mergeIncomingRow(basicState.incoming, rowData, basicState.local, (k) => owner.pending.has(k));
+    // 보호 중 행에는 앱 미저장 overlay가 섞일 수 있다. 그 칸의 원래 확정값은 유지한다.
+    for (const k of changedKeys) if (!owner.pending.has(k)) owner.confirmed.delete(k);
+    basicNow = { owner, seen: rowData, incoming: baseline, local: merged };
+    setBasicState(basicNow);
+  }
+  const basicRow = basicNow.local;
 
   // ── 공용 보관함 읽기 — 변경 내역 표시 + 비어 있는 칸만 보관함 값으로 채움(기존 행 값은 보호) ──
-  const [basicRecord, setBasicRecord] = useState<BasicRecord | null>(null);
+  // 보관함 기록은 그 주인(회사)에서 읽은 것만 보인다 — 늦게 도착한 이전 회사 기록이 다른 회사 화면에 뜨지 않게.
+  const [basicRecordState, setBasicRecordState] = useState<{ owner: BasicOwner; rec: BasicRecord } | null>(null);
+  const basicRecord = basicRecordState && basicRecordState.owner === owner ? basicRecordState.rec : null;
   const [showBasicLog, setShowBasicLog] = useState(false);
   const appLabel = useCallback((a: string) => (a === "erp" ? "ERP" : a === "hive" ? "하이브" : a === "illua" ? "일루아" : a), []);
   const fmtVal = useCallback((v: unknown) => (v == null || v === "" ? "(빈값)" : typeof v === "object" ? JSON.stringify(v) : String(v)), []);
@@ -1477,16 +1502,22 @@ function BasicInfoPanel({
     return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   }, []);
   useEffect(() => {
-    if (!bizno) { setBasicRecord(null); return; }
+    if (!bizno) { setBasicRecordState(null); return; }
     let cancelled = false;
+    // 읽기를 보내는 순간의 입력 상태 — 응답이 올 때까지 사이에 손댄 칸을 가르는 기준(그 뒤에 시작한 읽기는 새 기준을 쓴다).
+    const startIntent = new Map(owner.intent);
+    const startPending = new Set(owner.pending);
     adapter.api.loadBasicStore(bizno).then((rec) => {
-      if (cancelled || !rec) return;
-      setBasicRecord(rec);
-      setBasicRow((r) => {
-        const next = { ...r };
+      if (cancelled || !owner.active || !rec) return;
+      setBasicRecordState({ owner, rec });
+      setBasicState((s) => {
+        if (s.owner !== owner) return s;
+        const next = { ...s.local };
         // 표준칸뿐 아니라 공통추가·커스텀 칸까지(allBasicFields) 회사 보관소 값으로 빈칸을 채운다.
         // → 모든 기본정보가 회사 단위로 보관·표시(분야 기록 1순위, 보관소는 빈칸만).
         for (const f of allBasicFields) {
+          // 읽기를 보낸 뒤 고친 칸(저장 중·끝난 입력·방금 비운 칸 포함)이나 보낼 때 이미 저장 중이던 칸은 늦게 온 보관소 값이 덮거나 다시 채우지 못한다.
+          if (startPending.has(f.key) || owner.pending.has(f.key) || owner.intent.get(f.key) !== startIntent.get(f.key)) continue;
           const entry = rec.fields[f.label];
           if (entry && entry.value != null && entry.value !== "") {
             const cur = next[f.key];
@@ -1495,55 +1526,136 @@ function BasicInfoPanel({
             if (f.label === "진행상태" || cur == null || cur === "") next[f.key] = entry.value;
           }
         }
-        return next;
+        return { ...s, local: next };
       });
     });
     return () => { cancelled = true; };
-  }, [bizno, allBasicFields, adapter]);
+  }, [bizno, allBasicFields, adapter, owner]);
 
   const handleBasicUpdate = useCallback(
     async (key: string, newVal: string | number | boolean | null) => {
-      if (isNew) { onDraftChange?.(key, newVal); return; } // 신규 등록: 서버 저장 대신 임시 보관
+      if (isNew) { onDraftChange?.(key, newVal); return; }
       if (!entryId) return;
-      const prev = basicRow[key];
-      setBasicRow((r) => ({ ...r, [key]: newVal }));
-      try {
-        await saveOwnField(entryId, key, newVal);
-        adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, key));
-        // 공통·커스텀 칸 모두 회사 보관소(basic-store)에도 기록(누가·앱·이전→새값) — 실패해도 행 저장은 유지.
-        // 커스텀칸은 그 칸의 라벨(keyToFieldId)을 보관소 키로 사용 → 읽기 빈칸채움(allBasicFields 루프)이 같은 라벨로 되읽음.
-        const fieldId = commonFieldIdForKey(key) || keyToFieldId.get(key) || "";
-        if (fieldId && bizno) {
-          void adapter.api.saveBasicField(bizno, "erp", fieldId, newVal).then((rec) => { if (rec) setBasicRecord(rec); });
+      const isLiveOwner = () => ownerRef.current === owner && owner.active;
+      if (!isLiveOwner()) return;
+      const acceptedSave = adapter.api.captureOwnFieldSave?.(row) ?? saveOwnField;
+      const bridge = adapter.unsaved;
+      const unsavedId = bridge?.makeId(bridge.scope, entryId, key);
+      const recovery = unsavedId ? bridge?.getBasicRecovery?.(unsavedId) : undefined;
+      // 같은 열린 연속 입력은 원래 기준을 이어받고, 새 묶음은 실패 항목의 기준을 먼저 읽는다.
+      if (!owner.pending.has(key)) {
+        const value = basicRow[key];
+        const present = Object.prototype.hasOwnProperty.call(basicRow, key);
+        const original = recovery ? recovery.original : !present ? { value: null, present: false }
+          : value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? { value, present: true } : undefined;
+        owner.confirmed.set(key, { original, applyToTable: recovery?.applyToTable });
+      }
+      const intent = { seq: nextBasicIntentSeq() };
+      const lease = beginBasicIntent(entryId, key);
+      owner.intent.set(key, intent.seq);
+      owner.pending.add(key);
+      let hostLease: { isCurrent: () => boolean; release: () => void } | undefined;
+      const isCurrent = () => isCurrentBasicIntent(lease) && (hostLease?.isCurrent() ?? true);
+      const finish = () => {
+        finishBasicIntent(lease);
+        hostLease?.release();
+        if (owner.intent.get(key) === intent.seq) owner.pending.delete(key);
+      };
+      if (unsavedId) hostLease = bridge?.beginBasicEdit?.(unsavedId, finish);
+      if (unsavedId) bridge?.resolve(unsavedId);
+      setBasicState((state) => state.owner === owner ? { ...state, local: { ...state.local, [key]: newVal } } : state);
+      const fieldId = commonFieldIdForKey(key) || keyToFieldId.get(key) || "";
+      const restore = (original?: BasicRestoreOriginal) => {
+        if (!isCurrent()) return false;
+        if (original) owner.confirmed.get(key)?.applyToTable?.(original);
+        finish();
+        if (!original || !isLiveOwner()) return original !== undefined;
+        setBasicState((state) => {
+          if (state.owner !== owner) return state;
+          const local = { ...state.local };
+          if (original.present) local[key] = original.value;
+          else delete local[key];
+          return { ...state, local };
+        });
+        return true;
+      };
+      const restoreConfirmed = () => restore(owner.confirmed.get(key)?.original);
+      // 최초로 수락한 입력은 닫힘·새 입력 뒤에도 행→보관소를 마친다. 폐기된 retry는 응답 후 추가 쓰기를 하지 않는다.
+      const send = (isRetry: boolean): Promise<boolean> => {
+        const task = async () => {
+        if (isRetry && !isCurrent()) return false;
+        await acceptedSave(entryId, key, newVal);
+        if (isRetry && !isCurrent()) return false;
+        const confirmed = owner.confirmed.get(key);
+        if (confirmed) {
+          if (confirmed.original) Object.assign(confirmed.original, { value: newVal, present: true });
+          else confirmed.original = { value: newVal, present: true };
         }
-        onSaved?.();
-      } catch (e) {
-        // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
-        const m = e instanceof Error ? e.message : "";
-        const kind = saveFailureKindOf(e);
-        const bridge = adapter.unsaved;
-        // 잠깐 실패(배포 교체·통신 끊김)·로그인 만료면 ★값을 지우지 않는다★ — 앱의 저장 실패 막대에 담아
-        // 사용자가 '다시 저장'할 수 있게 한다. 지우면 배포 순간에 친 글자가 통째로 사라진다.
+        if (!isRetry && isLiveOwner() && isCurrent()) {
+          try { onSaved?.(); } catch (err) { console.error("[basic-field onSaved]", err); }
+        }
+        if (fieldId && bizno) {
+          try {
+            const rec = await adapter.api.saveBasicField(bizno, "erp", fieldId, newVal);
+            if (rec && isLiveOwner() && isCurrent()) setBasicRecordState({ owner, rec });
+          } catch { /* 보관소 기록 실패는 행 저장에 영향 없음 */ }
+        }
+        if (isRetry) {
+          if (!isCurrent()) return false;
+          if (isLiveOwner()) {
+            try { onSaved?.(); } catch (err) { console.error("[basic-field onSaved]", err); }
+          }
+        } else finish();
+        return true;
+        };
+        return bridge?.runBasicWrite && unsavedId
+          ? bridge.runBasicWrite(unsavedId, task)
+          : enqueueBasicFieldWrite(entryId, key, intent.seq, task);
+      };
+      try {
+        await send(false);
+      } catch (error) {
+        if (!isCurrent()) return;
+        const message = error instanceof Error ? error.message : "";
+        const kind = saveFailureKindOf(error);
         if (bridge && kind !== "permanent") {
           const id = bridge.makeId(bridge.scope, entryId, key);
+          let retryInFlight = false;
           bridge.report({
             id, scope: bridge.scope, rowId: entryId, fieldKey: key,
-            rowLabel: String(row["02상호명"] ?? "") || "이 항목",
-            fieldLabel: key, value: newVal,
-            error: m || `'${key}' 저장에 실패했습니다.`, kind,
+            rowLabel: String(row["02상호명"] ?? "") || "이 항목", fieldLabel: key, value: newVal,
+            error: message || `'${key}' 저장에 실패했습니다.`, kind,
+            onDiscard: finish,
+            basicRestore: { original: owner.confirmed.get(key)?.original, apply: restore, applyToTable: owner.confirmed.get(key)?.applyToTable },
             retry: async () => {
-              try { await saveOwnField(entryId, key, newVal); return true; } catch { return false; }
+              if (!isCurrent() || retryInFlight) return false;
+              retryInFlight = true;
+              owner.pending.add(key);
+              try {
+                const success = await send(true);
+                if (!success || !isCurrent()) return false;
+                bridge.resolve(id);
+                finish();
+                return true;
+              } catch (retryError) {
+                if (isCurrent() && saveFailureKindOf(retryError) === "permanent") {
+                  restoreConfirmed();
+                  bridge.resolve(id);
+                  if (isLiveOwner()) alert(retryError instanceof Error ? retryError.message : "저장에 실패했습니다.");
+                }
+                return false;
+              } finally { retryInFlight = false; }
             },
-            revert: () => setBasicRow((r) => ({ ...r, [key]: prev })),
+            revert: () => { if (restoreConfirmed()) bridge.resolve(id); },
           });
           return;
         }
-        // 규칙상 저장할 수 없는 값(권한·잠긴 칸·값 오류)은 다시 시도해도 소용없다 → 되돌리고 사유를 알린다.
-        setBasicRow((r) => ({ ...r, [key]: prev }));
-        alert(m || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
+        restoreConfirmed();
+        if (unsavedId) bridge?.resolve(unsavedId);
+        if (isLiveOwner()) alert(message || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
       }
     },
-    [basicRow, entryId, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter],
+    [owner, entryId, row, basicRow, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter],
   );
 
   return (
@@ -2434,7 +2546,6 @@ function WideSectionHistory({
       }
     }
     return [];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKey]);
 
   const base = useMemo(
@@ -2474,7 +2585,6 @@ function WideSectionHistory({
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared, base]);
 
   // ★삼키지 않고 다시 던진다 — 안내는 히스토리 부품 한 곳에서만.
@@ -2651,7 +2761,6 @@ function WideFilesPane({
   const refresh = onSaved;
   useEffect(() => {
     refresh?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (!ErpFilesPanel) {
     return <WideEmptyNote text="파일 패널이 없는 앱입니다" />;
@@ -2781,7 +2890,6 @@ export default function UnifiedDetailView({
   useEffect(() => {
     if (!narrowSwitch && narrowPane === "side") setTrackRailOpen(true);
     // narrowPane 은 일부러 의존 목록에서 뺀다 — 넓은 화면에서 값이 남아 있다고 다시 열면 안 된다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narrowSwitch]);
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
@@ -2890,7 +2998,6 @@ export default function UnifiedDetailView({
   useEffect(() => {
     if (isNew) { setLoading(false); return; } // 신규 등록은 불러올 기존 데이터가 없음
     loadDetail(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 어떤 칸이든 저장되면: 모달의 분야 데이터(detail)를 조용히 새로고침
@@ -3129,7 +3236,6 @@ export default function UnifiedDetailView({
     } else {
       setWideSide((cur) => (cur === "info" ? "history" : cur));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threePane, infoOnRight, customOnRight, currentGroup?.key]);
 
   // 창을 닫기 직전, 입력 중이던 칸의 포커스를 풀어 그 칸의 자동 저장(포커스가 빠질 때 실행)이
