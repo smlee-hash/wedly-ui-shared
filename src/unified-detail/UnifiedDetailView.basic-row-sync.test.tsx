@@ -3,7 +3,7 @@
  * 기본정보 칸 저장·동기화 — UnifiedDetailView 를 실제로 그려서(옛 HIVE compact · ILLUA compact · ILLUA wide) 확인한다.
  *  - 같은 회사에 새 행이 들어와도 안 바뀐 칸의 고친 값은 지켜지고, 서버에서 바뀐 칸만 갱신된다(false·null·삭제는 실제 값).
  *  - 회사+칸별 저장은 입력 순서대로 [행 → 보관소] 를 마친 뒤 다음 입력으로 넘어가고, 다른 칸은 병렬이다.
- *  - 창이 닫히거나 회사가 바뀌어도 받아들인 저장은 [행 → 보관소] 끝까지 가되, 낡은 주인의 화면 반응(onSaved·보관함·경고·되돌리기)은 일어나지 않는다.
+ *  - 창이 닫히거나 회사가 바뀌어도 받아들인 저장은 [행 → 보관소] 끝까지 가되, 원래 부모의 성공 통지와 현재 상세의 보관함·경고·되돌리기 보호는 구분한다.
  *  - 행 저장이 끝나도 보관소 기록까지 끝나야 입력 보호가 풀린다.
  *  - 재시도는 현재 주인의 가장 새 입력일 때만 — 누르는 때와 줄 차례가 실제로 오는 때 모두 — 보내고, 그 사이 닫힘·회사 전환·더 새 입력(끝난 것 포함)이 있으면 아무것도 보내지 않는다.
  *  - 재시도도 같은 [행 → 보관소] 두 곳 길을 쓰고, 행 저장 성공 직후 onSaved 가 불린다.
@@ -395,7 +395,7 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
     expect(isChecked(view, "동의여부")).toBe(false);
   });
 
-  it("창이 닫혀도(언마운트) 이미 받아들인 저장은 입력 순서대로 끝까지 가되, 낡은 onSaved 는 부르지 않는다", async () => {
+  it("창이 닫혀도(언마운트) 이미 받아들인 저장은 입력 순서대로 끝까지 가되, 최신 성공을 원래 부모에 알린다", async () => {
     const { h, view } = await setup();
     await toggle(view, "동의여부");
     await toggle(view, "동의여부");
@@ -411,7 +411,7 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
     ]);
     expect(h.storeCalls[0].args).toEqual([BIZNO_A, "erp", "동의여부", true]);
     expect(h.storeCalls[1].args).toEqual([BIZNO_A, "erp", "동의여부", false]);
-    expect(view.onSaved).not.toHaveBeenCalled();
+    expect(view.onSaved).toHaveBeenCalledTimes(1);
     expect(h.reports).toHaveLength(0);
     expect(h.alertMock).not.toHaveBeenCalled();
   });
@@ -543,7 +543,7 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       h.auto.store = true;
       expect(await h.bar.entries[0].retry()).toBe(true);
       expect(h.storeCalls[0].args).toEqual([BIZNO_A, "erp", "대표자명", "복구값"]);
-      expect(view.onSaved).not.toHaveBeenCalled();
+      expect(view.onSaved).toHaveBeenCalledTimes(1);
       expect(h.alertMock).not.toHaveBeenCalled();
     });
 
@@ -624,10 +624,10 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       await resolveCall(h.storeCalls[0]);
       expect(shownValue(view, "대표자명")).toBe("-");
       expect(h.alertMock).not.toHaveBeenCalled();
-      expect(view.onSaved).not.toHaveBeenCalled(); // 낡은 주인의 onSaved 는 새 화면에 닿지 않는다
+      expect(view.onSaved).toHaveBeenCalledTimes(1); // 원래 부모에 통지하되 현재 회사 상세는 그대로다
     });
 
-    it("빠른 연속 저장 2건도 이전 회사로 순서대로 끝까지 가고, 낡은 onSaved·보관함·경고 없이 새 회사 화면은 그대로다", async () => {
+    it("빠른 연속 저장 2건도 이전 회사로 순서대로 끝까지 가고, 원래 부모 통지와 새 회사의 보관함·경고 보호를 유지하며 새 회사 화면은 그대로다", async () => {
       const { h, row, view } = await setup();
       await toggle(view, "동의여부"); // 입력 1: true
       await toggle(view, "동의여부"); // 입력 2: false (줄에서 대기)
@@ -645,7 +645,7 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       expect(h.rowCalls[0].args[0]).toBe(row._id);
       expect(h.storeCalls[0].args).toEqual([BIZNO_A, "erp", "동의여부", true]);
       expect(h.storeCalls[1].args).toEqual([BIZNO_A, "erp", "동의여부", false]);
-      expect(view.onSaved).not.toHaveBeenCalled();
+      expect(view.onSaved).toHaveBeenCalledTimes(1);
       expect(h.reports).toHaveLength(0);
       expect(h.alertMock).not.toHaveBeenCalled();
       expect(isChecked(view, "동의여부")).toBe(false);
@@ -906,7 +906,7 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       expect(shownValue(view, "대표자명")).toBe("새값");
     });
 
-    it("재시도 두 번이 줄에 서 있는 사이 창이 닫히면 뒤의 재시도는 보내지 않고, 이미 시작한 앞의 재시도는 끝까지 가되 onSaved 는 부르지 않는다", async () => {
+    it("재시도 두 번이 줄에 서 있는 사이 창이 닫히면 뒤의 재시도는 보내지 않고, 이미 시작한 앞의 재시도는 끝까지 가고 원래 부모에 성공을 알린다", async () => {
       const { h, view } = await setup();
       await editText(view, "대표자명", "처음값");
       await rejectCall(h.rowCalls[0], transient());
@@ -926,7 +926,7 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       expect(await second).toBe(false);
       expect(h.rowCalls).toHaveLength(2);
       expect(h.storeCalls).toHaveLength(1);
-      expect(view.onSaved).not.toHaveBeenCalled();
+      expect(view.onSaved).toHaveBeenCalledTimes(1);
     });
 
     it("창이 닫힌 뒤에도 최신 앱 막대 재시도는 원래 행·보관소로 저장한다", async () => {
@@ -944,7 +944,7 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       expect(h.rowCalls).toHaveLength(2);
       expect(h.storeCalls).toHaveLength(1);
       expect(h.bar.entries).toHaveLength(0);
-      expect(view.onSaved).not.toHaveBeenCalled();
+      expect(view.onSaved).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1064,5 +1064,63 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
     await resolveCall(h.storeCalls[0]); // 읽기 응답 전에 행·보관소 저장이 모두 끝남
     for (const c of reads) await resolveCall(c, storeRecord({ 진행상태: "보관소상태" }));
     expect(shownValue(view, "진행상태")).toBe("대기상태");
+  });
+});
+
+
+describe("v9 상세 조회 응답의 원래 회사 소유권", () => {
+  it.each(["resolve", "reject"])("구회사 조회 시작 뒤 같은 상세 instance를 바꾸면 옛 %s는 현재 상태에 닿지 않는다", async outcome => {
+    const React = await import("react");
+    const { createRoot } = await import("react-dom/client");
+    const { useDetailLoadState } = await import("./detail-load-state");
+    // 이 파일의 기존 기본정보 시험은 분야 metadata를 비웠다. 읽기 owner 시험에만 실제 형태의 한 분야를 제공한다.
+    const { DOMAIN_GROUPS } = await import("./lib/domain-config");
+    const previousGroups = [...DOMAIN_GROUPS];
+    DOMAIN_GROUPS.push({ key: "government-subsidy", label: "정부지원금", domains: ["government-subsidy"] });
+    type Detail = Awaited<ReturnType<UnifiedDetailAdapter["api"]["loadDomainRows"]>>;
+    const detail = (status: string) => ({ key: "b:1234567890", bizno: "1234567890", company: "합성 회사", ceo: "", phone: "", domainRows: [{ domain: "government-subsidy", domainLabel: "정부지원금", entryId: "gov-1", status, row: { _id: "gov-1" } }] }) as Detail;
+    let resolveOld!: (value: Detail) => void;
+    let rejectOld!: (error: Error) => void;
+    const oldRead = new Promise<Detail>((resolve, reject) => { resolveOld = resolve; rejectOld = reject; });
+    const load = vi.fn().mockResolvedValueOnce(detail("원래 현황")).mockImplementationOnce(() => oldRead).mockResolvedValue(detail("새 회사 현황"));
+    function Probe({ rows, onSaved }: { rows: Array<{ status?: string }>; onSaved?: () => void }) {
+      const { rowsLoadFailed } = useDetailLoadState();
+      return React.createElement("div", {},
+        React.createElement("output", { "data-v9-read-state": "" }, `${rows.map(item => item.status).join(",")}|${String(rowsLoadFailed)}`),
+        React.createElement("button", { "data-v9-read-refresh": "", onClick: () => onSaved?.() }, "시험 저장 완료"));
+    }
+    const adapter = {
+      appName: "ILLUA", ownDomain: "tax-amendment", ownColumns: [], configScope: "v9-read-owner", domains: [{ key: "government-subsidy", label: "정부지원금", domains: ["government-subsidy"] }],
+      api: { loadDomainRows: load, getCachedDomainRows: () => null, loadTabConfig: async () => ({ data: {} }), saveTabConfig: async () => {}, loadColumnConfig: async () => ({ data: {} }), saveColumnConfig: async () => {}, loadManagers: async () => [], saveOwnField: async () => {}, loadBasicStore: async () => null },
+      fieldOptions: { READONLY_TYPES: new Set(), getFieldOptions: () => [], addCustomOption: () => {}, removeCustomOption: () => {}, setOptionColor: () => {}, getOptionColorClass: () => "", OPTION_COLOR_FAMILIES: [], OPTION_COLOR_PALETTE: [], STATUS_COLORS: {}, SELECT_BADGE_COLORS: {}, isReadonlyPerson: () => false },
+      components: { SettlementInfoTab: () => null, MeetingsTab: () => null, ErpFilesPanel: () => null, SectionSettlementTab: () => null, sectionPanels: { "government-subsidy": Probe } }, ownFileFields: [], getAllFiles: () => [],
+    } as unknown as UnifiedDetailAdapter;
+    const container = document.createElement("div"); document.body.appendChild(container);
+    const root = createRoot(container);
+    const first = { _id: "v9-read-a", "02상호명": "원래 회사", "15사업자번호": "1234567890" };
+    const second = { _id: "v9-read-b", "02상호명": "새 회사", "15사업자번호": "0987654321" };
+    const settleRead = async () => { for (let i = 0; i < 3; i++) await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); }); };
+    const render = async (row: typeof first) => { await React.act(async () => { root.render(React.createElement(UnifiedDetailView, { row: row as never, adapter, onClose: () => {} })); }); await settleRead(); };
+    const refresh = async () => { const button = container.querySelector<HTMLButtonElement>("button[data-v9-read-refresh]"); expect(button, "실제 주입 패널의 저장 통지 단추").not.toBeNull(); await React.act(async () => { button!.click(); }); await settleRead(); };
+    try {
+      await render(first);
+      if (!container.querySelector("button[data-v9-read-refresh]")) {
+        const tab = [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("정부지원금"));
+        expect(tab, "실제 정부지원금 분야 탭").toBeDefined();
+        await React.act(async () => { tab!.click(); }); await settleRead();
+      }
+      await refresh(); // A 조회가 출발하고 응답은 보류한다.
+      expect(load).toHaveBeenCalledTimes(2);
+      await render(second); // key를 바꾸지 않으므로 같은 mounted UDV다.
+      await refresh(); // 현재 회사 B 조회가 먼저 끝나 실제 panel에 보인다.
+      expect(container.querySelector("[data-v9-read-state]")?.textContent).toBe("새 회사 현황|false");
+      await React.act(async () => { if (outcome === "resolve") resolveOld(detail("옛 회사 늦은 현황")); else rejectOld(new Error("옛 회사 늦은 조회 실패")); });
+      await settleRead();
+      expect(container.querySelector("[data-v9-read-state]")?.textContent).toBe("새 회사 현황|false");
+    } finally {
+      resolveOld(detail("정리"));
+      await React.act(async () => { root.unmount(); }); container.remove();
+      DOMAIN_GROUPS.splice(0, DOMAIN_GROUPS.length, ...previousGroups);
+    }
   });
 });
