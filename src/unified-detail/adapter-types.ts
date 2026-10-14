@@ -74,6 +74,8 @@ export interface UnifiedDetailApi {
 
   /** 자기 분야 칸 1개 저장 — ERP: PATCH /api/tax-amendment/{id} */
   saveOwnField(entryId: string, key: string, value: string | number | boolean | null): Promise<void>;
+  /** 비주소입력을 수락한 행으로 관리자 확인 대상을 고정한다. 전송은 기존 칸별 큐에서 수행한다. */
+  captureOwnFieldSave?(row: Record<string, unknown>): UnifiedDetailApi["saveOwnField"];
 
   /** 신규 행 등록 — ERP: POST /api/tax-amendment */
   createEntry(payload: Record<string, unknown>): Promise<{ id: string }>;
@@ -162,6 +164,8 @@ export interface UnifiedDetailApi {
  *
  * 안 넘기는 앱은 예전 그대로 동작한다(되돌리기 + 경고창).
  */
+export type BasicRestoreOriginal = { value: string | number | boolean | null; present: boolean };
+
 export type UnsavedBridge = {
   /** 이 화면의 이름 — 앱의 표와 같은 글자여야 같은 칸의 실패가 한 항목으로 묶인다. */
   scope: string;
@@ -178,8 +182,13 @@ export type UnsavedBridge = {
     kind: string;
     retry: () => Promise<boolean>;
     revert?: () => void;
+    onDiscard?: () => void;
+    basicRestore?: { original?: BasicRestoreOriginal; apply: (original: BasicRestoreOriginal) => boolean; applyToTable?: (original: BasicRestoreOriginal) => void };
   }) => void;
   resolve: (id: string) => void;
+  getBasicRecovery?: (id: string) => { original?: BasicRestoreOriginal; applyToTable?: (original: BasicRestoreOriginal) => void } | undefined;
+  beginBasicEdit?: (id: string, onSuperseded: () => void) => { isCurrent: () => boolean; release: () => void };
+  runBasicWrite?: <T>(id: string, task: () => Promise<T>) => Promise<T>;
 };
 
 /** 저장이 실패한 이유의 종류 — 앱 어댑터가 던지는 오류에 실어 보낸다. */
