@@ -2006,7 +2006,7 @@ function BasicInfoPanel({
           finish();
         });
         const saved = { value: true, stored: finished, completed: () => completed };
-        if (!retry && latest() && uiLive()) onSaved?.();
+        if (!retry && latest()) onSaved?.();
         return saved;
       };
       const host = unsavedId && unsaved?.runBasicWrite
@@ -2028,7 +2028,7 @@ function BasicInfoPanel({
         }, host).then(async value => {
           await stored;
           const ok = value && completed();
-          if (ok && uiLive() && uiLatest()) onSaved?.();
+          if (ok) onSaved?.();
           return ok;
         }).finally(() => { retryInFlight = false; });
       };
@@ -3616,6 +3616,11 @@ export default function UnifiedDetailView({
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
+  // 부모 목록 통지는 저장 당시 콜백으로 보낸다. 상세 내부 조회·상태는 현재 회사 소유권에서만 적용한다.
+  const detailBizno = normalizeBizno(row["15사업자번호"] ?? row["04사업자번호"] ?? row["사업자번호"]);
+  const detailOwner = useMemo(() => ({ entryId, bizno: detailBizno, adapter }), [entryId, detailBizno, adapter]);
+  const detailOwnerRef = useRef(detailOwner);
+  detailOwnerRef.current = detailOwner;
   const [nameValue, setNameValue] = useState(() => String(row["02상호명"] ?? ""));
   // ── 신규 등록 모드 상태 (isNew 일 때만 사용) ──
   // NO.56: 신규 등록은 어떤 칸도 자동 선택값을 넣지 않는다(영업담당 "하이브" 하드코딩 제거 — 안 골라도 저장되던 버그).
@@ -3695,6 +3700,7 @@ export default function UnifiedDetailView({
   // 비동기 로드는 adapter.api.loadDomainRows 경유(ERP 전용 경로 캡슐화).
   // 동기 캐시 읽기는 adapter.api.getCachedDomainRows 경유 — ERP 전용 캐시 모듈 직접 의존 제거.
   const loadDetail = useCallback((silent = false) => {
+    if (!mountedRef.current || detailOwnerRef.current !== detailOwner) return;
     const key = customerKeyFromTaxRow(row, adapter.ownDomain);
     if (!silent) {
       // 표에서 미리 받아둔 분야 현황이 있으면 즉시 표시(불러오는 중 없이), 없으면 로딩 표시.
@@ -3709,13 +3715,13 @@ export default function UnifiedDetailView({
     }
     adapter.api.loadDomainRows(key)
       .then((data) => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || detailOwnerRef.current !== detailOwner) return;
         if (data) setDetail(data);
         setRowsLoadFailed(false);
         if (!silent) setLoading(false);
       })
       .catch(() => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || detailOwnerRef.current !== detailOwner) return;
         // 조용한 새로고침이어도 "못 불러왔다"는 기억한다 — 이후 판정이 이 값을 본다.
         setRowsLoadFailed(true);
         if (!silent) {
@@ -3723,7 +3729,7 @@ export default function UnifiedDetailView({
           setLoading(false);
         }
       });
-  }, [row, adapter]);
+  }, [row, adapter, detailOwner]);
 
   useEffect(() => {
     if (isNew) { setLoading(false); return; } // 신규 등록은 불러올 기존 데이터가 없음
@@ -3735,9 +3741,9 @@ export default function UnifiedDetailView({
   //  → '전체 영역 현황' 요약표·상단 상태점·분야 탭 값이 그 자리에서 바로 반영된다.
   //  + 뒤에 있는 목록 표도 새로고침(onSaved)하여 표↔상세창이 어긋나지 않게 한다.
   const handleSaved = useCallback(() => {
-    loadDetail(true);
+    if (mountedRef.current && detailOwnerRef.current === detailOwner) loadDetail(true);
     onSaved?.();
-  }, [loadDetail, onSaved]);
+  }, [detailOwner, loadDetail, onSaved]);
 
   // ── 신규 등록: 입력값(draft) 전체를 한 번에 POST. adapter.api.createEntry 경유(ERP 전용 경로 캡슐화). ──
   // 성공 후 히스토리 임시 메모 등록은 adapter.api.addComment + auth/me(공용) 경유.
