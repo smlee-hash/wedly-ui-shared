@@ -1914,7 +1914,7 @@ function BasicInfoPanel({
         return true;
       };
       const revert = () => { if (edit.confirmed) restore(edit.confirmed); else finish(); };
-      const fail = (e: unknown) => {
+      const fail = (e: unknown, retry = false) => {
         // 더 새 입력 뒤의 실패는 버린다. 화면 종료만으로 현재 입력의 앱 전체 복구를 버리지 않는다.
         if (!latest()) return;
         // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
@@ -1922,7 +1922,8 @@ function BasicInfoPanel({
         const kind = saveFailureKindOf(e);
         // 잠깐 실패(배포 교체·통신 끊김)·로그인 만료면 ★값을 지우지 않는다★ — 앱의 저장 실패 막대에 담아
         // 사용자가 '다시 저장'할 수 있게 한다. 지우면 배포 순간에 친 글자가 통째로 사라진다. 이 동안 칸은 보호(open)된다.
-        if (unsaved && kind !== "permanent") {
+        // 명시 재시도의 거절은 닫힌 상세창에서도 입력과 서버 사유를 보관함에 남긴다.
+        if (unsaved && (kind !== "permanent" || retry)) {
           unsaved.report({
             id: unsaved.makeId(unsaved.scope, entryId, key), scope: unsaved.scope, rowId: entryId, fieldKey: key,
             rowLabel, fieldLabel: key, value: newVal,
@@ -1949,7 +1950,7 @@ function BasicInfoPanel({
         try {
           result = await acceptedSave(entryId, key, newVal);
         } catch (e) {
-          if (!retry || saveFailureKindOf(e) === "permanent") fail(e);
+          if (!retry || saveFailureKindOf(e) === "permanent") fail(e, retry);
           return { value: false, stored: noMore };
         }
         // 이미 출발한 요청은 취소한 척하지 않는다. 폐기된 재시도의 응답으로 확정값·후속 PUT·UI를 바꾸지 않는다.
