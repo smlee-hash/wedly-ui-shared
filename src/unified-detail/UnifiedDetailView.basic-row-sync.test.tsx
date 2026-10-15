@@ -1429,3 +1429,164 @@ describe("v9 상세 조회 응답의 원래 회사 소유권", () => {
     }
   });
 });
+
+// ── 항목5 복구 회귀: 닫힌 뒤 영구 거절된 앱 보관함 재시도 ──
+// 잠깐 실패한 최초 저장(주소가 아닌 기본정보 칸)의 보관함 재시도가, 상세창을 닫거나 회사를 바꾼 뒤 서버의 영구 거절을 받는 경우.
+// 사용자가 친 값은 되돌림·정리로 사라지면 안 되고, 서버가 준 사유 그대로 같은 칸의 보관함 항목으로 다시 남아야 한다.
+const SERVER_REASON = "synthetic 서버 거절: 잠긴 칸이라 수정할 수 없습니다";
+const permanentRejection = () => Object.assign(new Error(SERVER_REASON), { saveFailureKind: "permanent" });
+
+describe.each(HOSTS)("항목5 복구 — 닫힌 뒤 영구 거절된 재시도 — $name", (host) => {
+  const mount = (
+    row: RowData,
+    save?: UnifiedDetailApi["saveOwnField"],
+    unsaved?: UnsavedBridge,
+    store?: Partial<UnifiedDetailApi>,
+  ) => mountHost(host, row, save, unsaved, store);
+  const REPRESENTATIVE_ID = "synthetic:row-1:" + REPRESENTATIVE;
+
+  it.each(LEAVES)("$label 뒤 영구 거절된 재시도는 입력을 지우지 않고 서버 사유 그대로 보관함에 다시 남긴다", async ({ leave }) => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal("alert", alertSpy);
+    const { unsaved, report, resolve } = failureBridge();
+    const s = twoStores();
+    const h = await mount(companyRow(), s.saveOwnField, unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "보존할 입력");
+    await respond(s.rows[0], transientFailure());
+    expect(report).toHaveBeenCalledTimes(1);
+    const entry = report.mock.calls[0][0];
+    await leave(h);
+    resolve.mockClear(); // 새 입력 때 옛 항목을 지우는 호출은 빼고, 재시도가 만든 정리만 센다.
+
+    const retry = entry.retry();
+    await settle();
+    expect(s.saveOwnField).toHaveBeenCalledTimes(2);
+    await respond(s.rows[1], permanentRejection());
+    expect(await retry).toBe(false);
+
+    // 값은 되돌림·정리로 사라지지 않고, 서버가 준 사유와 함께 같은 칸의 보관함 항목으로 다시 남는다.
+    expect(report).toHaveBeenCalledTimes(2);
+    expect(report.mock.calls[1][0]).toMatchObject({
+      id: REPRESENTATIVE_ID,
+      rowId: "row-1",
+      fieldKey: REPRESENTATIVE,
+      value: "보존할 입력",
+      error: SERVER_REASON,
+    });
+    expect(resolve).not.toHaveBeenCalled();
+    // 공용 기록·성공 알림은 없고, 이미 닫힌 화면에 새 알림도 띄우지 않는다.
+    expect(s.stores).toEqual([]);
+    expect(s.calls).toEqual([rowCall(REPRESENTATIVE, "보존할 입력"), rowCall(REPRESENTATIVE, "보존할 입력")]);
+    expect(h.onSaved).not.toHaveBeenCalled();
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it("다른 회사로 전환한 뒤 영구 거절돼도 새 회사 화면의 칸과 알림은 바뀌지 않는다", async () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal("alert", alertSpy);
+    const { unsaved, report } = failureBridge();
+    const s = twoStores();
+    const h = await mount(companyRow(), s.saveOwnField, unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "옛 회사 입력");
+    await respond(s.rows[0], transientFailure());
+    const entry = report.mock.calls[0][0];
+    await h.rerender(otherCompanyRow());
+    expect(h.value(REPRESENTATIVE)).toBe("다른 대표");
+
+    const retry = entry.retry();
+    await settle();
+    await respond(s.rows[1], permanentRejection());
+    expect(await retry).toBe(false);
+    expect(h.value(REPRESENTATIVE)).toBe("다른 대표");
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(h.onSaved).not.toHaveBeenCalled();
+  });
+
+  it("잠깐 실패한 재시도는 항목을 그대로 두고, 다음 재시도가 성공하면 정상으로 끝난다", async () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal("alert", alertSpy);
+    const { unsaved, report, resolve } = failureBridge();
+    const s = twoStores();
+    const h = await mount(companyRow(), s.saveOwnField, unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "보존할 입력");
+    await respond(s.rows[0], transientFailure());
+    const entry = report.mock.calls[0][0];
+    await h.unmount();
+    resolve.mockClear();
+
+    const failed = entry.retry();
+    await settle();
+    await respond(s.rows[1], transientFailure());
+    expect(await failed).toBe(false);
+    // 잠깐 실패는 새로 알리지도, 항목을 지우지도 않는다 — 영구 거절만 다르게 다룬다.
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(resolve).not.toHaveBeenCalled();
+
+    const resumed = entry.retry();
+    await settle();
+    await respond(s.rows[2]);
+    await respond(s.stores[0]);
+    expect(await resumed).toBe(true);
+    expect(s.calls).toEqual([
+      rowCall(REPRESENTATIVE, "보존할 입력"),
+      rowCall(REPRESENTATIVE, "보존할 입력"),
+      rowCall(REPRESENTATIVE, "보존할 입력"),
+      storeCall(REPRESENTATIVE_FIELD_ID, "보존할 입력"),
+    ]);
+    expect(resolve).toHaveBeenCalledWith(REPRESENTATIVE_ID);
+    expect(h.onSaved).toHaveBeenCalledTimes(1);
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it("처음 저장이 영구 거절되면 지금처럼 이전 값으로 되돌리고 서버 사유를 알림으로 안내한다", async () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal("alert", alertSpy);
+    const { unsaved, report } = failureBridge();
+    const s = twoStores();
+    const h = await mount(companyRow(), s.saveOwnField, unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "거절될 입력");
+    expect(h.value(REPRESENTATIVE)).toBe("거절될 입력");
+
+    await respond(s.rows[0], permanentRejection());
+    expect(h.value(REPRESENTATIVE)).toBe("가상 대표");
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+    expect(alertSpy).toHaveBeenCalledWith(SERVER_REASON);
+    expect(report).not.toHaveBeenCalled();
+    expect(s.stores).toEqual([]);
+    expect(h.onSaved).not.toHaveBeenCalled();
+  });
+
+  it("더 새 입력이 생긴 뒤 늦게 온 옛 재시도의 영구 거절은 새 항목을 덮거나 지우지 않는다", async () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal("alert", alertSpy);
+    const { unsaved, report, resolve } = failureBridge();
+    const first = twoStores();
+    const a = await mount(companyRow(), first.saveOwnField, unsaved, first.api);
+    await a.edit(REPRESENTATIVE, "옛 실패 입력");
+    await respond(first.rows[0], transientFailure());
+    const stale = report.mock.calls[0][0];
+    const running = stale.retry(); // 옛 항목의 재시도가 출발한 채 서버 응답을 기다린다.
+    await settle();
+    expect(first.saveOwnField).toHaveBeenCalledTimes(2);
+    await a.unmount();
+    const second = twoStores();
+    const b = await mount(companyRow(), second.saveOwnField, unsaved, second.api);
+    await b.edit(REPRESENTATIVE, "새 입력"); // 같은 칸의 더 새 입력이 옛 항목을 영구히 낡게 만든다.
+    report.mockClear();
+    resolve.mockClear();
+
+    await respond(first.rows[1], permanentRejection());
+    expect(await running).toBe(false);
+    expect(report).not.toHaveBeenCalled();
+    expect(resolve).not.toHaveBeenCalled();
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(b.value(REPRESENTATIVE)).toBe("새 입력");
+
+    // 줄은 곧바로 새 입력으로 이어져 정상 저장된다.
+    await respond(second.rows[0]);
+    await respond(second.stores[0]);
+    expect(second.calls).toEqual([rowCall(REPRESENTATIVE, "새 입력"), storeCall(REPRESENTATIVE_FIELD_ID, "새 입력")]);
+    expect(b.value(REPRESENTATIVE)).toBe("새 입력");
+    expect(b.onSaved).toHaveBeenCalledTimes(1);
+  });
+});
