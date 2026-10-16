@@ -207,6 +207,22 @@ describe("resolveCommonFieldId — override 반영 공유판정", () => {
     expect(resolveCommonFieldId("custom_db_class_x9", "내부db분류")).toBe("내부 DB 분류");
     expect(resolveCommonFieldId("custom_db_class_x9", "내부 DB 분류", { excluded: ["내부 DB 분류"] })).toBe(null);
   });
+  it("NO.218: 1차 DB 분류(17소스DB분류)는 내부 DB 분류로 공유하지 않는다", () => {
+    expect(resolveCommonFieldId("17소스DB분류", "1차 DB 분류")).toBe(null);
+    expect(resolveCommonFieldId("16DB분류", "DB 분류")).toBe("내부 DB 분류");
+  });
+});
+
+describe("NO.218: 내부 DB 분류 칸은 1차 DB 분류(17소스DB분류)를 고르지 않는다", () => {
+  const cols: ColumnLite[] = [
+    { key: "16DB분류", label: "DB 분류", type: "select" },
+    { key: "17소스DB분류", label: "1차 DB 분류", type: "select" },
+  ];
+  it("16DB분류 가 비어 있고 17소스DB분류 에만 값이 있어도 16DB분류 로 연결한다", () => {
+    const sec = buildBasicSection(COMMON_BASIC_FIELD_SPECS, cols, { "16DB분류": "", "17소스DB분류": "필승마케팅" });
+    expect(sec.fields.find((f) => f.label === "내부 DB 분류")?.key).toBe("16DB분류");
+    expect(sec.fields.some((f) => f.key === "17소스DB분류")).toBe(false);
+  });
 });
 
 describe("isBasicColumnHidden (앱별 숨김 판정)", () => {

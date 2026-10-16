@@ -206,12 +206,14 @@ export type BasicFieldSpec = {
 //    '파트너사' 칸 = 고객 노출 파티션·자동입력 변수(load-entries)였다. 그 칸에 위들리/하이브/기존고객을
 //    넣으면 고객이 목록에서 사라진다. 그래서 18파트너사를 DB 담당 후보키에서 빼고, 일루아에 별도
 //    59DB담당(select) 칸을 신설해 ERP·하이브와 같은 슬롯·선택값을 쓰게 했다.)
-// 내부 DB 분류(옛 이름 "DB 분류") = "유입 출처"(TheLink/고용누리/필승마케팅): 54DB분류(ERP·하이브)·16DB분류/17소스DB분류(일루아).
+// 내부 DB 분류(옛 이름 "DB 분류") = "유입 출처"(TheLink/고용누리/필승마케팅): 54DB분류(ERP·하이브)·16DB분류(일루아).
+//   (2026-10-16 NO.218: 17소스DB분류 는 일루아·ERP 정책자금의 「1차 DB 분류」 — 선택지도 다른 별개 칸이라 후보에서 뺐다.
+//    넣어 두면 내부 DB 분류를 고칠 때 1차 DB 분류가 바뀌고, 1차 DB 분류 저장이 보관함의 내부 DB 분류를 덮는다.)
 // 각 칸은 앞에서부터 "그 앱에 실제 있는" 첫 키로 연결되므로, 같은 표가 여러 앱에서 동작한다.
 // 종류(type)는 실제 컬럼 정의가 있으면 그 종류를 쓰고, 데이터에만 있는 키는 아래 type 를 보조로 쓴다.
 export const COMMON_BASIC_FIELD_SPECS: BasicFieldSpec[] = [
   { label: "DB 분류",       keys: ["custom_1779774393414_b1wc", "59DB담당"], labelAliases: ["DB담당", "DB 담당"], type: "multi_select" },
-  { label: "내부 DB 분류",   keys: ["54DB분류", "16DB분류", "17소스DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류"], type: "select" },
+  { label: "내부 DB 분류",   keys: ["54DB분류", "16DB분류", "DB분류", "분류"], labelAliases: ["DB분류", "DB 분류"], type: "select" },
   { label: "대표자명",      keys: ["03대표자명", "02대표자명", "대표자명"],                 type: "text" },
   { label: "연락처",        keys: ["04연락처", "03대표연락처", "대표연락처", "연락처"],       type: "phone_number" },
   // 정부지원금·노무지원금 줄은 통합 DB 키 "신청자이메일" 에 주소가 있다(ERP unified-db-columns.ts:54) — 후보에 없으면 상세창 이메일 칸이 빈 채로 보인다(2026-09-06)
