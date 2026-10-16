@@ -126,8 +126,6 @@ export interface UnifiedDetailApi {
 
   /** 자기 분야 칸 1개 저장 — ERP: PATCH /api/tax-amendment/{id} */
   saveOwnField(entryId: string, key: string, value: string | number | boolean | null, editContext?: AddressEditContextV1, execution?: AddressSaveExecution): Promise<void | { atomicAddress: AtomicAddressSaveReceipt }>;
-  /** 비주소입력을 수락한 행으로 관리자 확인 대상을 고정한다. 전송은 기존 칸별 큐에서 수행한다. */
-  captureOwnFieldSave?(row: Record<string, unknown>): UnifiedDetailApi["saveOwnField"];
 
   /** 어댑터 자체 행만 false로 기존 저장을 선택한다. 생략하면 기존 loader의 주소 편집 기능을 유지한다. */
   supportsAddressEdit?(entryId: string): boolean;
@@ -256,21 +254,9 @@ export type UnsavedBridge = {
     restorable?: boolean;
     retry: () => Promise<boolean>;
     revert?: () => void;
-    onDiscard?: () => void;
-    basicRestore?: {
-      original?: { value: string | number | boolean | null; present: boolean };
-      applyToTable?: (original: { value: string | number | boolean | null; present: boolean }) => void;
-      apply: (original: { value: string | number | boolean | null; present: boolean }) => boolean;
-    };
   }) => void;
   /** expectedAttemptId가 있으면 그 시도가 현재 항목일 때만 지운다. */
   resolve: (id: string, expectedAttemptId?: string) => void;
-  /** 기본정보 실패 항목의 최초 확정값. {}는 항목은 있지만 확정값을 모르는 경우다. */
-  getBasicRecovery?: (id: string) => { original?: { value: string | number | boolean | null; present: boolean }; applyToTable?: (original: { value: string | number | boolean | null; present: boolean }) => void } | undefined;
-  /** 표·상세의 비주소 최초 입력부터 같은 칸의 최신 권한을 대조한다. */
-  beginBasicEdit?: (id: string, onSuperseded: () => void) => { isCurrent: () => boolean; release: () => void };
-  /** 표·상세의 같은 칸 저장을 행과 추가 기록까지 한 줄로 끝낸다. */
-  runBasicWrite?: <T>(id: string, task: () => Promise<T>) => Promise<T>;
   /** 이미 다른 시도로 교체/취소된 주소 retry를 거절하는 앱 보관함 조회. */
   getCurrentAttemptId?: (id: string) => string | undefined;
   /** 실제 주소 편집 시작에만 호출한다. 제공한 앱의 거절을 기존 저장으로 우회하지 않는다. */

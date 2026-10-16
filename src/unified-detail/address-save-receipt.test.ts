@@ -822,14 +822,11 @@ describe("주소 재시도와 최신 읽기 경계", () => {
     expect(p.field().props.value).toBe("서울"); expect(p.api.saveBasicField).not.toHaveBeenCalled();
     expect(p.adapter.unsaved.report).not.toHaveBeenCalled();
   });
-  it("비주소 retry는 최초 저장과 같은 행 저장·공용 기록·onSaved 경로를 실행", async () => {
+  it("비주소 retry는 기존 직접 저장 콜백 동작을 유지", async () => {
     const p = panel({ save: vi.fn().mockRejectedValueOnce(temporary()).mockResolvedValue(undefined) });
     await p.flush(); await p.startSave("대표", "03대표자명"); await p.flush();
     expect(await failedEntry(p).retry()).toBe(true); await p.flush();
-    expect(p.api.saveOwnField).toHaveBeenCalledTimes(2);
-    expect(p.api.saveBasicField).toHaveBeenCalledOnce();
-    expect(p.api.saveBasicField).toHaveBeenCalledWith(company, "erp", "대표자명", "대표");
-    expect(p.onSaved).toHaveBeenCalledOnce();
+    expect(p.api.saveBasicField).not.toHaveBeenCalled(); expect(p.onSaved).not.toHaveBeenCalled();
   });
 });
 
