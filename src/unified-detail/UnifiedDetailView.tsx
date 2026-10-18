@@ -1077,7 +1077,14 @@ function applyIncomingBasicRow(
     const hasNext = hasOwnKey(nextIncoming, k);
     if (hadPrev === hasNext && sameFieldValue(prevIncoming[k], nextIncoming[k])) continue;
     const field = owner.fields.get(k);
-    if (field?.protected && (field.inflight > 0 || field.retained)) continue;
+    if (field?.protected && (field.inflight > 0 || field.retained)) {
+      // 서버가 받아들인 값이 새 행에도 확인되면 비교 기준만 갱신한다. 입력 보호는 유지한다.
+      if (field.confirmedHas === hasNext && (!hasNext || sameFieldValue(field.confirmed, nextIncoming[k]))) {
+        if (hasNext) baseline[k] = nextIncoming[k];
+        else delete baseline[k];
+      }
+      continue;
+    }
     if (hasNext) merged[k] = nextIncoming[k];
     else delete merged[k];
     if (hasNext) baseline[k] = nextIncoming[k];

@@ -784,6 +784,38 @@ describe("기본정보 칸 행 동기화·저장 (compact)", () => {
       expect(valueOf(view, "대표자명")).toBe("서버또새값");
     });
 
+    it("없는 칸의 복원 기준을 관측한 뒤에는 새 서버 값을 반영한다", async () => {
+      const h = setup({ holdRows: true });
+      const absent = h.rowA();
+      delete absent["03대표자명"];
+      let view = await mount(h, absent);
+      await editText(view, "대표자명", "A");
+      await act(async () => { h.rows[0].d.reject(failure("연결 끊김", "transient")); });
+      await settle();
+      await view.unmount();
+      view = await mount(h, h.rowA({ "03대표자명": "A" }));
+      await editText(view, "대표자명", "B");
+      await view.render({ ...absent });
+      await act(async () => { h.rows[1].d.reject(failure("권한 없음", "permanent")); });
+      await settle();
+      expect(valueOf(view, "대표자명")).toBe("-");
+      await view.render(h.rowA({ "03대표자명": "A" }));
+      expect(valueOf(view, "대표자명")).toBe("A");
+    });
+
+    it("행 저장이 확인된 값을 보호 중 받았으면 이후 다른 사용자의 변경을 반영한다", async () => {
+      const h = setup({ holdStores: true });
+      const view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "새대표");
+      expect(h.stores).toHaveLength(1);
+      await view.render(h.rowA({ "03대표자명": "새대표" }));
+      expect(valueOf(view, "대표자명")).toBe("새대표");
+      await act(async () => { h.stores[0].d.resolve(null); });
+      await settle();
+      await view.render(h.rowA());
+      expect(valueOf(view, "대표자명")).toBe("원본대표");
+    });
+
     it("보관소 기록이 실패해도 보호는 풀린다(행 저장은 유지)", async () => {
       const h = setup({ holdStores: true });
       const view = await mount(h, h.rowA());
