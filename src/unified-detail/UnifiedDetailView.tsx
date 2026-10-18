@@ -238,11 +238,14 @@ type BasicFieldEdit = {
   /** 서버가 마지막으로 받아들인 값(없으면 첫 입력 직전 값) — 실패 되돌림의 기준. */
   confirmed?: BasicFieldOriginal;
   applyToTable?: (original: BasicFieldOriginal) => void;
+  /** 더 새 입력 때문에 알리지 않은 앞 저장의 성공 — 마지막 입력이 실패하면 그때 부모에 한 번 알린다. */
+  unnotified?: () => void;
 };
 
 // 화면을 닫아도 앱 막대에 남은 실패는 복구할 수 있다. 새 입력은 같은 회사·칸의 옛 복구를 영구 취소한다.
 // 진행 중인 입력·현재 실패만 남기고 성공·영구 실패·되돌림이 끝나면 지운다. owner는 UI 수명만 관리한다.
-const basicFieldIntents = new Map<string, { valid: boolean }>();
+// edit 는 닫았다 다시 연 창이 아직 끝나지 않은 앞 입력의 묶음(확정값·되돌림 기준)을 이어받는 데 쓴다.
+const basicFieldIntents = new Map<string, { valid: boolean; edit?: BasicFieldEdit }>();
 const basicFieldTails = new Map<string, Promise<void>>();
 // start 는 행 저장까지 끝낸 뒤 결과(value)와 "그 뒤에 남은 일"(stored: 공용 보관함 기록)을 돌려준다.
 // 호출자는 value 만 기다리고, 다음 입력은 stored 까지 끝난 뒤에 출발한다. 끝난 꼬리는 지운다.
@@ -1878,11 +1881,17 @@ function BasicInfoPanel({
           ? { value: currentValue as BasicFieldValue, present: true } : undefined;
       // 끝나지 않은 앞선 입력이 있으면 같은 묶음으로 잇고(되돌림 기준 유지), 없으면 지금 화면 값을 기준으로 새로 연다.
       const chain = owner.fieldEdits.get(key);
-      const edit: BasicFieldEdit = chain?.open ? chain : { latest: {}, open: true, confirmed: recovery === undefined ? renderedOriginal : recovery.original ? { ...recovery.original } : undefined, applyToTable: recovery?.applyToTable };
       const intentId = JSON.stringify([entryId, key]);
       const previousIntent = basicFieldIntents.get(intentId);
+      // 이 화면에 열린 묶음이 없어도 다른(닫힌) 화면의 입력이 아직 진행 중이면 그 묶음을 잇는다 —
+      // 앞 저장이 성공하면 이 입력의 실패도 그 값으로 되돌려야 한다(화면별 기준을 따로 두면 옛 값으로 돌아간다).
+      const inherited = !chain?.open && previousIntent?.valid && previousIntent.edit?.open ? previousIntent.edit : undefined;
+      const hostApplyToTable = unsaved?.applyToTable;
+      const applyToTable = recovery?.applyToTable
+        ?? (hostApplyToTable ? (original: BasicFieldOriginal) => hostApplyToTable(entryId, key, original) : undefined);
+      const edit: BasicFieldEdit = chain?.open ? chain : inherited ?? { latest: {}, open: true, confirmed: recovery === undefined ? renderedOriginal : recovery.original ? { ...recovery.original } : undefined, applyToTable };
       if (previousIntent) previousIntent.valid = false;
-      const mine = { valid: true };
+      const mine = { valid: true, edit };
       basicFieldIntents.set(intentId, mine);
       edit.latest = mine;
       edit.open = true;
@@ -1917,6 +1926,10 @@ function BasicInfoPanel({
       const fail = (e: unknown) => {
         // 더 새 입력 뒤의 실패는 버린다. 화면 종료만으로 현재 입력의 앱 전체 복구를 버리지 않는다.
         if (!latest()) return;
+        // 앞 입력은 서버에 저장됐는데 마지막 입력이 실패했다 — 부모 목록이 저장된 값을 다시 읽게 한 번 알린다.
+        const notify = edit.unnotified;
+        edit.unnotified = undefined;
+        notify?.();
         // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
         const m = e instanceof Error ? e.message : "";
         const kind = saveFailureKindOf(e);
@@ -1952,8 +1965,8 @@ function BasicInfoPanel({
           if (!retry || saveFailureKindOf(e) === "permanent") fail(e);
           return { value: false, stored: noMore };
         }
-        // 이미 출발한 요청은 취소한 척하지 않는다. 폐기된 재시도의 응답으로 확정값·후속 PUT·UI를 바꾸지 않는다.
-        if (retry && !latest()) { finish(); return { value: false, stored: noMore }; }
+        // 이미 출발한 요청은 취소한 척하지 않는다. 더 새 입력이 생긴 재시도라도 행 저장은 실제로 됐으니
+        // 확정값과 공용 기록은 그 값으로 맞춘다(더 새 입력은 같은 칸 줄에서 이 뒤에 출발한다). 화면·막대는 바꾸지 않는다.
         // row ACK는 실제 확정 근거다. store 대기 중 막대의 되돌림도 같은 descriptor를 읽는다.
         if (edit.confirmed) { edit.confirmed.value = newVal; edit.confirmed.present = true; }
         else edit.confirmed = { value: newVal, present: true };
@@ -2006,7 +2019,8 @@ function BasicInfoPanel({
           finish();
         });
         const saved = { value: true, stored: finished, completed: () => completed };
-        if (!retry && latest()) onSaved?.();
+        if (!retry && latest()) { edit.unnotified = undefined; onSaved?.(); }
+        else if (!latest() && onSaved) edit.unnotified = onSaved;
         return saved;
       };
       const host = unsavedId && unsaved?.runBasicWrite
@@ -2028,7 +2042,7 @@ function BasicInfoPanel({
         }, host).then(async value => {
           await stored;
           const ok = value && completed();
-          if (ok) onSaved?.();
+          if (ok) { edit.unnotified = undefined; onSaved?.(); }
           return ok;
         }).finally(() => { retryInFlight = false; });
       };
@@ -3731,11 +3745,13 @@ export default function UnifiedDetailView({
       });
   }, [row, adapter, detailOwner]);
 
+  // 처음과 대상(회사·어댑터)이 바뀔 때마다 불러온다 — 이전 대상의 응답은 버리므로 새 대상 조회가 없으면 '불러오는 중'에 멈춘다.
+  // 어댑터는 앱마다 고정(memo)이라 대상이 그대로면 다시 부르지 않는다.
   useEffect(() => {
     if (isNew) { setLoading(false); return; } // 신규 등록은 불러올 기존 데이터가 없음
     loadDetail(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [detailOwner]);
 
   // 어떤 칸이든 저장되면: 모달의 분야 데이터(detail)를 조용히 새로고침
   //  → '전체 영역 현황' 요약표·상단 상태점·분야 탭 값이 그 자리에서 바로 반영된다.

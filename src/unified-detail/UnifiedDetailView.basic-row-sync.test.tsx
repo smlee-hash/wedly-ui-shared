@@ -1112,20 +1112,24 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       expect(h.value(REPRESENTATIVE)).toBe("새 입력");
 
       await respond(s.rows[1]);
-      expect(await first).toBe(false);
       await queued;
-      // 중복 재시도는 false, 줄은 곧바로 새 입력으로 이어진다.
+      // 중복 재시도는 false. 첫 재시도의 행 저장은 실제로 됐으니 공용 기록도 그 값으로 맞춘 뒤 새 입력이 출발한다(v10).
       expect(second).toBe(false);
       expect(s.calls).toEqual([
         rowCall(REPRESENTATIVE, "내 입력"),
         rowCall(REPRESENTATIVE, "내 입력"),
-        rowCall(REPRESENTATIVE, "새 입력"),
+        storeCall(REPRESENTATIVE_FIELD_ID, "내 입력"),
       ]);
+      expect(h.value(REPRESENTATIVE)).toBe("새 입력");
+      await respond(s.stores[0]);
+      expect(await first).toBe(false);
+      expect(s.calls.at(-1)).toBe(rowCall(REPRESENTATIVE, "새 입력"));
 
       await respond(s.rows[2]);
-      await respond(s.stores[0]);
+      await respond(s.stores[1]);
       expect(s.calls.at(-1)).toBe(storeCall(REPRESENTATIVE_FIELD_ID, "새 입력"));
       expect(h.value(REPRESENTATIVE)).toBe("새 입력");
+      expect(h.onSaved).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1251,9 +1255,12 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       const b = await mount(companyRow(), second.saveOwnField, unsaved, second.api);
       await b.edit(REPRESENTATIVE, "새 입력");
       await respond(first.rows[1]);
-      expect(await running).toBe(false);
-      expect(first.stores).toEqual([]);
       expect(await queued).toBe(false);
+      // 성공한 옛 재시도는 공용 기록도 맞춘다(v10). 새 입력은 그 기록이 끝난 뒤 출발한다.
+      expect(first.calls.at(-1)).toBe(storeCall(REPRESENTATIVE_FIELD_ID, "옛 실패 입력"));
+      expect(second.saveOwnField).not.toHaveBeenCalled();
+      await respond(first.stores[0]);
+      expect(await running).toBe(false);
       expect(first.saveOwnField).toHaveBeenCalledTimes(2);
       expect(second.saveOwnField).toHaveBeenCalledTimes(1);
       await respond(second.rows[0]);
@@ -1373,6 +1380,110 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       await answerRead(read, OLD_STORE());
       expect(h.value(REPRESENTATIVE)).toBe("가상 대표");
       expect(h.value(FLAG)).toBe("true");
+    });
+  });
+
+  // v10: 독립 리뷰(review-26c8f49b) P2 재현 — 앞 저장 성공 뒤 마지막 입력 실패, 다시 연 창, 첫 조회 중 대상 전환.
+  describe("v10 앞 저장 성공 뒤 마지막 입력 실패", () => {
+    it("더 새 입력이 생긴 재시도의 성공도 확정값·공용 기록에 남아, 새 입력이 영구 실패하면 그 값으로 되돌린다", async () => {
+      const alertSpy = vi.fn();
+      vi.stubGlobal("alert", alertSpy);
+      const { unsaved, report } = failureBridge();
+      const s = twoStores();
+      const h = await mount(companyRow(), s.saveOwnField, unsaved, s.api);
+      await h.edit(REPRESENTATIVE, "첫 입력");
+      await respond(s.rows[0], transientFailure());
+      const retry = report.mock.calls[0][0].retry();
+      await settle();
+      await h.edit(REPRESENTATIVE, "둘째 입력");
+      await respond(s.rows[1]);
+      expect(await Promise.race([retry, Promise.resolve("대기")])).toBe("대기");
+      expect(s.calls).toEqual([
+        rowCall(REPRESENTATIVE, "첫 입력"),
+        rowCall(REPRESENTATIVE, "첫 입력"),
+        storeCall(REPRESENTATIVE_FIELD_ID, "첫 입력"),
+      ]);
+      await respond(s.stores[0]);
+      expect(await retry).toBe(false);
+      expect(s.calls.at(-1)).toBe(rowCall(REPRESENTATIVE, "둘째 입력"));
+      expect(h.onSaved).not.toHaveBeenCalled();
+      await respond(s.rows[2], new Error("synthetic permanent failure"));
+      expect(h.value(REPRESENTATIVE)).toBe("첫 입력");
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+      expect(h.onSaved).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      { kind: "영구 실패", failure: () => new Error("synthetic permanent failure"), reports: 0 },
+      { kind: "잠깐 실패", failure: transientFailure, reports: 1 },
+    ])("닫은 뒤 앞 입력이 저장되고 마지막 입력이 $kind하면 부모에 한 번 알린다", async ({ failure, reports }) => {
+      vi.stubGlobal("alert", vi.fn());
+      const { unsaved, report } = failureBridge();
+      const s = twoStores();
+      const h = await mount(companyRow(), s.saveOwnField, unsaved, s.api);
+      await h.edit(FLAG, true);
+      await h.edit(FLAG, false);
+      await h.unmount();
+      await respond(s.rows[0]);
+      await respond(s.stores[0]);
+      expect(h.onSaved).not.toHaveBeenCalled();
+      await respond(s.rows[1], failure());
+      expect(report).toHaveBeenCalledTimes(reports);
+      expect(h.onSaved).toHaveBeenCalledTimes(1);
+    });
+
+    it("닫았다 다시 연 창의 입력이 영구 실패하면 이전 창의 성공한 저장값으로 되돌린다", async () => {
+      const alertSpy = vi.fn();
+      vi.stubGlobal("alert", alertSpy);
+      const first = twoStores();
+      const second = twoStores();
+      const a = await mount(companyRow(), first.saveOwnField, undefined, first.api);
+      await a.edit(REPRESENTATIVE, "첫 입력");
+      await a.unmount();
+      const b = await mount(companyRow(), second.saveOwnField, undefined, second.api);
+      expect(b.value(REPRESENTATIVE)).toBe("가상 대표");
+      await b.edit(REPRESENTATIVE, "둘째 입력");
+      await respond(first.rows[0]);
+      await respond(first.stores[0]);
+      expect(second.saveOwnField).toHaveBeenCalledTimes(1);
+      await respond(second.rows[0], new Error("synthetic permanent failure"));
+      expect(b.value(REPRESENTATIVE)).toBe("첫 입력");
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // review-f96e3682 W2: 상세에서 처음 실패한 값은 앱이 재조회 때 표에 얹는다. 되돌리기가 상세만 고치면 표에 실패값이 남는다.
+  describe("v10 앱 표 되돌리기 통로", () => {
+    it("상세에서 처음 실패한 값을 되돌리면 앱 표의 같은 칸도 확정값으로 되돌린다", async () => {
+      const { unsaved, report } = failureBridge();
+      const applyToTable = vi.fn();
+      const s = twoStores();
+      const h = await mount(companyRow(), s.saveOwnField, { ...unsaved, applyToTable }, s.api);
+      await h.edit(REPRESENTATIVE, "실패 입력");
+      await respond(s.rows[0], transientFailure());
+      const entry = report.mock.calls[0][0];
+      expect(entry.basicRestore.applyToTable).toBeTypeOf("function");
+      entry.revert();
+      await settle();
+      expect(applyToTable).toHaveBeenCalledTimes(1);
+      expect(applyToTable).toHaveBeenCalledWith("row-1", REPRESENTATIVE, { value: "가상 대표", present: true });
+      expect(h.value(REPRESENTATIVE)).toBe("가상 대표");
+    });
+  });
+
+  describe("v10 첫 조회 중 대상 전환", () => {
+    it("첫 분야 조회가 끝나기 전에 다른 회사로 바꾸면 새 회사를 다시 불러와 '불러오는 중'에 멈추지 않는다", async () => {
+      const held = deferred<CustomerDetailLite>();
+      const loadDomainRows = vi.fn()
+        .mockImplementationOnce(() => held.promise)
+        .mockResolvedValue(syntheticDetail());
+      const h = await mount(companyRow(), async () => {}, undefined, { loadDomainRows, loadBasicStore: async () => null });
+      expect(loadDomainRows).toHaveBeenCalledTimes(1);
+      await h.rerender(otherCompanyRow());
+      await act(async () => { held.resolve(syntheticDetail()); });
+      await settle();
+      expect(loadDomainRows).toHaveBeenCalledTimes(2);
+      expect(document.body.textContent ?? "").not.toContain("불러오는 중");
     });
   });
 });

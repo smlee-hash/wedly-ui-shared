@@ -267,6 +267,11 @@ export type UnsavedBridge = {
   resolve: (id: string, expectedAttemptId?: string) => void;
   /** 기본정보 실패 항목의 최초 확정값. {}는 항목은 있지만 확정값을 모르는 경우다. */
   getBasicRecovery?: (id: string) => { original?: { value: string | number | boolean | null; present: boolean }; applyToTable?: (original: { value: string | number | boolean | null; present: boolean }) => void } | undefined;
+  /**
+   * 상세에서 실패한 기본정보 값을 되돌릴 때 앱 표의 같은 칸도 확정값으로 되돌린다. 앱이 재조회 때 실패값을 표에
+   * 다시 얹을 수 있어서다. 앞서 표에서 실패한 항목이 있으면 그 항목의 applyToTable 이 먼저 쓰인다.
+   */
+  applyToTable?: (entryId: string, key: string, original: { value: string | number | boolean | null; present: boolean }) => void;
   /** 표·상세의 비주소 최초 입력부터 같은 칸의 최신 권한을 대조한다. */
   beginBasicEdit?: (id: string, onSuperseded: () => void) => { isCurrent: () => boolean; release: () => void };
   /** 표·상세의 같은 칸 저장을 행과 추가 기록까지 한 줄로 끝낸다. */
