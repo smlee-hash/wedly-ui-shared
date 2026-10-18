@@ -1989,6 +1989,7 @@ function BasicInfoPanel({
     async (key: string, newVal: string | number | boolean | null, fieldId: string) => {
       const owner = addressOwner;
       const acceptedSave = adapter.api.captureOwnFieldSave?.(row) ?? saveOwnField;
+      const acceptedStore = adapter.api.captureBasicFieldSave?.() ?? adapter.api.saveBasicField;
       const uiLive = () => owner.active && addressOwnerRef.current === owner;
       const unsaved = adapter.unsaved;
       const rowLabel = String(row["02상호명"] ?? "") || "이 항목";
@@ -2076,7 +2077,7 @@ function BasicInfoPanel({
             rowLabel, fieldLabel: key, value: newVal,
             error: m || `'${key}' 저장에 실패했습니다.`, kind,
             retry: async () => latest() ? resend() : false,
-            onDiscard: finish,
+            onCleanup: finish,
             basicRestore: Object.assign(edit.recovery, { apply: restore }),
             revert: edit.recovery.original ? revert : undefined,
           });
@@ -2149,7 +2150,7 @@ function BasicInfoPanel({
           const currentAddress = () => uiLive() && owner.generation === putGeneration && !addressPending && !owner.pending;
           stored = (async () => {
             try {
-              const rec = await adapter.api.saveBasicField(bizno, "erp", fieldId, newVal);
+              const rec = await acceptedStore.call(adapter.api, bizno, "erp", fieldId, newVal);
               if (!uiLive() || !latest() || !rec) return;
               const field = addressFieldFromRecord(rec);
               const keepAddress = () => !currentAddress() || (owner.hasValue && !field);

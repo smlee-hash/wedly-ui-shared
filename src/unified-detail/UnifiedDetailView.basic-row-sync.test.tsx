@@ -723,6 +723,124 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
     });
   });
 
+  describe("비주소 공용 기록의 입력 시점 소유권", () => {
+    it.each([false, true])("입력 순간 저장 함수를 고정하고 대기·계정 변경 뒤에도 같은 함수를 쓴다 (재시도=%s)", async retry => {
+      const s = twoStores();
+      const { unsaved, report } = failureBridge();
+      const gate = deferred<void>();
+      const queued = { resolve: () => gate.resolve(), reject: gate.reject };
+      pendingLists.push([queued]);
+      unsaved.runBasicWrite = <T,>(_id: string, task: () => Promise<T>) => gate.promise.then(task);
+      let actor = "A";
+      const writtenActors: string[] = [];
+      const captureBasicFieldSave = vi.fn(() => {
+        const acceptedActor = actor;
+        return vi.fn<UnifiedDetailApi["saveBasicField"]>((...args) => {
+          writtenActors.push(acceptedActor);
+          return s.saveBasicField(...args);
+        });
+      });
+      const defaultStore = vi.fn<UnifiedDetailApi["saveBasicField"]>(async () => null);
+      const h = await mount(companyRow(), s.saveOwnField, unsaved, {
+        ...s.api, saveBasicField: defaultStore, captureBasicFieldSave,
+      });
+      expect(captureBasicFieldSave).not.toHaveBeenCalled();
+      const button = probe(`[data-probe-edit="${REPRESENTATIVE}"]`, "대표자명 편집 단추");
+      button.dataset.next = JSON.stringify("받아들인 입력");
+      await act(async () => {
+        button.click();
+        // 입력 처리에서 첫 await·호스트 큐 대기보다 먼저 고정해야 한다.
+        expect(captureBasicFieldSave).toHaveBeenCalledTimes(1);
+        expect(s.saveOwnField).not.toHaveBeenCalled();
+        actor = "B";
+      });
+      await settle();
+      const capturedStore = captureBasicFieldSave.mock.results[0].value;
+      expect(capturedStore).not.toHaveBeenCalled();
+      expect(defaultStore).not.toHaveBeenCalled();
+
+      await respond(queued);
+      expect(s.saveOwnField).toHaveBeenCalledTimes(1);
+      // 행 요청이 진행 중인 동안에도 저장 함수를 다시 선택하지 않는다.
+      actor = "C";
+      let retried: Promise<boolean> | undefined;
+      if (retry) {
+        await respond(s.rows[0], transientFailure());
+        expect(report).toHaveBeenCalledTimes(1);
+        retried = report.mock.calls[0][0].retry();
+        await settle();
+        expect(s.saveOwnField).toHaveBeenCalledTimes(2);
+        expect(capturedStore).not.toHaveBeenCalled();
+      }
+      await respond(s.rows[retry ? 1 : 0]);
+      expect(captureBasicFieldSave).toHaveBeenCalledTimes(1);
+      expect(capturedStore).toHaveBeenCalledTimes(1);
+      expect(capturedStore).toHaveBeenCalledWith(BIZNO_DIGITS, "erp", REPRESENTATIVE_FIELD_ID, "받아들인 입력");
+      expect(writtenActors).toEqual(["A"]);
+      expect(defaultStore).not.toHaveBeenCalled();
+      expect(s.calls.at(-1)).toBe(storeCall(REPRESENTATIVE_FIELD_ID, "받아들인 입력"));
+      await respond(s.stores[0]);
+      if (retried) expect(await retried).toBe(true);
+      expect(captureBasicFieldSave).toHaveBeenCalledTimes(1);
+      expect(h.value(REPRESENTATIVE)).toBe("받아들인 입력");
+      expect(h.onSaved).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([false, true])("고정한 공용 기록이 거절돼도 실제 행 성공은 유지하고 다시 보내지 않는다 (재시도=%s)", async retry => {
+      const alertSpy = vi.fn();
+      vi.stubGlobal("alert", alertSpy);
+      const s = twoStores();
+      const { unsaved, report } = failureBridge();
+      const noteBasicServerValue = vi.fn();
+      unsaved.noteBasicServerValue = noteBasicServerValue;
+      const capturedStore = vi.fn<UnifiedDetailApi["saveBasicField"]>(() => {
+        throw new Error("synthetic accepted actor no longer owns this write");
+      });
+      const captureBasicFieldSave = vi.fn(() => capturedStore);
+      const h = await mount(companyRow(), s.saveOwnField, unsaved, { ...s.api, captureBasicFieldSave });
+      await h.edit(REPRESENTATIVE, "실제 저장값");
+      let retried: Promise<boolean> | undefined;
+      if (retry) {
+        await respond(s.rows[0], transientFailure());
+        expect(report).toHaveBeenCalledTimes(1);
+        retried = report.mock.calls[0][0].retry();
+        await settle();
+      }
+      await respond(s.rows[retry ? 1 : 0]);
+      if (retried) expect(await retried).toBe(true);
+      expect(captureBasicFieldSave).toHaveBeenCalledTimes(1);
+      expect(capturedStore).toHaveBeenCalledTimes(1);
+      expect(capturedStore).toHaveBeenCalledWith(BIZNO_DIGITS, "erp", REPRESENTATIVE_FIELD_ID, "실제 저장값");
+      expect(s.saveBasicField).not.toHaveBeenCalled();
+      expect(s.saveOwnField).toHaveBeenCalledTimes(retry ? 2 : 1);
+      expect(noteBasicServerValue).toHaveBeenCalledTimes(1);
+      expect(noteBasicServerValue).toHaveBeenCalledWith("synthetic:row-1:" + REPRESENTATIVE, { value: "실제 저장값", present: true });
+      if (retry) expect(report.mock.calls[0][0].basicRestore.original).toEqual({ value: "실제 저장값", present: true });
+      expect(report).toHaveBeenCalledTimes(retry ? 1 : 0);
+      expect(alertSpy).not.toHaveBeenCalled();
+      expect(h.value(REPRESENTATIVE)).toBe("실제 저장값");
+      expect(h.onSaved).toHaveBeenCalledTimes(1);
+    });
+
+    it("선택 기능이 없는 앱은 행 성공 뒤 기존 메서드의 네 인수와 수신 객체를 유지한다", async () => {
+      const s = twoStores();
+      const saveBasicField = vi.fn(function (this: UnifiedDetailApi, ...args: Parameters<UnifiedDetailApi["saveBasicField"]>) {
+        return s.saveBasicField(...args);
+      });
+      const adapter = buildAdapter(s.saveOwnField, undefined, { ...s.api, saveBasicField });
+      const h = await mountHost(host, companyRow(), s.saveOwnField, undefined, undefined, adapter);
+      await h.edit(REPRESENTATIVE, "기존 앱 입력");
+      expect(saveBasicField).not.toHaveBeenCalled();
+      await respond(s.rows[0]);
+      expect(saveBasicField).toHaveBeenCalledTimes(1);
+      expect(saveBasicField).toHaveBeenCalledWith(BIZNO_DIGITS, "erp", REPRESENTATIVE_FIELD_ID, "기존 앱 입력");
+      expect(saveBasicField.mock.contexts[0]).toBe(adapter.api);
+      expect(s.calls).toEqual([rowCall(REPRESENTATIVE, "기존 앱 입력"), storeCall(REPRESENTATIVE_FIELD_ID, "기존 앱 입력")]);
+      await respond(s.stores[0]);
+      expect(h.onSaved).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // ══ 같은 칸 연속 저장 — 순서·최신 입력 (실제 두 저장소: 행 saveOwnField + 공용 보관함 saveBasicField) ══
   //
   // 브라우저 실증: 첫 true PATCH 를 서버 도착 전에 지연시키고 둘째 false PATCH 가 먼저 저장된 뒤 첫 true 를 풀면 최종 DB/화면이 true.

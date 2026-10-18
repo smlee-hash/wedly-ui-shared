@@ -181,6 +181,9 @@ export interface UnifiedDetailApi {
   /** 기본정보 칸 1개 저장 — PUT /api/basic-store/{bizno} */
   saveBasicField(bizno: string, app: string, fieldId: string, value: unknown): Promise<BasicRecord | null>;
 
+  /** 비주소 입력을 수락한 호출자의 저장 맥락을 비동기 대기 전에 고정한다. 자체 전송은 없으며, 미제공 앱은 기존 저장을 쓴다. */
+  captureBasicFieldSave?(): UnifiedDetailApi["saveBasicField"];
+
   /** 섹션 보관함 읽기 — GET /api/section-store/{bizno}/{section}?kind= */
   loadSectionStore(bizno: string, section: string, kind: string): Promise<unknown>;
 
@@ -270,7 +273,10 @@ export type UnsavedBridge = {
     restorable?: boolean;
     retry: () => Promise<boolean>;
     revert?: () => void;
+    /** 사용자가 현재 알림을 명시적으로 지운 뒤 한 번 호출한다. */
     onDiscard?: () => void;
+    /** 교체·해결·종료 때 이 항목이 소유한 복구와 대기만 정리한다. */
+    onCleanup?: () => void;
     basicRestore?: BasicRecovery & {
       apply: (original: { value: string | number | boolean | null; present: boolean }) => boolean;
     };
