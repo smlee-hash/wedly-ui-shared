@@ -13,6 +13,15 @@ export function customerKeyFromTaxRow(row: RowData, ownDomain: string = "tax-ame
   return `i:${ownDomain}:${String(row["_id"] ?? "")}`;
 }
 
+/** 표 원본과 공유 상세가 같은 고객의 진행 중 복원 객체를 식별한다. */
+export function basicRecoveryIdentity(row: Record<string, unknown>, ownDomain = "tax-amendment"): string {
+  const normalized = ownDomain === "government-subsidy" ? { ...row,
+    "15사업자번호": row["15사업자번호"] ?? row["04사업자번호"],
+    "04연락처": row["04연락처"] ?? row["03대표연락처"],
+  } : row;
+  return JSON.stringify([ownDomain, customerKeyFromTaxRow(normalized as RowData, ownDomain)]);
+}
+
 export type DomainRowLite = {
   domain: string;
   domainLabel: string;

@@ -7,6 +7,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
+    "./basic-recovery": "./src/unified-detail/lib/basic-recovery.ts",
     ".": "./src/index.ts",
     "./styles.css": "./src/styles.css",
     "./section-store": {

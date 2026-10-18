@@ -3,10 +3,11 @@
 // 이 패키지 버전의 상세창은 compact 한 모양뿐이라(wide 변형 없음) 그 한 가지 모양을 그대로 검증한다.
 // 사업자번호는 가짜 값만 쓰고, 보관소 기록의 칸 이름은 실제 라벨 매핑(공통 라벨·커스텀 칸 라벨)을 그대로 탄다.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, createElement } from "react";
+import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import UnifiedDetailView from "./UnifiedDetailView";
-import type { BasicRecord, UnifiedDetailAdapter } from "./adapter-types";
+import type { BasicRecord, BasicRecovery, BasicRestoreOriginal, UnifiedDetailAdapter } from "./adapter-types";
+import { customerKeyFromTaxRow } from "./lib/customer-detail";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -32,13 +33,23 @@ function mergeHostEntry(prev: Report[], entry: Report): Report[] {
     const original = old ? old.basicRestore?.original : entry.basicRestore.original;
     const apply = entry.basicRestore.apply;
     const applyToTable = entry.basicRestore.applyToTable ?? old?.basicRestore?.applyToTable;
-    return [...rest, { ...entry, basicRestore: { original, apply, applyToTable }, revert: original === undefined ? undefined : () => { apply(original); } }];
+    const basicRestore = Object.assign(entry.basicRestore, { original, applyToTable });
+    return [...rest, { ...entry, basicRestore, revert: original === undefined ? undefined : () => { if (basicRestore.original) apply(basicRestore.original); } }];
   }
   return [...rest, old ? { ...entry, revert: old.revert } : entry];
 }
 type RowCall = { entryId: string; key: string; value: unknown; d: Deferred<void> };
 type StoreCall = { bizno: string; app: string; fieldId: string; value: unknown; d: Deferred<BasicRecord | null> };
 type ReadCall = { bizno: string; d: Deferred<BasicRecord | null> };
+type Detail = Awaited<ReturnType<UnifiedDetailAdapter["api"]["loadDomainRows"]>>;
+type DetailRead = { key: string; d: Deferred<Detail> };
+
+function domainDetail(row: Parameters<typeof customerKeyFromTaxRow>[0], status: string): NonNullable<Detail> {
+  return {
+    key: customerKeyFromTaxRow(row), bizno: "", company: String(row["02상호명"]), ceo: "", phone: "",
+    domainRows: [{ domain: "tax-amendment", domainLabel: "경정청구", entryId: String(row._id), status, row }],
+  };
+}
 
 const FIELD_OPTIONS = {
   READONLY_TYPES: new Set(["last_edited_time", "last_edited_by", "auto_increment_id", "formula"]),
@@ -76,7 +87,7 @@ function record(fields: Record<string, unknown>): BasicRecord {
   };
 }
 
-function makeHarness(opts: { holdRows?: boolean; holdStores?: boolean; holdReads?: boolean; flagColumn?: boolean; progressColumn?: boolean } = {}) {
+function makeHarness(opts: { holdRows?: boolean; holdStores?: boolean; holdReads?: boolean; holdDomainReads?: boolean; flagColumn?: boolean; progressColumn?: boolean } = {}) {
   seq += 1;
   // 항목 id 는 테스트마다 다르게 — 저장 줄(모듈 단위)이 테스트 사이에 이어지지 않게.
   const idA = `recA-${seq}`;
@@ -85,8 +96,9 @@ function makeHarness(opts: { holdRows?: boolean; holdStores?: boolean; holdReads
   const rows: RowCall[] = [];
   const stores: StoreCall[] = [];
   const reads: ReadCall[] = [];
+  const detailReads: DetailRead[] = [];
   const bar = { entries: [] as Report[] };
-  const edits = new Map<string, { valid: boolean; supersede: () => void }>();
+  const edits = new Map<string, { valid: boolean; supersede: () => void; recovery?: BasicRecovery }>();
   const updateBar = (next: Report[]) => {
     const previous = bar.entries;
     bar.entries = next;
@@ -97,11 +109,11 @@ function makeHarness(opts: { holdRows?: boolean; holdStores?: boolean; holdReads
   };
   const getBasicRecovery = (id: string) => {
     const entry = bar.entries.find((e) => e.id === id);
-    return entry ? { original: entry.basicRestore?.original, applyToTable: entry.basicRestore?.applyToTable } : undefined;
+    return entry ? entry.basicRestore ?? {} : edits.get(id)?.recovery;
   };
-  const beginBasicEdit = (id: string, supersede: () => void) => {
+  const beginBasicEdit = (id: string, supersede: () => void, recovery?: BasicRecovery) => {
     const old = edits.get(id);
-    const lease = { valid: true, supersede };
+    const lease = { valid: true, supersede, recovery };
     edits.set(id, lease);
     if (old) { old.valid = false; old.supersede(); }
     return {
@@ -119,6 +131,7 @@ function makeHarness(opts: { holdRows?: boolean; holdStores?: boolean; holdReads
     rows,
     stores,
     reads,
+    detailReads,
     bar,
     reports: [] as Report[],
     onSaved: vi.fn(() => { log.push("onSaved"); }),
@@ -138,6 +151,7 @@ function makeHarness(opts: { holdRows?: boolean; holdStores?: boolean; holdReads
       for (const r of rows) r.d.resolve();
       for (const s of stores) s.d.resolve(null);
       for (const r of reads) r.d.resolve(null);
+      for (const r of detailReads) r.d.resolve(null);
     },
   };
   h.adapter = {
@@ -149,7 +163,12 @@ function makeHarness(opts: { holdRows?: boolean; holdStores?: boolean; holdReads
     configScope: "unified-collab",
     domains: [],
     api: {
-      loadDomainRows: vi.fn(async () => null),
+      loadDomainRows: vi.fn((key: string) => {
+        const d = deferred<Detail>();
+        detailReads.push({ key, d });
+        if (!opts.holdDomainReads) d.resolve(null);
+        return d.promise;
+      }),
       getCachedDomainRows: vi.fn(() => null),
       saveOwnField: vi.fn((entryId: string, key: string, value: unknown) => {
         const d = deferred<void>();
@@ -165,6 +184,7 @@ function makeHarness(opts: { holdRows?: boolean; holdStores?: boolean; holdReads
       loadManagers: vi.fn(async () => []),
       loadTabConfig: vi.fn(async () => ({})),
       saveTabConfig: vi.fn(async () => {}),
+      loadComments: vi.fn(async () => []),
       loadBasicStore: vi.fn((bizno: string) => {
         const d = deferred<BasicRecord | null>();
         reads.push({ bizno, d });
@@ -206,7 +226,7 @@ async function settle() {
 type View = { container: HTMLElement; render: (row: Record<string, unknown>) => Promise<void>; unmount: () => Promise<void> };
 const views: View[] = [];
 
-async function mount(h: Harness, row: Record<string, unknown>): Promise<View> {
+async function mount(h: Harness, row: Record<string, unknown>, strict = false): Promise<View> {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root: Root = createRoot(container);
@@ -215,7 +235,8 @@ async function mount(h: Harness, row: Record<string, unknown>): Promise<View> {
     container,
     render: async (r) => {
       await act(async () => {
-        root.render(createElement(UnifiedDetailView, { row: r, onClose: () => {}, onSaved: h.onSaved, adapter: h.adapter } as never));
+        const detail = createElement(UnifiedDetailView, { row: r, onClose: () => {}, onSaved: h.onSaved, adapter: h.adapter } as never);
+        root.render(strict ? createElement(StrictMode, null, detail) : detail);
       });
       await settle();
     },
@@ -237,6 +258,13 @@ function rowFor(view: View, label: string): HTMLElement {
     if (r) return r as HTMLElement;
   }
   throw new Error(`기본정보 칸을 찾지 못했습니다: ${label}`);
+}
+
+async function clickButton(view: View, label: string) {
+  const button = Array.from(view.container.querySelectorAll("button")).find((b) => b.textContent === label);
+  expect(button, label).toBeDefined();
+  await act(async () => { button!.click(); });
+  await settle();
 }
 
 /** 칸의 값 영역에 보이는 글자(편집 중이 아닐 때). */
@@ -298,6 +326,390 @@ describe("기본정보 칸 행 동기화·저장 (compact)", () => {
     current = h;
     return h;
   }
+
+  it.each([false, true])("표가 이어받은 뒤 최초/재시도(%s) ACK도 성공값을 표 복원 통로에 전달한다", async (retry) => {
+    const h = setup({ holdRows: true });
+    const note = vi.fn();
+    Object.assign(h.adapter.unsaved!, { noteBasicServerValue: note });
+    const view = await mount(h, h.rowA());
+    await editText(view, "대표자명", "저장된 A");
+    let pending: Promise<boolean> | undefined;
+    if (retry) {
+      await act(async () => { h.rows[0].d.reject(failure("일시 실패", "transient")); });
+      await settle();
+      await act(async () => { pending = h.bar.entries[0].retry(); });
+      await settle();
+    }
+    await view.unmount();
+    h.adapter.unsaved!.beginBasicEdit!(`test:${h.idA}:03대표자명`, () => {});
+    await act(async () => { h.rows[retry ? 1 : 0].d.resolve(); });
+    await settle();
+    expect(note).toHaveBeenCalledExactlyOnceWith(`test:${h.idA}:03대표자명`, { value: "저장된 A", present: true });
+    expect(h.onSaved).toHaveBeenCalledTimes(retry ? 0 : 1);
+    expect(h.stores).toHaveLength(retry ? 0 : 1);
+    if (pending) expect(await pending).toBe(false);
+  });
+
+  describe("hx6 표·상세 확정값 객체 인계", () => {
+    // 표의 진행 중 PATCH와 Provider의 칸별 저장 줄. 실제 상세를 마운트하고 같은 객체를 인계한다.
+    function startTable(h: Harness, original: BasicRestoreOriginal | undefined, key = "03대표자명", value: string | boolean = "표 A") {
+      const bridge = h.adapter.unsaved!;
+      const tails = new Map<string, Promise<unknown>>();
+      bridge.runBasicWrite = <T,>(id: string, task: () => Promise<T>) => {
+        const job = (tails.get(id) ?? Promise.resolve()).then(task);
+        const tail = job.catch(() => {});
+        tails.set(id, tail);
+        void tail.then(() => { if (tails.get(id) === tail) tails.delete(id); });
+        return job;
+      };
+      const id = bridge.makeId(bridge.scope, h.idA, key);
+      const applyToTable = vi.fn();
+      const recovery: BasicRecovery = { original, applyToTable };
+      const lease = bridge.beginBasicEdit!(id, () => {}, recovery);
+      const d = deferred();
+      const done = bridge.runBasicWrite(id, async () => {
+        await d.promise;
+        recovery.original = { value, present: true };
+      }).catch(() => {}).finally(lease.release);
+      return { id, recovery, applyToTable, done, d };
+    }
+
+    async function completeTable(table: ReturnType<typeof startTable>, accepted: boolean) {
+      await act(async () => {
+        if (accepted) table.d.resolve();
+        else table.d.reject(failure("표 A 거절", "permanent"));
+        await table.done;
+      });
+      await settle();
+    }
+
+    async function failDetail(h: Harness, kind: "permanent" | "transient") {
+      expect(h.rows).toHaveLength(1);
+      await act(async () => { h.rows[0].d.reject(failure("상세 B 실패", kind)); });
+      await settle();
+      if (kind === "transient") {
+        expect(h.bar.entries).toHaveLength(1);
+        await act(async () => {
+          const entry = h.bar.entries[0];
+          entry.revert?.();
+          h.adapter.unsaved!.resolve(entry.id); // Provider의 되돌리기 버튼이 끝난 항목을 제거한다.
+        });
+        await settle();
+      }
+    }
+
+    for (const accepted of [false, true]) for (const beforeInput of [false, true]) {
+      it.each(["permanent", "transient"] as const)(`표 A ${accepted ? "성공" : "실패"}, ${beforeInput ? "첫 입력 전" : "B 수락 후"} 완료, 상세 B %s는 실제 확정값으로 복원한다`, async (kind) => {
+        const h = setup({ holdRows: true });
+        const table = startTable(h, { value: "확정 대표", present: true });
+        const view = await mount(h, h.rowA({ "03대표자명": "표 A" }));
+        if (beforeInput) await completeTable(table, accepted);
+        await editText(view, "대표자명", "상세 B");
+        if (!beforeInput) {
+          expect(h.rows).toHaveLength(0); // 이미 수락한 B는 A 완료 뒤에 전송한다.
+          await completeTable(table, accepted);
+        }
+        await failDetail(h, kind);
+        expect(valueOf(view, "대표자명")).toBe(accepted ? "표 A" : "확정 대표");
+        expect(table.applyToTable).toHaveBeenCalledExactlyOnceWith({ value: accepted ? "표 A" : "확정 대표", present: true });
+        expect(h.bar.entries).toHaveLength(0);
+        expect(h.stores).toHaveLength(0);
+      });
+    }
+
+    for (const accepted of [false, true]) for (const beforeInput of [false, true]) {
+      it.each(["permanent", "transient"] as const)(`unknown 원본, 표 성공(${accepted}), 첫 입력 전 완료(${beforeInput}), B %s는 실제 ACK만 복원값으로 쓴다`, async (kind) => {
+        const h = setup({ holdRows: true });
+        const table = startTable(h, undefined);
+        const view = await mount(h, h.rowA({ "03대표자명": "표 A" }));
+        expect(table.recovery.original).toBeUndefined();
+        if (beforeInput) await completeTable(table, accepted);
+        await editText(view, "대표자명", "상세 B");
+        expect(h.adapter.unsaved!.getBasicRecovery!(table.id)).toBe(table.recovery);
+        if (!beforeInput) {
+          expect(table.recovery.original).toBeUndefined();
+          await completeTable(table, accepted);
+        }
+        await act(async () => { h.rows[0].d.reject(failure("B 실패", kind)); });
+        await settle();
+        expect(table.recovery.original).toEqual(accepted ? { value: "표 A", present: true } : undefined);
+        if (kind === "transient") {
+          const entry = h.bar.entries[0];
+          expect(entry.basicRestore).toBe(table.recovery);
+          if (accepted) await act(async () => { entry.revert?.(); });
+          else expect(entry.revert).toBeUndefined();
+        } else expect(h.bar.entries).toHaveLength(0);
+        expect(valueOf(view, "대표자명")).toBe(accepted ? "표 A" : "상세 B");
+        if (!accepted) expect(table.applyToTable).not.toHaveBeenCalled();
+      });
+    }
+
+    it.each([
+      { name: "false", key: "custom_flag", original: { value: false, present: true }, value: true },
+      { name: "null", key: "03대표자명", original: { value: null, present: true }, value: "표 A" },
+      { name: "키 부재", key: "03대표자명", original: { value: null, present: false }, value: "표 A" },
+    ])("표 실패 후 $name 복원 기준을 값·존재 여부까지 보존한다", async ({ key, original, value }) => {
+      const h = setup({ holdRows: true, flagColumn: true });
+      const table = startTable(h, original, key, value);
+      const view = await mount(h, h.rowA({ [key]: value }));
+      if (key === "custom_flag") await clickCheckbox(view, "확인");
+      else await editText(view, "대표자명", "상세 B");
+      await completeTable(table, false);
+      await failDetail(h, "transient");
+      expect(table.applyToTable).toHaveBeenCalledExactlyOnceWith(original);
+      if (key === "custom_flag") expect(isChecked(view, "확인")).toBe(false);
+      else expect(valueOf(view, "대표자명")).toBe("-");
+    });
+
+    it.each(["새 행", "보관소"])("첫 입력 전 %s가 실제 적용되면 상속한 표 기준을 교체한다", async (source) => {
+      const h = setup({ holdRows: true, holdReads: true });
+      const table = startTable(h, { value: "옛 원본", present: true });
+      const view = await mount(h, h.rowA({ "03대표자명": "표 A" }));
+      await completeTable(table, true);
+      if (source === "새 행") await view.render(h.rowA({ "03대표자명": "새 서버값" }));
+      else {
+        await view.render(h.rowA({ "03대표자명": "" }));
+        await act(async () => { h.reads.at(-1)!.d.resolve(record({ "대표자명": "새 서버값" })); });
+        await settle();
+      }
+      await editText(view, "대표자명", "상세 B");
+      await failDetail(h, "permanent");
+      expect(valueOf(view, "대표자명")).toBe("새 서버값");
+    });
+
+    it.each(["새 행", "보관소"])("표가 아직 진행 중이어도 실제 적용된 %s가 다음 입력의 새 기준이다", async (source) => {
+      const h = setup({ holdRows: true, holdReads: true });
+      const table = startTable(h, { value: "옛 원본", present: true });
+      const view = await mount(h, h.rowA({ "03대표자명": "표 A" }));
+      if (source === "새 행") await view.render(h.rowA({ "03대표자명": "새 서버값" }));
+      else {
+        await view.render(h.rowA({ "03대표자명": "" }));
+        await act(async () => { h.reads.at(-1)!.d.resolve(record({ "대표자명": "새 서버값" })); });
+        await settle();
+      }
+      expect(valueOf(view, "대표자명")).toBe("새 서버값");
+      await editText(view, "대표자명", "상세 B");
+      await completeTable(table, false);
+      await failDetail(h, "permanent");
+      expect(valueOf(view, "대표자명")).toBe("새 서버값");
+      expect(table.applyToTable).toHaveBeenCalledExactlyOnceWith({ value: "새 서버값", present: true });
+    });
+
+    it("첫 입력 때 현재 Provider의 표 복원 통로가 예전 통로보다 우선한다", async () => {
+      const h = setup({ holdRows: true });
+      const table = startTable(h, { value: "확정 대표", present: true });
+      const view = await mount(h, h.rowA({ "03대표자명": "표 A" }));
+      await completeTable(table, false);
+      const currentApply = vi.fn();
+      h.adapter.unsaved!.getBasicRecovery = () => ({ original: table.recovery.original, applyToTable: currentApply });
+      await editText(view, "대표자명", "상세 B");
+      await failDetail(h, "permanent");
+      expect(currentApply).toHaveBeenCalledExactlyOnceWith({ value: "확정 대표", present: true });
+      expect(table.applyToTable).not.toHaveBeenCalled();
+      expect(valueOf(view, "대표자명")).toBe("확정 대표");
+    });
+
+    it("행에 없는 동적 칸도 정의가 도착하면 첫 입력 전에 표 객체를 붙잡는다", async () => {
+      const h = setup({ holdRows: true });
+      const config = deferred<unknown>();
+      h.adapter.api.loadColumnConfig = vi.fn(() => config.promise);
+      const table = startTable(h, { value: false, present: true }, "custom_flag", true);
+      const view = await mount(h, h.rowA());
+      await act(async () => { config.resolve({ data: { customColumns: [FLAG_COLUMN], basicAddedColumns: [FLAG_COLUMN.key] } }); });
+      await settle();
+      await completeTable(table, false);
+      await clickCheckbox(view, "확인");
+      await failDetail(h, "permanent");
+      expect(table.applyToTable).toHaveBeenCalledExactlyOnceWith({ value: false, present: true });
+      expect(isChecked(view, "확인")).toBe(false);
+    });
+
+    it.each([false, true])("상세 최초/취소 retry(%s)의 이미 전송된 ACK는 같은 표 객체만 갱신하고 후속 쓰기를 막는다", async (retry) => {
+      const h = setup({ holdRows: true });
+      const view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "상세 A");
+      const bridge = h.adapter.unsaved!;
+      const id = bridge.makeId(bridge.scope, h.idA, "03대표자명");
+      const recovery = bridge.getBasicRecovery!(id);
+      expect(recovery).toBeDefined();
+      let pending: Promise<boolean> | undefined;
+      if (retry) {
+        await act(async () => { h.rows[0].d.reject(failure("A 일시 실패", "transient")); });
+        await settle();
+        await act(async () => { pending = h.bar.entries[0].retry(); });
+        await settle();
+      }
+      const applyToTable = vi.fn();
+      recovery!.applyToTable = applyToTable;
+      const lease = bridge.beginBasicEdit!(id, () => {}, recovery);
+      bridge.resolve(id);
+      await act(async () => { h.rows[retry ? 1 : 0].d.resolve(); });
+      await settle();
+      expect(bridge.getBasicRecovery!(id)).toBe(recovery);
+      expect(recovery!.original).toEqual({ value: "상세 A", present: true });
+      expect(h.stores).toHaveLength(retry ? 0 : 1);
+      expect(h.onSaved).toHaveBeenCalledTimes(retry ? 0 : 1);
+      expect(applyToTable).not.toHaveBeenCalled();
+      if (pending) expect(await pending).toBe(false);
+      lease.release();
+    });
+  });
+
+  describe("hx4 리뷰 회사 소유권·요청 최신성", () => {
+    function contractProbe(h: Harness, committed: string[] = []) {
+      h.adapter.components.SettlementInfoTab = ({ row, onSave }) => createElement("button", {
+        "data-contract-owner": String(row._id),
+        ref: (node: HTMLButtonElement | null) => { if (node) committed.push(String(row._id)); },
+        onClick: () => { void onSave("계약 수정"); },
+      }, "계약 시험 저장");
+    }
+
+    it("회사를 바꾼 첫 화면부터 이전 계약의 편집 경로를 제거한다", async () => {
+      const h = setup({ holdDomainReads: true });
+      const committed: string[] = [];
+      contractProbe(h, committed);
+      const view = await mount(h, h.rowA());
+      await act(async () => { h.detailReads[0].d.resolve(domainDetail(h.rowA(), "A현황")); });
+      await clickButton(view, "경정청구");
+      await clickButton(view, "계약정보");
+      expect(view.container.querySelector("[data-contract-owner]")?.getAttribute("data-contract-owner")).toBe(h.idA);
+      committed.length = 0;
+      await view.render(h.rowB());
+      expect(committed).not.toContain(h.idA);
+      expect(view.container.querySelector("[data-contract-owner]")).toBeNull();
+      expect(h.rows).toHaveLength(0);
+    });
+
+    it("새 회사 조회가 null이면 옛 계약을 남기지 않고, 같은 회사의 null 새 조회도 자료를 비운다", async () => {
+      const h = setup({ holdDomainReads: true });
+      contractProbe(h);
+      const view = await mount(h, h.rowA());
+      await act(async () => { h.detailReads[0].d.resolve(domainDetail(h.rowA(), "A현황")); });
+      await clickButton(view, "경정청구");
+      await clickButton(view, "계약정보");
+      await view.render(h.rowB());
+      await act(async () => { h.detailReads[1].d.resolve(null); });
+      await settle();
+      expect(view.container.querySelector("[data-contract-owner]")).toBeNull();
+      expect(view.container.textContent).toContain("경정청구 데이터가 없습니다");
+      await view.render(h.rowA());
+      await act(async () => { h.detailReads[2].d.resolve(domainDetail(h.rowA(), "A현황")); });
+      await clickButton(view, "계약 시험 저장");
+      expect(h.rows[0]).toMatchObject({ entryId: h.idA, key: "계약정보_차수" });
+      await act(async () => { h.detailReads[3].d.resolve(null); });
+      await settle();
+      expect(view.container.querySelector("[data-contract-owner]")).toBeNull();
+    });
+
+    it.each(["resolve", "reject"])("최신 silent 조회가 처음 조회보다 먼저 끝나면 로딩을 마치고 옛 %s를 무시한다", async (outcome) => {
+      const h = setup({ holdDomainReads: true });
+      const view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "새대표");
+      expect(h.detailReads).toHaveLength(2);
+      await act(async () => { h.detailReads[1].d.resolve(domainDetail(h.rowA(), "최신현황")); });
+      await settle();
+      expect(view.container.textContent).not.toContain("영역 현황 불러오는 중");
+      expect(view.container.querySelector('[title="최신현황"]')).not.toBeNull();
+      await act(async () => {
+        if (outcome === "resolve") h.detailReads[0].d.resolve(domainDetail(h.rowA(), "옛현황"));
+        else h.detailReads[0].d.reject(new Error("옛 조회 실패"));
+      });
+      await settle();
+      expect(view.container.querySelector('[title="최신현황"]')).not.toBeNull();
+      expect(view.container.textContent).not.toContain("정보를 불러오지 못했습니다");
+    });
+
+    it("사업자번호가 없으면 변경한 연락처로 다시 조회하고 옛 연락처 응답은 버린다", async () => {
+      const h = setup({ holdDomainReads: true });
+      const first = h.rowA({ "15사업자번호": "", "04연락처": "010-9999-0001" });
+      const next = { ...first, "04연락처": "010-9999-0002" };
+      const view = await mount(h, first);
+      await editText(view, "연락처", "010-9999-0002");
+      await view.render(next);
+      expect(h.detailReads.map((r) => r.key)).toContain("p:01099990002");
+      await act(async () => {
+        h.detailReads.at(-1)!.d.resolve(domainDetail(next, "새연락처현황"));
+      });
+      await settle();
+      await act(async () => {
+        for (const read of h.detailReads.slice(0, -1)) read.d.resolve(domainDetail(first, "옛연락처현황"));
+      });
+      await settle();
+      expect(view.container.querySelector('[title="새연락처현황"]')).not.toBeNull();
+      expect(view.container.querySelector('[title="옛연락처현황"]')).toBeNull();
+    });
+
+    it("StrictMode 두 번째 조회 성공 뒤 첫 번째 실패가 정상 화면을 덮지 않는다", async () => {
+      const h = setup({ holdDomainReads: true });
+      const view = await mount(h, h.rowA(), true);
+      expect(h.detailReads).toHaveLength(2);
+      await act(async () => { h.detailReads[1].d.resolve(domainDetail(h.rowA(), "최신현황")); });
+      await settle();
+      expect(view.container.querySelector('[title="최신현황"]')).not.toBeNull();
+      await act(async () => { h.detailReads[0].d.reject(new Error("첫 조회 실패")); });
+      await settle();
+      expect(view.container.textContent).not.toContain("정보를 불러오지 못했습니다");
+      expect(view.container.querySelector('[title="최신현황"]')).not.toBeNull();
+    });
+  });
+
+  describe("hx4 리뷰 재열기 확정 기준", () => {
+    it("재열기 후 이전 저장이 새 입력 전에 끝나도 다음 실패를 A로 복원한다", async () => {
+      const h = setup({ holdRows: true });
+      let view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "A");
+      await view.unmount();
+      view = await mount(h, h.rowA());
+      await act(async () => { h.rows[0].d.resolve(); });
+      await settle();
+      expect(h.onSaved).toHaveBeenCalledTimes(1);
+      await editText(view, "대표자명", "B");
+      await act(async () => { h.rows[1].d.reject(failure("권한 없음", "permanent")); });
+      await settle();
+      expect(valueOf(view, "대표자명")).toBe("A");
+    });
+
+    it("재열기에서 ACK 전에 관측한 A는 옛 owner ACK 뒤 비교 기준으로 쓰여 다음 서버 원본을 받는다", async () => {
+      const h = setup({ holdRows: true });
+      let view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "A");
+      await view.unmount();
+      view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "B");
+      await view.render(h.rowA({ "03대표자명": "A" }));
+      await act(async () => { h.rows[0].d.resolve(); });
+      await settle();
+      await act(async () => { h.rows[1].d.reject(failure("권한 없음", "permanent")); });
+      await settle();
+      expect(valueOf(view, "대표자명")).toBe("A");
+      await view.render(h.rowA());
+      expect(valueOf(view, "대표자명")).toBe("원본대표");
+    });
+
+    it.each(["관측 없음", "새 행 적용", "보관소 적용"])("재열기 확정값의 수명: %s", async (observed) => {
+      const h = setup({ holdRows: true, holdReads: true });
+      let view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "A");
+      await view.unmount();
+      view = await mount(h, h.rowA());
+      await act(async () => { h.rows[0].d.resolve(); });
+      await settle();
+      if (observed === "새 행 적용") await view.render(h.rowA({ "03대표자명": "서버최신" }));
+      if (observed === "보관소 적용") {
+        await view.render(h.rowA({ "03대표자명": "" }));
+        await act(async () => { h.reads.at(-1)!.d.resolve(record({ "대표자명": "서버최신" })); });
+        await settle();
+      }
+      await editText(view, "대표자명", "B");
+      await act(async () => { h.rows[1].d.reject(failure("권한 없음", "permanent")); });
+      await settle();
+      expect(valueOf(view, "대표자명")).toBe(observed === "관측 없음" ? "A" : "서버최신");
+      if (observed === "관측 없음") {
+        await view.render(h.rowA());
+        expect(valueOf(view, "대표자명")).toBe("A"); // 성공만으로 비교 기준을 A로 옮기지 않는다.
+      }
+    });
+  });
 
   describe("같은 회사 새 행 병합", () => {
     it("서버 값이 그대로인 칸은 입력을 지키고, 바뀐 칸만 갱신하며, null·키 삭제도 실제 값으로 반영한다", async () => {
@@ -801,6 +1213,74 @@ describe("기본정보 칸 행 동기화·저장 (compact)", () => {
       expect(valueOf(view, "대표자명")).toBe("-");
       await view.render(h.rowA({ "03대표자명": "A" }));
       expect(valueOf(view, "대표자명")).toBe("A");
+    });
+
+    it("다시 연 뒤 이전 저장이 성공하고 다음 저장이 거절되면 실제 확정값으로 복원한다", async () => {
+      const h = setup({ holdRows: true });
+      let view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "A");
+      await view.unmount();
+      view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "B");
+      await act(async () => { h.rows[0].d.resolve(); });
+      await settle();
+      await act(async () => { h.rows[1].d.reject(failure("권한 없음", "permanent")); });
+      await settle();
+      expect(valueOf(view, "대표자명")).toBe("A");
+    });
+
+    it("전송한 재시도의 성공은 새 입력이 생겨도 다음 실패의 복원 기준이다", async () => {
+      const h = setup({ holdRows: true });
+      const view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "A");
+      await act(async () => { h.rows[0].d.reject(failure("연결 끊김", "transient")); });
+      await settle();
+      let retry!: Promise<boolean>;
+      await act(async () => { retry = h.reports[0].retry(); });
+      await settle();
+      await editText(view, "대표자명", "B");
+      await act(async () => { h.rows[1].d.resolve(); });
+      await settle();
+      await retry;
+      expect(h.stores).toHaveLength(0); // 무효 재시도는 추가 보관소 쓰기를 하지 않는다.
+      await act(async () => { h.rows[2].d.reject(failure("권한 없음", "permanent")); });
+      await settle();
+      expect(valueOf(view, "대표자명")).toBe("A");
+    });
+
+    it("서버 값을 먼저 관측하고 행 저장이 뒤에 확인돼도 다음 서버 변경을 반영한다", async () => {
+      const h = setup({ holdRows: true, holdStores: true });
+      const view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "새대표");
+      await view.render(h.rowA({ "03대표자명": "새대표" }));
+      await act(async () => { h.rows[0].d.resolve(); });
+      await settle();
+      await act(async () => { h.stores[0].d.resolve(null); });
+      await settle();
+      await view.render(h.rowA());
+      expect(valueOf(view, "대표자명")).toBe("원본대표");
+    });
+
+    it("첫 조회 중 사업자번호를 저장하면 새 번호로 다시 조회하고 로딩을 마친다", async () => {
+      const h = setup();
+      const reads: Array<{ key: unknown; d: Deferred<null> }> = [];
+      h.adapter.api.loadDomainRows = vi.fn((key) => {
+        const d = deferred<null>(); reads.push({ key, d }); return d.promise;
+      });
+      const view = await mount(h, h.rowA());
+      await editText(view, "사업자번호", "999-00-00003");
+      await view.render(h.rowA({ "15사업자번호": "999-00-00003" }));
+      await act(async () => { for (const read of reads) read.d.resolve(null); });
+      await settle();
+      expect(JSON.stringify(reads.map(read => read.key))).toContain("9990000003");
+      expect(view.container.textContent).not.toContain("영역 현황 불러오는 중");
+    });
+
+    it("StrictMode에서 첫 조회가 성공하면 영역 현황 로딩을 마친다", async () => {
+      const h = setup();
+      const view = await mount(h, h.rowA(), true);
+      expect(h.adapter.api.loadDomainRows).toHaveBeenCalledTimes(2);
+      expect(view.container.textContent).not.toContain("영역 현황 불러오는 중");
     });
 
     it("행 저장이 확인된 값을 보호 중 받았으면 이후 다른 사용자의 변경을 반영한다", async () => {
