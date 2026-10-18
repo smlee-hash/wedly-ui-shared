@@ -1536,6 +1536,26 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
   // 체크를 되돌린다(이 파일의 "같은 회사 새 row 도착" 10건이 실패 — 해피콜 초기화 원래 결함). 값만으로는 늦은 옛 응답과
   // 다른 사용자의 되돌림을 구분할 수 없어, 원래 결함 차단을 우선한다. 되돌린 뒤의 기준만 보호선으로 둔다.
   describe("v11 보호 완료 뒤 비교 기준", () => {
+    it("없는 칸의 복원 기준을 관측한 뒤에는 새 서버 값을 반영한다", async () => {
+      vi.stubGlobal("alert", vi.fn());
+      const { unsaved, report } = failureBridge();
+      unsaved.getBasicRecovery = () => report.mock.calls.at(-1)?.[0].basicRestore;
+      const s = twoStores();
+      const absent = companyRow({ _id: "row-absent-observation" });
+      delete absent[REPRESENTATIVE];
+      let h = await mount(absent, s.saveOwnField, unsaved, s.api);
+      await h.edit(REPRESENTATIVE, "A");
+      await respond(s.rows[0], transientFailure());
+      await h.unmount();
+      h = await mount({ ...absent, [REPRESENTATIVE]: "A" }, s.saveOwnField, unsaved, s.api);
+      await h.edit(REPRESENTATIVE, "B");
+      await h.rerender({ ...absent });
+      await respond(s.rows[1], new Error("synthetic permanent failure"));
+      expect(h.value(REPRESENTATIVE)).toBe("null");
+      await h.rerender({ ...absent, [REPRESENTATIVE]: "A" });
+      expect(h.value(REPRESENTATIVE)).toBe("A");
+    });
+
     it("행 저장이 확인된 값을 보호 중 받았으면 이후 다른 사용자의 변경을 반영한다", async () => {
       const s = twoStores();
       const row = (value: boolean) => companyRow({ _id: "row-confirmed-observation", [FLAG]: value });

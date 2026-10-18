@@ -1795,7 +1795,7 @@ function BasicInfoPanel({
       // 입력 표시는 계속 보호하되, 저장이 끝난 뒤 다른 사용자의 되돌림을 "변경 없음"으로 버리지 않는다.
       if (edit.open && edit.confirmed
         && edit.confirmed.present === Object.prototype.hasOwnProperty.call(incoming, key)
-        && sameFieldValue(edit.confirmed.value, incoming[key])) comparisonKeep.delete(key);
+        && (!edit.confirmed.present || sameFieldValue(edit.confirmed.value, incoming[key]))) comparisonKeep.delete(key);
     });
     basicRowRef.current = { row, owner: addressOwner, applied: mergeIncomingRow(previous, previous, incoming, comparisonKeep) };
     setBasicRow((current) => addressOwnerRef.current === addressOwner ? mergeIncomingRow(current, previous, incoming, keep) : current);
