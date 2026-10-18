@@ -1886,10 +1886,12 @@ function BasicInfoPanel({
       // 이 화면에 열린 묶음이 없어도 다른(닫힌) 화면의 입력이 아직 진행 중이면 그 묶음을 잇는다 —
       // 앞 저장이 성공하면 이 입력의 실패도 그 값으로 되돌려야 한다(화면별 기준을 따로 두면 옛 값으로 돌아간다).
       const inherited = !chain?.open && previousIntent?.valid && previousIntent.edit?.open ? previousIntent.edit : undefined;
+      // 표 되돌리기는 지금 화면의 표 통로가 우선이다. 이전 화면(다른 페이지·닫힌 창)의 통로는 이미 사라진 표를 가리킬 수 있다.
       const hostApplyToTable = unsaved?.applyToTable;
-      const applyToTable = recovery?.applyToTable
-        ?? (hostApplyToTable ? (original: BasicFieldOriginal) => hostApplyToTable(entryId, key, original) : undefined);
+      const applyToTable = (hostApplyToTable ? (original: BasicFieldOriginal) => hostApplyToTable(entryId, key, original) : undefined)
+        ?? recovery?.applyToTable;
       const edit: BasicFieldEdit = chain?.open ? chain : inherited ?? { latest: {}, open: true, confirmed: recovery === undefined ? renderedOriginal : recovery.original ? { ...recovery.original } : undefined, applyToTable };
+      if (edit === inherited && applyToTable) inherited.applyToTable = applyToTable;
       if (previousIntent) previousIntent.valid = false;
       const mine = { valid: true, edit };
       basicFieldIntents.set(intentId, mine);

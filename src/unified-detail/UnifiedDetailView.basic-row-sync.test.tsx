@@ -1469,6 +1469,68 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       expect(applyToTable).toHaveBeenCalledWith("row-1", REPRESENTATIVE, { value: "가상 대표", present: true });
       expect(h.value(REPRESENTATIVE)).toBe("가상 대표");
     });
+
+    // review-09cd2c02 새 P2: 이어받은 저장 묶음은 지금 화면(표)의 되돌리기 통로를 써야 한다.
+    it.each([
+      { label: "통로가 없던 이전 창", before: () => undefined },
+      { label: "다른 통로를 쓰던 이전 창", before: () => vi.fn() },
+    ])("$label의 입력을 이어받은 새 창이 실패를 되돌리면 새 창의 표 통로로 확정값을 돌린다", async ({ before }) => {
+      const { unsaved, report } = failureBridge();
+      const previous = before();
+      const applyToTable = vi.fn();
+      const first = twoStores();
+      const second = twoStores();
+      const a = await mount(companyRow(), first.saveOwnField, { ...unsaved, applyToTable: previous }, first.api);
+      await a.edit(REPRESENTATIVE, "첫 입력");
+      await a.unmount();
+      const b = await mount(companyRow(), second.saveOwnField, { ...unsaved, applyToTable }, second.api);
+      await b.edit(REPRESENTATIVE, "둘째 입력");
+      await respond(first.rows[0]);
+      await respond(first.stores[0]);
+      await respond(second.rows[0], transientFailure());
+      report.mock.calls.at(-1)![0].revert();
+      await settle();
+      expect(applyToTable).toHaveBeenCalledTimes(1);
+      expect(applyToTable).toHaveBeenCalledWith("row-1", REPRESENTATIVE, { value: "첫 입력", present: true });
+      if (previous) expect(previous).not.toHaveBeenCalled();
+      expect(b.value(REPRESENTATIVE)).toBe("첫 입력");
+    });
+  });
+
+  // review-0e8838f2 P2: 앱 보관함의 복구 정보에 남은 옛 표 통로(페이지 재진입 전)보다 지금 화면의 표 통로를 쓴다.
+  describe("v11 복구 정보의 옛 표 통로", () => {
+    it("남은 실패 항목의 옛 표 통로 대신 새로 연 화면의 표 통로로 되돌린다", async () => {
+      const { unsaved, report } = failureBridge();
+      const stale = vi.fn();
+      const applyToTable = vi.fn();
+      const recovery = { original: { value: "가상 대표", present: true }, applyToTable: stale };
+      const s = twoStores();
+      const h = await mount(companyRow(), s.saveOwnField, { ...unsaved, applyToTable, getBasicRecovery: () => recovery }, s.api);
+      await h.edit(REPRESENTATIVE, "새 입력");
+      await respond(s.rows[0], transientFailure());
+      report.mock.calls.at(-1)![0].revert();
+      await settle();
+      expect(stale).not.toHaveBeenCalled();
+      expect(applyToTable).toHaveBeenCalledWith("row-1", REPRESENTATIVE, { value: "가상 대표", present: true });
+    });
+  });
+
+  // review-09cd2c02 #2는 반영하지 않는다: 저장 뒤 비교 기준을 확정값으로 옮기면 저장 전 값을 싣고 늦게 온 옛 응답이
+  // 체크를 되돌린다(이 파일의 "같은 회사 새 row 도착" 10건이 실패 — 해피콜 초기화 원래 결함). 값만으로는 늦은 옛 응답과
+  // 다른 사용자의 되돌림을 구분할 수 없어, 원래 결함 차단을 우선한다. 되돌린 뒤의 기준만 보호선으로 둔다.
+  describe("v11 보호 완료 뒤 비교 기준", () => {
+    it("영구 실패로 되돌린 뒤에는 되돌린 값이 기준이라, 서버가 다른 값을 주면 반영한다", async () => {
+      vi.stubGlobal("alert", vi.fn());
+      // 앞 시험이 row-1 해피콜 입력을 열어 둔 채 끝나므로(모듈 단위 입력 장부) 다른 행으로 고립한다.
+      const s = twoStores();
+      const h = await mount(companyRow({ _id: "row-v11", [FLAG]: false }), s.saveOwnField, undefined, s.api);
+      await h.edit(FLAG, true);
+      await h.rerender(companyRow({ _id: "row-v11", [FLAG]: true }));
+      await respond(s.rows[0], new Error("synthetic permanent failure"));
+      expect(h.value(FLAG)).toBe("false");
+      await h.rerender(companyRow({ _id: "row-v11", [FLAG]: true }));
+      expect(h.value(FLAG)).toBe("true");
+    });
   });
 
   describe("v10 첫 조회 중 대상 전환", () => {
