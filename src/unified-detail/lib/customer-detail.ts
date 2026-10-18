@@ -13,13 +13,29 @@ export function customerKeyFromTaxRow(row: RowData, ownDomain: string = "tax-ame
   return `i:${ownDomain}:${String(row["_id"] ?? "")}`;
 }
 
+// 복구 비교 전용: 앱의 formatKoreanPhone이 국내형으로 저장하는 번호만 맞춘다.
+function recoveryPhoneDigits(phone: unknown): string {
+  const raw = String(phone ?? "").trim();
+  const digits = raw.replace(/[^0-9]/g, "");
+  if ((typeof phone !== "string" && typeof phone !== "number") || !/^[\d\s()+.-]+$/.test(raw)) return digits;
+  const rest = digits.startsWith("0082") ? digits.slice(4) : digits.startsWith("82") ? digits.slice(2) : null;
+  if (rest === null) return digits;
+  const domestic = rest.startsWith("0") ? rest : `0${rest}`;
+  if (!/^0\d{8,10}$/.test(domestic)) return digits;
+  // 앱이 원본을 유지하는 길이(02 11자리·일반 9자리·050 10자리 등)는 합치지 않는다.
+  if (/^050\d/.test(domestic)) return domestic.length === 11 ? domestic : digits;
+  if (domestic.startsWith("02")) return domestic.length === 9 || domestic.length === 10 ? domestic : digits;
+  return domestic.length === 10 || domestic.length === 11 ? domestic : digits;
+}
+
 /** 표 원본과 공유 상세가 같은 고객의 진행 중 복원 객체를 식별한다. */
 export function basicRecoveryIdentity(row: Record<string, unknown>, ownDomain = "tax-amendment"): string {
   const normalized = ownDomain === "government-subsidy" ? { ...row,
     "15사업자번호": row["15사업자번호"] ?? row["04사업자번호"],
     "04연락처": row["04연락처"] ?? row["03대표연락처"],
   } : row;
-  return JSON.stringify([ownDomain, customerKeyFromTaxRow(normalized as RowData, ownDomain)]);
+  const recoveryRow = { ...normalized, "04연락처": recoveryPhoneDigits(normalized["04연락처"]) };
+  return JSON.stringify([ownDomain, customerKeyFromTaxRow(recoveryRow as RowData, ownDomain)]);
 }
 
 export type DomainRowLite = {
