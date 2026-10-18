@@ -1,5 +1,7 @@
 // 기본정보 칸 값 동기화 보조 — 같은 회사에 새 행이 들어올 때의 병합, 회사+칸별 저장 순서 줄.
 // 화면(BasicInfoPanel)과 분리한 순수 조각이라 상태·React 의존이 없다.
+import type { BasicRecovery } from "../adapter-types";
+import { matchesBasicRecoveryIdentity } from "./basic-recovery";
 
 const hasOwn = (o: Record<string, unknown>, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
@@ -52,17 +54,61 @@ const lanes = new Map<string, Lane>();
 let intentSeq = 0;
 
 const laneKeyOf = (entryId: string, key: string) => `${entryId}\u0000${key}`;
-export type BasicIntentLease = { key: string; valid: boolean };
+export type BasicFieldConfirmation = BasicRecovery;
+const confirmations = new Map<string, { confirmed: BasicFieldConfirmation; writes: number; identity?: string }>();
+
+/** 재열기 시 아직 진행 중인 묶음만 이어받는다. owner가 참조를 보유하므로 완료 후 전역에 남길 필요가 없다. */
+export function pendingBasicFieldConfirmations(entryId: string, identity?: string): Map<string, BasicFieldConfirmation> {
+  const prefix = `${entryId}\u0000`;
+  return new Map([...confirmations].filter(([id, shared]) => id.startsWith(prefix) && (shared.identity === identity || (identity !== undefined && matchesBasicRecoveryIdentity(shared.confirmed, identity))))
+    .map(([id, shared]) => [id.slice(prefix.length), shared.confirmed]));
+}
+
+/** 화면에 실제 적용한 새 출처값은 아직 진행 중인 묶음에도 반영한다. ACK만으로 행 관측을 대신하지 않는다. */
+export function observeBasicFieldConfirmation(confirmed: BasicFieldConfirmation | undefined, value: unknown, present: boolean): void {
+  if (!confirmed) return;
+  const original = !present ? { value: null, present: false }
+    : value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+      ? { value, present: true } : undefined;
+  if (confirmed.original && original) Object.assign(confirmed.original, original);
+  else confirmed.original = original;
+}
+
+/** 이미 수락한 같은 행·칸 저장끼리 확정값을 공유한다. 모두 끝나면 버려 다음 입력은 최신 표시값에서 시작한다. */
+export function retainBasicFieldConfirmation(entryId: string, key: string, initial: BasicFieldConfirmation, identity?: string) {
+  const id = laneKeyOf(entryId, key);
+  const previous = confirmations.get(id);
+  const shared = previous && (previous.identity === identity || (identity !== undefined && matchesBasicRecoveryIdentity(previous.confirmed, identity))) ? previous : { confirmed: initial, writes: 0, identity };
+  shared.writes += 1;
+  confirmations.set(id, shared);
+  if (initial.applyToTable) shared.confirmed.applyToTable = initial.applyToTable;
+  let released = false;
+  return {
+    confirmed: shared.confirmed,
+    release: () => {
+      if (released) return;
+      released = true;
+      shared.writes -= 1;
+      if (shared.writes === 0 && confirmations.get(id) === shared) confirmations.delete(id);
+    },
+  };
+}
+
+export type BasicIntentLease = { key: string; valid: boolean; identity?: string; recovery?: BasicRecovery; cancel?: () => void };
 const leases = new Map<string, BasicIntentLease>();
 
 /** 화면 owner를 넘어 최신 입력을 판정한다. 닫힌 화면의 실패는 이어 쓰고 새 입력은 옛 lease를 영구 무효화한다. */
-export function beginBasicIntent(entryId: string, key: string): BasicIntentLease {
+export function beginBasicIntent(entryId: string, key: string, identity?: string, recovery?: BasicRecovery): BasicIntentLease {
   const id = laneKeyOf(entryId, key);
   const previous = leases.get(id);
   if (previous) previous.valid = false;
-  const lease = { key: id, valid: true };
+  const lease: BasicIntentLease = { key: id, valid: true, identity, recovery };
   leases.set(id, lease);
   return lease;
+}
+export function cancelOtherBasicIdentity(entryId: string, identity: string): void {
+  const prefix = `${entryId}\u0000`;
+  for (const [id, lease] of leases) if (id.startsWith(prefix) && (lease.recovery ? !matchesBasicRecoveryIdentity(lease.recovery, identity) : lease.identity !== identity)) lease.cancel?.();
 }
 export function isCurrentBasicIntent(lease: BasicIntentLease): boolean {
   return lease.valid && leases.get(lease.key) === lease;

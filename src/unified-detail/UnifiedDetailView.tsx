@@ -1,5 +1,7 @@
 "use client";
 
+import { basicRecoveryIdentity, matchesBasicRecoveryIdentity, beginRecoveryLifetime, endRecoveryLifetime, flushBasicRefresh, acknowledgeBasicRecovery } from "./lib/basic-recovery";
+
 import type { BasicRestoreOriginal } from "./adapter-types";
 import { useEffect, useState, useCallback, useRef, useMemo, type DragEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -26,7 +28,7 @@ import NewEntryReportUpload, { type DraftFile } from "./NewEntryReportUpload";
 import { CommonFieldsLauncher } from "./CommonFieldsLauncher";
 import { UNIFIED_TYPE_OPTIONS } from "./lib/column-type-options";
 import { useFieldOrder } from "./lib/use-field-order";
-import { beginBasicIntent, enqueueBasicFieldWrite, finishBasicIntent, isCurrentBasicIntent, mergeIncomingRow, nextBasicIntentSeq } from "./lib/basic-field-sync";
+import { beginBasicIntent, cancelOtherBasicIdentity, enqueueBasicFieldWrite, finishBasicIntent, isCurrentBasicIntent, mergeIncomingRow, nextBasicIntentSeq, observeBasicFieldConfirmation, pendingBasicFieldConfirmations, retainBasicFieldConfirmation, sameFieldValue, type BasicFieldConfirmation } from "./lib/basic-field-sync";
 import {
   BASIC_FIELD_SPECS,
   ERP_APP_BASIC_FIELDS,
@@ -36,7 +38,7 @@ import {
 } from "./lib/unified-sections";
 import { isCommonBasicLabel } from "../unified/sections";
 import { applyTabConfig } from "./lib/unified-tab-config";
-import type { BasicRecord } from "./adapter-types";
+import type { BasicRecord, BasicRecovery, UnifiedDetailApi } from "./adapter-types";
 import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
 import { modalBoxClass, narrowPaneTabs } from "./three-pane-layout";
@@ -59,12 +61,13 @@ function isSubTabKey(v: string): v is SubTab {
 }
 
 // saveOwnField 콜백 타입 — 내부 컴포넌트들이 공유
-type SaveOwnFieldFn = (entryId: string, key: string, value: string | number | boolean | null) => Promise<void>;
+type SaveOwnFieldFn = UnifiedDetailApi["saveOwnField"];
 
 // 기본정보 화면의 '주인' — 어느 회사(entryId·사업자번호)를 어떤 어댑터·저장 함수로 보고 있는지.
 // 주인이 바뀌면(회사 전환·창 닫힘) 이전 주인의 늦은 화면 반응(되돌리기·경고·재시도)은 새 화면에 닿지 않는다.
 // 이미 받아들인 저장 요청 자체는 주인과 무관하게 끝까지 간다(basic-field-sync 의 줄).
 type BasicOwner = {
+  identity: string;
   entryId: string;
   bizno: string;
   adapter: UnifiedDetailAdapter;
@@ -73,7 +76,9 @@ type BasicOwner = {
   /** 칸별 이 주인의 가장 새 입력 번호 */
   intent: Map<string, number>;
   /** 칸별 마지막으로 서버가 받아들인 값 — 영구 실패 때 되돌릴 자리 */
-  confirmed: Map<string, { original?: BasicRestoreOriginal; applyToTable?: (original: BasicRestoreOriginal) => void }>;
+  confirmed: Map<string, BasicFieldConfirmation>;
+  /** 입력 전에 조회한 키. 실제 새 행·보관소가 대체한 상속값을 다시 가져오지 않는다. */
+  recoveryKeys: Set<string>;
   /** 저장 중이거나 저장 실패로 입력을 붙들고 있는 칸 — 새 행·보관소 읽기가 덮어쓰지 못한다 */
   pending: Set<string>;
 };
@@ -572,6 +577,7 @@ function SectionDetailPanel({
     }
     return [];
     // 섹션 전환은 key 로 재마운트되어 새로 읽힘 — primaryRow 최초값 기준.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKey]);
 
   // 사업자번호 있으면 공용 보관함에서 정산/히스토리를 불러온다. 비어 있으면 기존 행 값으로 폴백.
@@ -646,6 +652,7 @@ function SectionDetailPanel({
       alive = false;
     };
     // historyInitial은 sectionKey 기준 안정값. bizno/sectionKey 바뀔 때만 재로드.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared, bizno, sectionKey]);
 
   const saveSecstore = useCallback(
@@ -1460,15 +1467,31 @@ function BasicInfoPanel({
   // 기본정보 값 입력·저장 — 칸을 클릭해 바로 입력/수정. 저장은 경정청구 항목(_id)에 반영(표시 출처와 동일).
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
   const rowData = row as Record<string, unknown>;
+  const basicIdentity = basicRecoveryIdentity(row, ownDomain);
   // 화면의 주인 — entryId·사업자번호·어댑터·저장 함수 중 하나라도 바뀌면 새 주인(값 상태를 새 행으로 초기화). 같은 입력이면 같은 객체.
   const ownerRef = useRef<BasicOwner | null>(null);
   let ownerNow = ownerRef.current;
-  if (!ownerNow || ownerNow.entryId !== entryId || ownerNow.bizno !== bizno || ownerNow.adapter !== adapter || ownerNow.saveOwnField !== saveOwnField) {
-    ownerNow = { entryId, bizno, adapter, saveOwnField, active: true, intent: new Map(), confirmed: new Map(), pending: new Set() };
+  if (!ownerNow || ownerNow.entryId !== entryId || ownerNow.bizno !== bizno || ownerNow.identity !== basicIdentity || ownerNow.adapter !== adapter || ownerNow.saveOwnField !== saveOwnField) {
+    ownerNow = { entryId, bizno, identity: basicIdentity, adapter, saveOwnField, active: true, intent: new Map(), confirmed: pendingBasicFieldConfirmations(entryId, basicIdentity), recoveryKeys: new Set(), pending: new Set() };
     ownerRef.current = ownerNow;
   }
   const owner: BasicOwner = ownerNow;
+  // 첫 입력 전에 표 저장이 끝나도 같은 객체의 ACK를 이어받는다. 뒤늦게 로드한 동적·부재 칸도 포함한다.
+  for (const key of new Set([...Object.keys(rowData), ...ownColumns.map((field) => field.key), ...allBasicFields.map((field) => field.key)])) {
+    if (owner.recoveryKeys.has(key)) continue;
+    const bridge = adapter.unsaved;
+    const recovery = entryId && bridge?.getBasicRecovery?.(bridge.makeId(bridge.scope, entryId, key));
+    // Provider의 저장 항목 복원은 첫 렌더 뒤에 끝난다. 아직 없는 항목을 이미 확인한 것으로 닫지 않는다.
+    if (recovery) owner.recoveryKeys.add(key);
+    if (recovery && matchesBasicRecoveryIdentity(recovery, basicIdentity)) {
+      recovery.identity ??= basicIdentity;
+      const inherited = owner.confirmed.get(key);
+      if (!inherited) owner.confirmed.set(key, recovery);
+      else if (recovery.applyToTable) inherited.applyToTable = recovery.applyToTable;
+    }
+  }
   useEffect(() => {
+    cancelOtherBasicIdentity(owner.entryId, owner.identity);
     owner.active = true;
     return () => { owner.active = false; };
   }, [owner]);
@@ -1480,13 +1503,80 @@ function BasicInfoPanel({
     basicNow = { owner, seen: rowData, incoming: rowData, local: { ...rowData } };
     setBasicState(basicNow);
   } else if (basicState.seen !== rowData) {
-    const { merged, changedKeys, baseline } = mergeIncomingRow(basicState.incoming, rowData, basicState.local, (k) => owner.pending.has(k));
+    const observedBaseline = { ...basicState.incoming };
+    // 행을 먼저 받고 PATCH가 나중에 성공했어도, 실제로 관측한 확정값은 다음 행과 비교할 기준이다.
+    // 성공만으로 기준을 옮기지 않는다 — 목표값 행을 못 봤으면 늦은 옛 행의 같은 값은 여전히 무시한다.
+    for (const [key, { original }] of owner.confirmed) {
+      if (original && original.present === Object.prototype.hasOwnProperty.call(basicState.seen, key)
+        && (!original.present || sameFieldValue(original.value, basicState.seen[key]))) {
+        if (original.present) observedBaseline[key] = basicState.seen[key];
+        else delete observedBaseline[key];
+      }
+    }
+    const { merged, changedKeys, baseline } = mergeIncomingRow(observedBaseline, rowData, basicState.local, (k) => owner.pending.has(k));
+    for (const key of changedKeys) {
+      const confirmed = owner.confirmed.get(key)?.original;
+      // 저장 중에도 서버 확인값을 관측하면 비교 기준만 전진시키고 화면 입력은 지킨다.
+      if (owner.pending.has(key) && confirmed && confirmed.present === Object.prototype.hasOwnProperty.call(rowData, key)
+        && (!confirmed.present || sameFieldValue(confirmed.value, rowData[key]))) {
+        if (confirmed.present) baseline[key] = rowData[key];
+        else delete baseline[key];
+      }
+    }
     // 보호 중 행에는 앱 미저장 overlay가 섞일 수 있다. 그 칸의 원래 확정값은 유지한다.
-    for (const k of changedKeys) if (!owner.pending.has(k)) owner.confirmed.delete(k);
+    for (const k of changedKeys) if (!owner.pending.has(k)) {
+      const recovery = owner.confirmed.get(k);
+      const draft = recovery?.draft;
+      const bridge = adapter.unsaved;
+      const hostRecovery = bridge?.getBasicRecovery?.(bridge.makeId(bridge.scope, entryId, k));
+      if (recovery === hostRecovery && draft
+        && draft.present === Object.prototype.hasOwnProperty.call(rowData, k)
+        && (!draft.present || sameFieldValue(draft.value, rowData[k]))) continue;
+      observeBasicFieldConfirmation(recovery, rowData[k], Object.prototype.hasOwnProperty.call(rowData, k));
+
+    }
     basicNow = { owner, seen: rowData, incoming: baseline, local: merged };
     setBasicState(basicNow);
   }
   const basicRow = basicNow.local;
+  useEffect(() => {
+    setBasicState(current => {
+      if (current.owner !== owner) return current;
+      const local = { ...current.local };
+      for (const [key, recovery] of owner.confirmed) if (recovery.draft && matchesBasicRecoveryIdentity(recovery, owner.identity)) {
+        if (recovery.draft.present) local[key] = recovery.draft.value; else delete local[key];
+      }
+      return { ...current, local };
+    });
+  }, [owner]);
+
+
+  // 복원 동작은 닫힌 창의 setState 대신 현재 열린 창에 연결한다. 정리할 때도 자신의 연결만 지운다.
+  useEffect(() => {
+    const bridge = adapter.unsaved;
+    for (const key of new Set([...Object.keys(row), ...allBasicFields.map(field => field.key)])) {
+      const id = bridge?.makeId(bridge.scope, entryId, key);
+      const recovery = id ? bridge?.getBasicRecovery?.(id) : undefined;
+      if (id && recovery?.identity && !matchesBasicRecoveryIdentity(recovery, owner.identity)) bridge?.resolve(id);
+    }
+    const keysByRecovery = new Map<BasicRecovery, string[]>();
+    for (const [key, recovery] of owner.confirmed) keysByRecovery.set(recovery, [...(keysByRecovery.get(recovery) ?? []), key]);
+    const bindings = [...keysByRecovery].map(([recovery, keys]) => {
+      const apply: NonNullable<BasicRecovery["applyToDetail"]> = original => {
+        if (!(owner.active && ownerRef.current === owner) || (recovery.identity && !matchesBasicRecoveryIdentity(recovery, owner.identity))) return;
+        for (const key of keys) owner.pending.delete(key);
+        setBasicState(state => {
+          if (state.owner !== owner) return state;
+          const local = { ...state.local };
+          for (const key of keys) { if (original.present) local[key] = original.value; else delete local[key]; }
+          return { ...state, local };
+        });
+      };
+      recovery.applyToDetail = apply;
+      return { recovery, apply };
+    });
+    return () => { for (const { recovery, apply } of bindings) if (recovery.applyToDetail === apply) delete recovery.applyToDetail; };
+  });
 
   // ── 공용 보관함 읽기 — 변경 내역 표시 + 비어 있는 칸만 보관함 값으로 채움(기존 행 값은 보호) ──
   // 보관함 기록은 그 주인(회사)에서 읽은 것만 보인다 — 늦게 도착한 이전 회사 기록이 다른 회사 화면에 뜨지 않게.
@@ -1523,7 +1613,12 @@ function BasicInfoPanel({
             const cur = next[f.key];
             // 진행상태는 3앱 완전 동기화(NO.56 사장님 결정 2026-06-21): 값이 있어도 공용 보관함 최신값으로 덮어쓴다.
             // 그 외 칸은 기존대로 '빈 칸만' 채워 기존 값을 보호.
-            if (f.label === "진행상태" || cur == null || cur === "") next[f.key] = entry.value;
+            if (f.label === "진행상태" || cur == null || cur === "") {
+              next[f.key] = entry.value;
+              // 나중에 실제 적용한 보관소 값은 재열기 때 이어받은 옛 묶음보다 우선한다.
+              observeBasicFieldConfirmation(owner.confirmed.get(f.key), entry.value, true);
+
+            }
           }
         }
         return { ...s, local: next };
@@ -1541,33 +1636,52 @@ function BasicInfoPanel({
       const acceptedSave = adapter.api.captureOwnFieldSave?.(row) ?? saveOwnField;
       const bridge = adapter.unsaved;
       const unsavedId = bridge?.makeId(bridge.scope, entryId, key);
-      const recovery = unsavedId ? bridge?.getBasicRecovery?.(unsavedId) : undefined;
+      const hostRecovery = unsavedId ? bridge?.getBasicRecovery?.(unsavedId) : undefined;
+      const recovery = hostRecovery && matchesBasicRecoveryIdentity(hostRecovery, owner.identity) ? hostRecovery : undefined;
       // 같은 열린 연속 입력은 원래 기준을 이어받고, 새 묶음은 실패 항목의 기준을 먼저 읽는다.
-      if (!owner.pending.has(key)) {
+      if (!owner.confirmed.has(key)) {
         const value = basicRow[key];
         const present = Object.prototype.hasOwnProperty.call(basicRow, key);
         const original = recovery ? recovery.original : !present ? { value: null, present: false }
           : value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? { value, present: true } : undefined;
-        owner.confirmed.set(key, { original, applyToTable: recovery?.applyToTable });
+        owner.confirmed.set(key, recovery ?? { original });
       }
+      // Provider가 새로 연결한 현재 표 복원 통로가 이전 화면의 통로보다 우선한다.
+      if (recovery?.applyToTable) owner.confirmed.get(key)!.applyToTable = recovery.applyToTable;
+      const acceptedIdentity = basicRecoveryIdentity({ ...row, ...basicRow, [key]: newVal }, ownDomain);
+      const retained = retainBasicFieldConfirmation(entryId, key, owner.confirmed.get(key)!, acceptedIdentity);
+      const confirmed = retained.confirmed;
+      if (bridge?.applyToTable) confirmed.applyToTable = original => bridge.applyToTable!(entryId, key, original);
+      const recoveryLifetime = beginRecoveryLifetime(confirmed, owner.identity);
+      confirmed.draft = { value: newVal, present: true };
+      confirmed.sourceIdentity ??= owner.identity;
+      confirmed.identity = acceptedIdentity;
+      owner.confirmed.set(key, confirmed);
       const intent = { seq: nextBasicIntentSeq() };
-      const lease = beginBasicIntent(entryId, key);
+      const lease = beginBasicIntent(entryId, key, acceptedIdentity, confirmed);
       owner.intent.set(key, intent.seq);
       owner.pending.add(key);
       let hostLease: { isCurrent: () => boolean; release: () => void } | undefined;
-      const isCurrent = () => isCurrentBasicIntent(lease) && (hostLease?.isCurrent() ?? true);
+      const isCurrent = () => (ownerRef.current?.entryId !== owner.entryId || matchesBasicRecoveryIdentity(confirmed, ownerRef.current?.identity ?? ""))
+        && isCurrentBasicIntent(lease) && (hostLease?.isCurrent() ?? true);
       const finish = () => {
+        endRecoveryLifetime(confirmed, recoveryLifetime);
         finishBasicIntent(lease);
         hostLease?.release();
         if (owner.intent.get(key) === intent.seq) owner.pending.delete(key);
       };
-      if (unsavedId) hostLease = bridge?.beginBasicEdit?.(unsavedId, finish);
+      lease.cancel = () => {
+        const currentRecovery = unsavedId ? bridge?.getBasicRecovery?.(unsavedId) : undefined;
+        finish();
+        if (unsavedId && currentRecovery === confirmed) bridge?.resolve(unsavedId);
+      };
+      if (unsavedId) hostLease = bridge?.beginBasicEdit?.(unsavedId, finish, confirmed);
       if (unsavedId) bridge?.resolve(unsavedId);
       setBasicState((state) => state.owner === owner ? { ...state, local: { ...state.local, [key]: newVal } } : state);
       const fieldId = commonFieldIdForKey(key) || keyToFieldId.get(key) || "";
       const restore = (original?: BasicRestoreOriginal) => {
         if (!isCurrent()) return false;
-        if (original) owner.confirmed.get(key)?.applyToTable?.(original);
+        if (original) { confirmed.applyToTable?.(original); confirmed.applyToDetail?.(original); }
         finish();
         if (!original || !isLiveOwner()) return original !== undefined;
         setBasicState((state) => {
@@ -1579,20 +1693,28 @@ function BasicInfoPanel({
         });
         return true;
       };
-      const restoreConfirmed = () => restore(owner.confirmed.get(key)?.original);
+      const restoreConfirmed = () => restore(confirmed.original);
       // 최초로 수락한 입력은 닫힘·새 입력 뒤에도 행→보관소를 마친다. 폐기된 retry는 응답 후 추가 쓰기를 하지 않는다.
       const send = (isRetry: boolean): Promise<boolean> => {
         const task = async () => {
         if (isRetry && !isCurrent()) return false;
-        await acceptedSave(entryId, key, newVal);
-        if (isRetry && !isCurrent()) return false;
-        const confirmed = owner.confirmed.get(key);
-        if (confirmed) {
-          if (confirmed.original) Object.assign(confirmed.original, { value: newVal, present: true });
-          else confirmed.original = { value: newVal, present: true };
+        if (isRetry) await acceptedSave(entryId, key, newVal, undefined, { shouldContinue: isCurrent });
+        else await acceptedSave(entryId, key, newVal);
+        // 이미 전송된 요청의 성공은 다음 입력의 복원 기준이다. 폐기된 retry의 후속 쓰기·통지는 계속 막는다.
+        if (confirmed.original) Object.assign(confirmed.original, { value: newVal, present: true });
+        else confirmed.original = { value: newVal, present: true };
+        acknowledgeBasicRecovery(confirmed, acceptedIdentity);
+        // 표의 뒤따른 입력도 실제 ACK를 복원 기준으로 받는다. 무효화된 retry라도 이미 저장한 값은 알린다.
+        try {
+          const currentRecovery = unsavedId ? bridge?.getBasicRecovery?.(unsavedId) : undefined;
+          const currentIdentity = currentRecovery ? currentRecovery.identity : undefined;
+          if (unsavedId && (!currentIdentity || currentIdentity === owner.identity)) bridge?.noteBasicServerValue?.(unsavedId, { value: newVal, present: true });
         }
-        if (!isRetry && isCurrent()) {
-          try { onSaved?.(); } catch (err) { console.error("[basic-field onSaved]", err); }
+        catch (err) { console.error("[basic-field noteBasicServerValue]", err); }
+        if (isRetry && !isCurrent()) return false;
+        if (!isRetry) {
+          if (!(confirmed.lifetime !== recoveryLifetime && confirmed.lifetime?.active)) { delete confirmed.pendingRefresh; try { onSaved?.(); } catch (err) { console.error("[basic-field onSaved]", err); } }
+          else confirmed.pendingRefresh = onSaved;
         }
         if (fieldId && bizno) {
           try {
@@ -1602,6 +1724,7 @@ function BasicInfoPanel({
         }
         if (isRetry) {
           if (!isCurrent()) return false;
+          delete confirmed.pendingRefresh;
           try { onSaved?.(); } catch (err) { console.error("[basic-field onSaved]", err); }
         } else finish();
         return true;
@@ -1614,6 +1737,7 @@ function BasicInfoPanel({
         await send(false);
       } catch (error) {
         if (!isCurrent()) return;
+        flushBasicRefresh(confirmed);
         const message = error instanceof Error ? error.message : "";
         const kind = saveFailureKindOf(error);
         if (bridge && kind !== "permanent") {
@@ -1624,10 +1748,11 @@ function BasicInfoPanel({
             rowLabel: String(row["02상호명"] ?? "") || "이 항목", fieldLabel: key, value: newVal,
             error: message || `'${key}' 저장에 실패했습니다.`, kind,
             onDiscard: finish,
-            basicRestore: { original: owner.confirmed.get(key)?.original, apply: restore, applyToTable: owner.confirmed.get(key)?.applyToTable },
+            basicRestore: Object.assign(confirmed, { apply: restore }),
             retry: async () => {
               if (!isCurrent() || retryInFlight) return false;
               retryInFlight = true;
+              const retryRetained = retainBasicFieldConfirmation(entryId, key, confirmed, acceptedIdentity);
               owner.pending.add(key);
               try {
                 const success = await send(true);
@@ -1642,7 +1767,7 @@ function BasicInfoPanel({
                   if (isLiveOwner()) alert(retryError instanceof Error ? retryError.message : "저장에 실패했습니다.");
                 }
                 return false;
-              } finally { retryInFlight = false; }
+              } finally { retryRetained.release(); retryInFlight = false; }
             },
             revert: () => { if (restoreConfirmed()) bridge.resolve(id); },
           });
@@ -1651,9 +1776,9 @@ function BasicInfoPanel({
         restoreConfirmed();
         if (unsavedId) bridge?.resolve(unsavedId);
         if (isLiveOwner()) alert(message || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
-      }
+      } finally { retained.release(); }
     },
-    [owner, entryId, row, basicRow, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter],
+    [owner, ownDomain, entryId, row, basicRow, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter],
   );
 
   return (
@@ -2544,6 +2669,7 @@ function WideSectionHistory({
       }
     }
     return [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKey]);
 
   const base = useMemo(
@@ -2583,6 +2709,7 @@ function WideSectionHistory({
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared, base]);
 
   // ★삼키지 않고 다시 던진다 — 안내는 히스토리 부품 한 곳에서만.
@@ -2759,6 +2886,7 @@ function WideFilesPane({
   const refresh = onSaved;
   useEffect(() => {
     refresh?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (!ErpFilesPanel) {
     return <WideEmptyNote text="파일 패널이 없는 앱입니다" />;
@@ -2827,12 +2955,6 @@ export default function UnifiedDetailView({
   /** wide 헤더에 값 칩으로 보여줄 행 칸 키 목록. */
   headerChipKeys?: string[];
 }) {
-  const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  // ★"행이 0건"과 "못 불러왔다"는 다르다 — 못 불러온 상태에서 첫 메모 입력칸이 열리면
-  //  거기 저장할 때 새 계약 줄이 생긴다(자료 어긋남). 아래 부품이 이 값을 보고 그 통로를 닫는다.
-  const [rowsLoadFailed, setRowsLoadFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<TopTab>("__basic__");
   const [subTab, setSubTab] = useState<SubTab>("history");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -2888,15 +3010,30 @@ export default function UnifiedDetailView({
   useEffect(() => {
     if (!narrowSwitch && narrowPane === "side") setTrackRailOpen(true);
     // narrowPane 은 일부러 의존 목록에서 뺀다 — 넓은 화면에서 값이 남아 있다고 다시 열면 안 된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [narrowSwitch]);
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
   // 부모 목록 통지는 저장 당시 콜백으로 보낸다. 상세 내부 조회·상태는 현재 회사 소유권에서만 적용한다.
-  const detailBizno = normalizeBizno(row["15사업자번호"] ?? row["04사업자번호"] ?? row["사업자번호"]);
-  const detailOwner = useMemo(() => ({ entryId, bizno: detailBizno, adapter }), [entryId, detailBizno, adapter]);
+  const customerKey = customerKeyFromTaxRow(row, adapter.ownDomain);
+  const detailOwner = useMemo(() => ({ entryId, customerKey, adapter }), [entryId, customerKey, adapter]);
   const detailOwnerRef = useRef(detailOwner);
   detailOwnerRef.current = detailOwner;
+  const detailRequestRef = useRef(0);
+  const emptyDetailState = () => ({
+    owner: detailOwner, detail: null as CustomerDetailLite | null, loading: !isNew, error: null as string | null,
+    // "행이 0건"과 "못 불러옴"을 구분하여 조회 실패 뒤 새 계약 입력을 막는다.
+    rowsLoadFailed: false,
+  });
+  const [detailState, setDetailState] = useState(emptyDetailState);
+  let detailNow = detailState;
+  if (detailState.owner !== detailOwner) {
+    // 새 owner가 자식을 그리는 첫 순간부터 이전 회사의 편집 자료를 차단한다.
+    detailNow = emptyDetailState();
+    setDetailState(detailNow);
+  }
+  const { detail, loading, error, rowsLoadFailed } = detailNow;
   const [nameValue, setNameValue] = useState(() => String(row["02상호명"] ?? ""));
   // ── 신규 등록 모드 상태 (isNew 일 때만 사용) ──
   // NO.56: 신규 등록은 어떤 칸도 자동 선택값을 넣지 않는다(영업담당 "하이브" 하드코딩 제거 — 안 골라도 저장되던 버그).
@@ -2905,7 +3042,10 @@ export default function UnifiedDetailView({
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
   const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const company = nameValue.trim() || "통합 보기";
   const saveName = useCallback(async (v: string) => {
     const orig = String(row["02상호명"] ?? "");
@@ -2969,40 +3109,37 @@ export default function UnifiedDetailView({
   // 동기 캐시 읽기는 adapter.api.getCachedDomainRows 경유 — ERP 전용 캐시 모듈 직접 의존 제거.
   const loadDetail = useCallback((silent = false) => {
     if (!mountedRef.current || detailOwnerRef.current !== detailOwner) return;
-    const key = customerKeyFromTaxRow(row, adapter.ownDomain);
+    const request = ++detailRequestRef.current;
+    const isLatest = () => mountedRef.current && detailOwnerRef.current === detailOwner && detailRequestRef.current === request;
+    const key = detailOwner.customerKey;
     if (!silent) {
       // 표에서 미리 받아둔 분야 현황이 있으면 즉시 표시(불러오는 중 없이), 없으면 로딩 표시.
       const cached = adapter.api.getCachedDomainRows(key);
-      if (cached) {
-        setDetail(cached);
-        setLoading(false);
-      } else {
-        setLoading(true);
-      }
-      setError(null);
+      setDetailState(state => state.owner === detailOwner
+        ? { ...state, detail: cached ?? state.detail, loading: !cached, error: null } : state);
     }
     adapter.api.loadDomainRows(key)
       .then((data) => {
-        if (!mountedRef.current || detailOwnerRef.current !== detailOwner) return;
-        if (data) setDetail(data);
-        setRowsLoadFailed(false);
-        if (!silent) setLoading(false);
+        if (!isLatest()) return;
+        // null도 최신 조회 결과다. silent가 초기 조회를 대체했어도 완료 시 로딩을 푼다.
+        setDetailState({ owner: detailOwner, detail: data, loading: false, error: null, rowsLoadFailed: false });
       })
       .catch(() => {
-        if (!mountedRef.current || detailOwnerRef.current !== detailOwner) return;
+        if (!isLatest()) return;
         // 조용한 새로고침이어도 "못 불러왔다"는 기억한다 — 이후 판정이 이 값을 본다.
-        setRowsLoadFailed(true);
-        if (!silent) {
-          setError("정보를 불러오지 못했습니다. 다시 시도해 주세요.");
-          setLoading(false);
-        }
+        setDetailState(state => state.owner === detailOwner ? {
+          ...state, rowsLoadFailed: true, loading: false,
+          error: silent ? state.error : "정보를 불러오지 못했습니다. 다시 시도해 주세요.",
+        } : state);
       });
-  }, [row, adapter, detailOwner]);
+  }, [adapter, detailOwner]);
 
   useEffect(() => {
-    if (isNew) { setLoading(false); return; } // 신규 등록은 불러올 기존 데이터가 없음
+    if (isNew) { setDetailState(state => ({ ...state, loading: false })); return; } // 신규 등록은 불러올 기존 데이터가 없음
     loadDetail(false);
-  }, []);
+    // 같은 소유자의 행 갱신은 저장 후 조용한 조회가 맡고, 실제 고객 조회키가 바뀌면 첫 조회부터 다시 시작한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailOwner, isNew]);
 
   // 어떤 칸이든 저장되면: 모달의 분야 데이터(detail)를 조용히 새로고침
   //  → '전체 영역 현황' 요약표·상단 상태점·분야 탭 값이 그 자리에서 바로 반영된다.
@@ -3240,6 +3377,7 @@ export default function UnifiedDetailView({
     } else {
       setWideSide((cur) => (cur === "info" ? "history" : cur));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threePane, infoOnRight, customOnRight, currentGroup?.key]);
 
   // 창을 닫기 직전, 입력 중이던 칸의 포커스를 풀어 그 칸의 자동 저장(포커스가 빠질 때 실행)이

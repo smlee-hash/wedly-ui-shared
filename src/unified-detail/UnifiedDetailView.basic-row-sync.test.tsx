@@ -16,6 +16,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UnifiedDetailView from "./UnifiedDetailView";
 import type { BasicRecord, UnifiedDetailAdapter, UnsavedBridge } from "./adapter-types";
+import { enqueueBasicFieldWrite, nextBasicIntentSeq } from "./lib/basic-field-sync";
 
 // 이 패키지의 JSX 는 React 를 직접 import 하지 않는다 — classic 변환으로 돌려도 렌더가 되도록 전역에 둔다.
 (globalThis as { React?: unknown }).React = React;
@@ -48,6 +49,7 @@ const BIZNO_A = "0000000001"; // 합성 사업자번호 "000-00-00001" 의 숫�
 // ── 손으로 제어하는 비동기 호출 ──
 type Call = { args: unknown[]; settled: boolean; resolve: (v?: unknown) => void; reject: (e: unknown) => void };
 type Report = Parameters<UnsavedBridge["report"]>[0];
+type Recovery = NonNullable<ReturnType<NonNullable<UnsavedBridge["getBasicRecovery"]>>>;
 // 앱 Provider의 기본정보 merge 분기: 첫 confirmed 기준과 새 apply를 연결한다.
 function mergeHostEntry(prev: Report[], entry: Report): Report[] {
   const old = prev.find((e) => e.id === entry.id);
@@ -56,7 +58,8 @@ function mergeHostEntry(prev: Report[], entry: Report): Report[] {
     const original = old ? old.basicRestore?.original : entry.basicRestore.original;
     const apply = entry.basicRestore.apply;
     const applyToTable = entry.basicRestore.applyToTable ?? old?.basicRestore?.applyToTable;
-    return [...rest, { ...entry, basicRestore: { original, apply, applyToTable }, revert: original === undefined ? undefined : () => { apply(original); } }];
+    const basicRestore = Object.assign(entry.basicRestore, { original, applyToTable });
+    return [...rest, { ...entry, basicRestore, revert: original === undefined ? undefined : () => { apply(original); } }];
   }
   return [...rest, old ? { ...entry, revert: old.revert } : entry];
 }
@@ -66,9 +69,10 @@ function makeHarness(v: Variant, opts: { bridge?: boolean; progress?: boolean } 
   const rowCalls: Call[] = [];
   const storeCalls: Call[] = [];
   const readCalls: Call[] = [];
+  const domainCalls: Call[] = [];
   const reports: Report[] = [];
   const bar = { entries: [] as Report[] };
-  const edits = new Map<string, { valid: boolean; supersede: () => void }>();
+  const edits = new Map<string, { valid: boolean; supersede: () => void; recovery?: Recovery }>();
   const updateBar = (next: Report[]) => {
     const previous = bar.entries;
     bar.entries = next;
@@ -79,11 +83,11 @@ function makeHarness(v: Variant, opts: { bridge?: boolean; progress?: boolean } 
   };
   const getBasicRecovery = (id: string) => {
     const entry = bar.entries.find((e) => e.id === id);
-    return entry ? { original: entry.basicRestore?.original, applyToTable: entry.basicRestore?.applyToTable } : undefined;
+    return entry ? entry.basicRestore ?? {} : edits.get(id)?.recovery;
   };
-  const beginBasicEdit = (id: string, supersede: () => void) => {
+  const beginBasicEdit = (id: string, supersede: () => void, recovery?: Recovery) => {
     const old = edits.get(id);
-    const lease = { valid: true, supersede };
+    const lease = { valid: true, supersede, recovery };
     edits.set(id, lease);
     if (old) { old.valid = false; old.supersede(); }
     return {
@@ -93,7 +97,7 @@ function makeHarness(v: Variant, opts: { bridge?: boolean; progress?: boolean } 
   };
   const resolvedIds: string[] = [];
   const alertMock = vi.fn();
-  const auto = { row: false, store: false, read: true };
+  const auto = { row: false, store: false, read: true, domain: true };
 
   const controlled = (tag: string, calls: Call[], fmt: (args: unknown[]) => string | null, isAuto: () => boolean) =>
     vi.fn((...args: unknown[]) => new Promise<unknown>((resolve, reject) => {
@@ -112,6 +116,7 @@ function makeHarness(v: Variant, opts: { bridge?: boolean; progress?: boolean } 
   const saveOwnField = controlled("row", rowCalls, (a) => `${a[1]}=${String(a[2])}`, () => auto.row);
   const saveBasicField = controlled("store", storeCalls, (a) => `${a[2]}=${String(a[3])}`, () => auto.store);
   const loadBasicStore = controlled("read", readCalls, () => null, () => auto.read);
+  const loadDomainRows = controlled("domain", domainCalls, () => null, () => auto.domain);
 
   const unsaved: UnsavedBridge = {
     scope: "시험화면",
@@ -134,7 +139,7 @@ function makeHarness(v: Variant, opts: { bridge?: boolean; progress?: boolean } 
     configScope: "unified-collab",
     domains: [],
     api: {
-      loadDomainRows: async () => null,
+      loadDomainRows,
       getCachedDomainRows: () => null,
       saveOwnField,
       createEntry: async () => ({ id: "new" }),
@@ -183,7 +188,7 @@ function makeHarness(v: Variant, opts: { bridge?: boolean; progress?: boolean } 
     getAllFiles: () => [],
   } as unknown as UnifiedDetailAdapter;
 
-  return { trace, rowCalls, storeCalls, readCalls, reports, bar, resolvedIds, alertMock, auto, adapter };
+  return { trace, rowCalls, storeCalls, readCalls, domainCalls, reports, bar, resolvedIds, alertMock, auto, adapter };
 }
 type Harness = ReturnType<typeof makeHarness>;
 
@@ -198,14 +203,16 @@ type Mounted = {
 };
 const mounted: Array<{ unmount: () => Promise<void>; container: HTMLElement }> = [];
 
-async function mount(v: Variant, h: Harness, row: Record<string, unknown>): Promise<Mounted> {
+async function mount(v: Variant, h: Harness, row: Record<string, unknown>, strict = false): Promise<Mounted> {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root: Root = createRoot(container);
   const onSaved = vi.fn();
   const onClose = vi.fn();
-  const view = (r: Record<string, unknown>) =>
-    React.createElement(UnifiedDetailView, { row: r as never, adapter: h.adapter, onClose, onSaved, layout: v.layout });
+  const view = (r: Record<string, unknown>) => {
+    const detail = React.createElement(UnifiedDetailView, { row: r as never, adapter: h.adapter, onClose, onSaved, layout: v.layout });
+    return strict ? React.createElement(React.StrictMode, {}, detail) : detail;
+  };
   let gone = false;
   const handle: Mounted = {
     container,
@@ -300,8 +307,9 @@ afterEach(async () => {
     h.auto.row = true;
     h.auto.store = true;
     h.auto.read = true;
+    h.auto.domain = true;
     await act(async () => {
-      for (const c of [...h.rowCalls, ...h.storeCalls, ...h.readCalls]) if (!c.settled) c.resolve(null);
+      for (const c of [...h.rowCalls, ...h.storeCalls, ...h.readCalls, ...h.domainCalls]) if (!c.settled) c.resolve(null);
       await sleep();
     });
   }
@@ -313,15 +321,546 @@ afterEach(async () => {
 });
 
 describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
-  const setup = async (opts: { bridge?: boolean; row?: Record<string, unknown>; holdReads?: boolean; progress?: boolean } = {}) => {
+  const setup = async (opts: { bridge?: boolean; row?: Record<string, unknown>; holdReads?: boolean; progress?: boolean; holdDetails?: boolean; strict?: boolean } = {}) => {
     const h = makeHarness(v, { bridge: opts.bridge, progress: opts.progress });
     harnesses.push(h);
     vi.stubGlobal("alert", h.alertMock);
     if (opts.holdReads) h.auto.read = false; // 보관소 읽기를 마운트 전부터 보류
+    if (opts.holdDetails) h.auto.domain = false;
     const row = opts.row ?? makeRow(v);
-    const view = await mount(v, h, row);
+    const view = await mount(v, h, row, opts.strict);
     return { h, row, view };
   };
+
+  describe("IX6 표·상세 확정값 객체 연결", () => {
+    // 앱이 별도 소유한 표 경계: pending lease가 같은 객체를 내주고 실제 ACK만 original을 바꾼다.
+    function startTable(h: Harness, row: Record<string, unknown>, key: string, original: Recovery["original"], ack: string | boolean) {
+      const bridge = h.adapter.unsaved!;
+      const id = bridge.makeId(bridge.scope, String(row._id), key);
+      const applyToTable = vi.fn();
+      const recovery: Recovery = { original, applyToTable };
+      const begin = vi.spyOn(bridge, "beginBasicEdit");
+      const lease = bridge.beginBasicEdit!(id, () => {}, recovery);
+      let complete!: (success: boolean) => void;
+      const result = new Promise<boolean>((resolve) => { complete = resolve; });
+      const write = enqueueBasicFieldWrite(String(row._id), key, nextBasicIntentSeq(), async () => {
+        const success = await result;
+        if (success) recovery.original = { value: ack, present: true };
+        lease.release();
+      });
+      return {
+        recovery, applyToTable, begin,
+        settle: async (success: boolean) => { await act(async () => { complete(success); await write; await sleep(); }); },
+      };
+    }
+
+    const cases = [
+      { name: "문자", original: { value: "서버원본", present: true }, key: v.nameKey, optimistic: "A미확정", ack: "A확정" },
+      { name: "unknown", original: undefined, key: v.nameKey, optimistic: "A미확정", ack: "A확정" },
+      { name: "null", original: { value: null, present: true }, key: v.nameKey, optimistic: "A미확정", ack: "A확정" },
+      { name: "false", original: { value: false, present: true }, key: AGREE_KEY, optimistic: true, ack: true },
+      { name: "키 부재·동적 칸", original: { value: null, present: false }, key: AGREE_KEY, optimistic: undefined, ack: true },
+    ] as const;
+    for (const c of cases) {
+      for (const success of [true, false]) {
+        for (const timing of ["B 입력 뒤", "재열기 첫 입력 전"]) {
+          it.each(["permanent", "transient"])(`${c.name}: 표 A ${success ? "성공" : "실패"}(${timing}) 뒤 상세 B %s 복원`, async (kind) => {
+            const h = makeHarness(v);
+            harnesses.push(h);
+            vi.stubGlobal("alert", h.alertMock);
+            const row = makeRow(v, { [c.key]: c.optimistic });
+            if (c.optimistic === undefined) delete row[c.key];
+            const table = startTable(h, row, c.key, c.original && { ...c.original }, c.ack);
+            let view = await mount(v, h, row);
+            if (timing === "재열기 첫 입력 전") {
+              await view.unmount();
+              view = await mount(v, h, row);
+              await table.settle(success);
+            }
+            const checkbox = c.key === AGREE_KEY;
+            if (checkbox) await toggle(view, "동의여부");
+            else await editText(view, "대표자명", "B미확정");
+            if (timing === "B 입력 뒤") {
+              expect(h.rowCalls).toHaveLength(0);
+              await table.settle(success);
+            }
+            expect(h.rowCalls).toHaveLength(1);
+            await rejectCall(h.rowCalls[0], kind === "permanent" ? permanent() : transient());
+            const expected = success ? { value: c.ack, present: true } : c.original;
+            if (kind === "transient") {
+              expect(h.bar.entries).toHaveLength(1);
+              expect(h.bar.entries[0].basicRestore?.original).toEqual(expected);
+              if (expected) await act(async () => {
+                const entry = h.bar.entries[0];
+                entry.revert?.();
+                h.adapter.unsaved!.resolve(entry.id); // 실제 막대의 되돌리기 소비 동작
+                await sleep();
+              });
+              else expect(h.bar.entries[0].revert).toBeUndefined();
+            }
+            if (expected) {
+              if (checkbox) expect(isChecked(view, "동의여부")).toBe(expected.present && expected.value === true);
+              else expect(shownValue(view, "대표자명")).toBe(expected.value === null ? "-" : expected.value);
+              expect(table.applyToTable).toHaveBeenCalledExactlyOnceWith(expected);
+              expect(h.bar.entries).toHaveLength(0);
+            } else {
+              expect(shownValue(view, "대표자명")).toBe("B미확정");
+              expect(table.applyToTable).not.toHaveBeenCalled();
+            }
+            expect(table.begin.mock.calls.at(-1)?.[2]).toBe(table.recovery);
+            expect(h.storeCalls).toHaveLength(0);
+          });
+        }
+      }
+    }
+
+    it.each(["행", "보관소"])("표 A 완료 뒤 실제 적용한 새 %s 값은 입력 전 상속 객체보다 우선한다", async (source) => {
+      const h = makeHarness(v, { progress: true });
+      harnesses.push(h);
+      vi.stubGlobal("alert", h.alertMock);
+      const row = makeRow(v, { [PROGRESS_KEY]: "A미확정" });
+      const table = startTable(h, row, PROGRESS_KEY, { value: "첫원본", present: true }, "A확정");
+      const view = await mount(v, h, row);
+      await table.settle(true);
+      if (source === "행") await view.rerender({ ...row, [PROGRESS_KEY]: "서버최신" });
+      else {
+        h.auto.read = false;
+        await view.rerender({ ...row, [v.emailKey]: "fresh@example.test" });
+        const reads = h.readCalls.filter(call => !call.settled);
+        expect(reads.length).toBeGreaterThan(0);
+        for (const read of reads) await resolveCall(read, storeRecord({ 진행상태: "서버최신" }));
+      }
+      expect(shownValue(view, "진행상태")).toBe("서버최신");
+      await editText(view, "진행상태", "B거절");
+      await rejectCall(h.rowCalls[0], permanent());
+      expect(shownValue(view, "진행상태")).toBe("서버최신");
+    });
+
+    it("늦게 받은 동적 칸 정의도 첫 입력 전에 표 객체를 붙잡는다", async () => {
+      const h = makeHarness(v);
+      harnesses.push(h);
+      vi.stubGlobal("alert", h.alertMock);
+      let definitions!: (fields: Array<{ key: string; label: string; type: string }>) => void;
+      h.adapter.api.loadCommonBasicFields = () => new Promise(resolve => { definitions = resolve; });
+      const row = makeRow(v);
+      const table = startTable(h, row, AGREE_KEY, { value: false, present: true }, true);
+      const view = await mount(v, h, row);
+      await act(async () => { definitions([{ key: AGREE_KEY, label: "동의여부", type: "checkbox" }]); await sleep(); });
+      await table.settle(true);
+      await toggle(view, "동의여부");
+      await rejectCall(h.rowCalls[0], permanent());
+      expect(isChecked(view, "동의여부")).toBe(true);
+      expect(table.begin.mock.calls.at(-1)?.[2]).toBe(table.recovery);
+    });
+
+    it("unknown인 실패 객체도 폐기된 retry ACK로 known이 되고 후속 B 실패는 그 값으로 복원한다", async () => {
+      const { h, view } = await setup();
+      const recovery: Recovery = {};
+      const bridge = h.adapter.unsaved!;
+      vi.spyOn(bridge, "getBasicRecovery").mockReturnValue(recovery);
+      await editText(view, "대표자명", "A확정");
+      await rejectCall(h.rowCalls[0], transient());
+      const failed = h.bar.entries[0];
+      expect(failed.basicRestore).toBe(recovery);
+      expect(failed.basicRestore?.original).toBeUndefined();
+      expect(failed.revert).toBeUndefined();
+      let retry!: Promise<boolean>;
+      await act(async () => { retry = failed.retry(); await sleep(); });
+      await editText(view, "대표자명", "B거절");
+      await resolveCall(h.rowCalls[1]);
+      expect(await retry).toBe(false);
+      expect(recovery.original).toEqual({ value: "A확정", present: true });
+      expect(h.storeCalls).toHaveLength(0);
+      expect(view.onSaved).not.toHaveBeenCalled();
+      await rejectCall(h.rowCalls[2], permanent());
+      expect(shownValue(view, "대표자명")).toBe("A확정");
+      expect(await failed.retry()).toBe(false);
+      expect(h.rowCalls).toHaveLength(3);
+    });
+
+    it.each(["B 입력 뒤", "첫 입력 전"])("Provider가 바뀌어도 pending 기준은 이어받고 새 표 통로를 우선한다(%s 완료)", async (timing) => {
+      const { h, row, view } = await setup({ row: makeRow(v, { [v.nameKey]: "첫원본" }) });
+      const oldApply = vi.fn();
+      const recovery: Recovery = { original: { value: "첫원본", present: true }, applyToTable: oldApply };
+      vi.spyOn(h.adapter.unsaved!, "getBasicRecovery").mockReturnValue(recovery);
+      await editText(view, "대표자명", "A확정");
+      await view.unmount();
+      const provider = makeHarness(v);
+      const newApply = vi.fn();
+      Object.assign(provider.adapter.unsaved!, { getBasicRecovery: () => ({ applyToTable: newApply }) });
+      const begin = vi.spyOn(provider.adapter.unsaved!, "beginBasicEdit");
+      h.adapter.unsaved = provider.adapter.unsaved;
+      const fresh = await mount(v, h, row);
+      if (timing === "첫 입력 전") {
+        await resolveCall(h.rowCalls[0]);
+        await resolveCall(h.storeCalls[0]);
+      }
+      await editText(fresh, "대표자명", "B거절");
+      if (timing === "B 입력 뒤") {
+        await resolveCall(h.rowCalls[0]);
+        await resolveCall(h.storeCalls[0]);
+      }
+      await rejectCall(h.rowCalls[1], permanent());
+      expect(shownValue(fresh, "대표자명")).toBe("A확정");
+      expect(newApply).toHaveBeenCalledExactlyOnceWith({ value: "A확정", present: true });
+      expect(oldApply).not.toHaveBeenCalled();
+      expect(begin.mock.calls[0][2]).toBe(recovery);
+    });
+
+    it("세번째 인수를 쓰지 않는 기존 두 인수 bridge도 상세 저장·복원을 유지한다", async () => {
+      const { h, view } = await setup({ row: makeRow(v, { [v.nameKey]: "첫원본" }) });
+      const bridge = h.adapter.unsaved!;
+      const begin = bridge.beginBasicEdit!;
+      bridge.beginBasicEdit = (id, supersede) => begin(id, supersede);
+      await editText(view, "대표자명", "A확정");
+      await editText(view, "대표자명", "B거절");
+      await resolveCall(h.rowCalls[0]);
+      await resolveCall(h.storeCalls[0]);
+      await rejectCall(h.rowCalls[1], permanent());
+      expect(shownValue(view, "대표자명")).toBe("A확정");
+      expect(h.storeCalls).toHaveLength(1);
+    });
+  });
+
+  describe("P2 리뷰 5결함 회귀", () => {
+    it("다시 연 화면의 B 실패는 앞서 수락한 A 저장의 성공값으로 복원한다", async () => {
+      const { h, row, view } = await setup({ row: makeRow(v, { [v.nameKey]: "원래값" }) });
+      await editText(view, "대표자명", "A성공값");
+      await view.unmount();
+      const fresh = await mount(v, h, row);
+      await editText(fresh, "대표자명", "B거절값");
+      expect(h.rowCalls).toHaveLength(1); // 새 화면의 B도 이미 수락한 A 뒤에 선다.
+      await resolveCall(h.rowCalls[0]);
+      await resolveCall(h.storeCalls[0]);
+      expect(h.rowCalls[1].args).toEqual([row._id, v.nameKey, "B거절값"]);
+      await rejectCall(h.rowCalls[1], permanent());
+      expect(shownValue(fresh, "대표자명")).toBe("A성공값");
+      expect(h.storeCalls).toHaveLength(1);
+      expect(h.bar.entries).toHaveLength(0);
+    });
+
+    it("전송 중 무효화된 retry 성공도 B 실패의 복원 기준에 남고 추가 보관소 쓰기·통지는 없다", async () => {
+      const { h, view } = await setup({ row: makeRow(v, { [v.nameKey]: "원래값" }) });
+      await editText(view, "대표자명", "A성공값");
+      await rejectCall(h.rowCalls[0], transient());
+      const report = h.bar.entries[0];
+      let retry!: Promise<boolean>;
+      await act(async () => { retry = report.retry(); await sleep(); });
+      expect(h.rowCalls).toHaveLength(2);
+      await editText(view, "대표자명", "B거절값");
+      await resolveCall(h.rowCalls[1]);
+      expect(await retry).toBe(false);
+      expect(h.storeCalls).toHaveLength(0);
+      expect(view.onSaved).not.toHaveBeenCalled();
+      await rejectCall(h.rowCalls[2], permanent());
+      expect(shownValue(view, "대표자명")).toBe("A성공값");
+      expect(h.storeCalls).toHaveLength(0);
+      expect(h.bar.entries).toHaveLength(0);
+    });
+
+    it("PATCH 성공 전에 목표값 행을 받았어도 이후 false 행을 새 변경으로 반영한다", async () => {
+      const { h, row, view } = await setup({ row: makeRow(v, { [AGREE_KEY]: false }) });
+      await toggle(view, "동의여부");
+      await view.rerender({ ...row, [AGREE_KEY]: true });
+      expect(h.rowCalls[0].settled).toBe(false);
+      await resolveCall(h.rowCalls[0]);
+      await resolveCall(h.storeCalls[0]);
+      await view.rerender({ ...row, [AGREE_KEY]: false });
+      expect(isChecked(view, "동의여부")).toBe(false);
+    });
+
+    const detailResult = (key: string, status: string) => ({
+      key, bizno: key.slice(2), company: "테스트상사", ceo: "", phone: "",
+      domainRows: [{ domain: v.ownDomain, domainLabel: "시험분야", entryId: "시험분야행", status, row: { _id: "시험분야행" } }],
+    });
+
+    it("최초 조회 중 사업자번호를 저장하면 새 번호로 조회하고 늦은 이전 응답은 버린다", async () => {
+      const { DOMAIN_GROUPS } = await import("./lib/domain-config");
+      const groups = [...DOMAIN_GROUPS];
+      DOMAIN_GROUPS.push({ key: v.ownDomain, label: "시험분야", domains: [v.ownDomain] });
+      try {
+        const { h, row, view } = await setup({ holdDetails: true });
+        expect(view.container.textContent).toContain("영역 현황 불러오는 중");
+        await editText(view, "사업자번호", "000-00-00002");
+        await resolveCall(h.rowCalls[0]);
+        await resolveCall(h.storeCalls[0]);
+        const oldReads = [...h.domainCalls];
+        await view.rerender({ ...row, "15사업자번호": "000-00-00002" });
+        const fresh = h.domainCalls.find((call) => call.args[0] === "b:0000000002");
+        expect(fresh, "바뀐 사업자번호로 최초 조회를 다시 시작해야 한다").toBeDefined();
+        await resolveCall(fresh!, detailResult("b:0000000002", "새번호현황"));
+        expect(view.container.textContent).not.toContain("영역 현황 불러오는 중");
+        expect(view.container.textContent).toContain("새번호현황");
+        await resolveCall(oldReads[0], detailResult(`b:${BIZNO_A}`, "옛번호현황"));
+        for (const call of oldReads.slice(1)) await rejectCall(call, new Error("옛번호 조회 실패"));
+        expect(view.container.textContent).toContain("새번호현황");
+        expect(view.container.textContent).not.toContain("옛번호현황");
+        expect(view.container.textContent).not.toContain("정보를 불러오지 못했습니다");
+      } finally { DOMAIN_GROUPS.splice(0, DOMAIN_GROUPS.length, ...groups); }
+    });
+
+    it("Strict Mode 재실행 뒤 최초 조회와 저장 후 새로고침이 모두 화면에 반영된다", async () => {
+      const { DOMAIN_GROUPS } = await import("./lib/domain-config");
+      const groups = [...DOMAIN_GROUPS];
+      DOMAIN_GROUPS.push({ key: v.ownDomain, label: "시험분야", domains: [v.ownDomain] });
+      try {
+        const { h, view } = await setup({ holdDetails: true, strict: true });
+        const initial = [...h.domainCalls];
+        expect(initial.length).toBeGreaterThan(0);
+        for (const call of initial) await resolveCall(call, detailResult(`b:${BIZNO_A}`, "최초현황"));
+        expect(view.container.textContent).not.toContain("영역 현황 불러오는 중");
+        expect(view.container.textContent).toContain("최초현황");
+        h.auto.row = true;
+        h.auto.store = true;
+        await editText(view, "대표자명", "새대표");
+        const refresh = h.domainCalls.slice(initial.length);
+        expect(refresh.length).toBeGreaterThan(0);
+        for (const call of refresh) await resolveCall(call, detailResult(`b:${BIZNO_A}`, "저장후현황"));
+        expect(view.container.textContent).toContain("저장후현황");
+        expect(view.container.textContent).not.toContain("최초현황");
+      } finally { DOMAIN_GROUPS.splice(0, DOMAIN_GROUPS.length, ...groups); }
+    });
+  });
+
+  describe("HX3 실제 DOM 회귀와 IX2 표 전달", () => {
+    let restoreGroups: () => void;
+    beforeEach(async () => {
+      const { DOMAIN_GROUPS } = await import("./lib/domain-config");
+      const previous = [...DOMAIN_GROUPS];
+      DOMAIN_GROUPS.push({ key: v.ownDomain, label: "시험분야", domains: [v.ownDomain] });
+      restoreGroups = () => { DOMAIN_GROUPS.splice(0, DOMAIN_GROUPS.length, ...previous); };
+    });
+    afterEach(() => restoreGroups());
+    const result = (status: string) => ({
+      key: `b:${BIZNO_A}`, bizno: BIZNO_A, company: "테스트상사", ceo: "", phone: "",
+      domainRows: [{ domain: v.ownDomain, domainLabel: "시험분야", entryId: "구회사계약", status, row: { _id: "구회사계약" } }],
+    });
+
+    it("재열기 뒤 A 저장이 먼저 끝나도 다음 B 실패는 A로 복원한다", async () => {
+      const { h, row, view } = await setup({ row: makeRow(v, { [v.nameKey]: "원본대표" }) });
+      await editText(view, "대표자명", "A확정");
+      await view.unmount();
+      const fresh = await mount(v, h, row);
+      await resolveCall(h.rowCalls[0]);
+      await resolveCall(h.storeCalls[0]); // 전역 진행 중 묶음은 여기서 정리된다.
+      await editText(fresh, "대표자명", "B거절");
+      await rejectCall(h.rowCalls[1], permanent());
+      expect(shownValue(fresh, "대표자명")).toBe("A확정");
+      expect(h.storeCalls).toHaveLength(1);
+      expect(h.bar.entries).toHaveLength(0);
+    });
+
+    it("이전 owner ACK 전에 관측한 A는 다음 원본 행과의 비교 기준이 된다", async () => {
+      const { h, row, view } = await setup({ row: makeRow(v, { [v.nameKey]: "원본대표" }) });
+      await editText(view, "대표자명", "A확정");
+      await view.unmount();
+      const fresh = await mount(v, h, row);
+      await editText(fresh, "대표자명", "B거절");
+      await fresh.rerender({ ...row, [v.nameKey]: "A확정" });
+      await resolveCall(h.rowCalls[0]);
+      await resolveCall(h.storeCalls[0]);
+      await rejectCall(h.rowCalls[1], permanent());
+      expect(shownValue(fresh, "대표자명")).toBe("A확정");
+      await fresh.rerender({ ...row });
+      expect(shownValue(fresh, "대표자명")).toBe("원본대표");
+    });
+
+    it.each(["행", "보관소"])("재열기 확정값보다 나중에 실제 적용한 %s 값을 복원에 쓴다", async (source) => {
+      const { h, row, view } = await setup({ row: makeRow(v, { [PROGRESS_KEY]: "원본상태" }), progress: true });
+      await editText(view, "진행상태", "A확정");
+      await view.unmount();
+      const fresh = await mount(v, h, row);
+      await resolveCall(h.rowCalls[0]);
+      await resolveCall(h.storeCalls[0]);
+      if (source === "행") await fresh.rerender({ ...row, [PROGRESS_KEY]: "서버최신" });
+      else {
+        h.auto.read = false;
+        await fresh.rerender({ ...row, [v.emailKey]: "fresh@example.test" });
+        const reads = h.readCalls.filter(c => !c.settled);
+        expect(reads.length).toBeGreaterThan(0);
+        for (const read of reads) await resolveCall(read, storeRecord({ 진행상태: "서버최신" }));
+      }
+      expect(shownValue(fresh, "진행상태")).toBe("서버최신");
+      await editText(fresh, "진행상태", "B거절");
+      await rejectCall(h.rowCalls[1], permanent());
+      expect(shownValue(fresh, "진행상태")).toBe("서버최신");
+    });
+
+    it("진행 중 묶음이 없는 재열기는 이전 완료값을 전역에서 가져오지 않는다", async () => {
+      const { h, row, view } = await setup({ row: makeRow(v, { [v.nameKey]: "원본대표" }) });
+      await editText(view, "대표자명", "완료값");
+      await resolveCall(h.rowCalls[0]);
+      await resolveCall(h.storeCalls[0]);
+      await view.unmount();
+      const fresh = await mount(v, h, { ...row, [v.nameKey]: "나중서버값" });
+      await editText(fresh, "대표자명", "B거절");
+      await rejectCall(h.rowCalls[1], permanent());
+      expect(shownValue(fresh, "대표자명")).toBe("나중서버값");
+    });
+
+    it.each(["행", "보관소"])("이전 보관소 저장 대기 중 실제 적용한 %s 값도 다음 입력 복원의 기준이다", async (source) => {
+      const { h, row, view } = await setup({ row: makeRow(v, { [PROGRESS_KEY]: "원본상태" }), progress: true });
+      await editText(view, "진행상태", "A확정");
+      await view.unmount();
+      const fresh = await mount(v, h, row);
+      await resolveCall(h.rowCalls[0]); // 확정값은 A지만 아직 전역 저장 묶음은 남아 있다.
+      if (source === "행") await fresh.rerender({ ...row, [PROGRESS_KEY]: "나중서버값" });
+      else {
+        h.auto.read = false;
+        await fresh.rerender({ ...row, [v.emailKey]: "fresh@example.test" });
+        const reads = h.readCalls.filter(c => !c.settled);
+        expect(reads.length).toBeGreaterThan(0);
+        for (const read of reads) await resolveCall(read, storeRecord({ 진행상태: "나중서버값" }));
+      }
+      expect(shownValue(fresh, "진행상태")).toBe("나중서버값");
+      await editText(fresh, "진행상태", "B거절");
+      expect(h.rowCalls).toHaveLength(1);
+      await resolveCall(h.storeCalls[0]);
+      await rejectCall(h.rowCalls[1], permanent());
+      expect(shownValue(fresh, "진행상태")).toBe("나중서버값");
+    });
+
+    it("새 회사 첫 렌더와 null 응답 뒤에도 구회사 계약 편집 경로가 없다", async () => {
+      const { h, row, view } = await setup({ holdDetails: true });
+      await resolveCall(h.domainCalls[0], result("구회사현황"));
+      const observed: Array<{ owner: unknown; ids: string[] }> = [];
+      h.adapter.components.sectionPanels = {
+        [v.ownDomain]: ({ primaryRow, rows, adapter }) => {
+          // passive effect 초기화 전 실제 자식에 전달된 행도 기록한다.
+          React.useLayoutEffect(() => { observed.push({ owner: primaryRow._id, ids: rows.map(r => r.entryId) }); });
+          return <div data-hx3-contract>{rows.map(r => <button key={r.entryId} onClick={() => { void adapter.api.saveOwnField(r.entryId, "계약정보_차수", "1"); }}>{r.entryId}</button>)}</div>;
+        },
+      };
+      const tab = [...view.container.querySelectorAll("button")].find(b => b.textContent?.includes("시험분야"));
+      expect(tab).toBeDefined();
+      await act(async () => { tab!.click(); });
+      expect(view.container.querySelector("[data-hx3-contract]")?.textContent).toContain("구회사계약");
+      const next = makeRow(v, { "15사업자번호": "000-00-00002" });
+      await view.rerender(next);
+      const leaked = observed.filter(item => item.owner === next._id && item.ids.includes("구회사계약"));
+      expect(leaked, "새 회사는 effect 이전에도 구회사 편집 자료를 받으면 안 된다").toEqual([]);
+      await resolveCall(h.domainCalls.at(-1)!); // 정상 null
+      expect(view.container.textContent).not.toContain("구회사계약");
+      expect(view.container.querySelector("[data-hx3-contract] button")).toBeNull();
+      expect(h.rowCalls).toHaveLength(0);
+      expect(row._id).not.toBe(next._id);
+    });
+
+    it("같은 회사의 최신 null 조회도 이전 현황을 명시적으로 지운다", async () => {
+      const { h, view } = await setup({ holdDetails: true });
+      await resolveCall(h.domainCalls[0], result("이전현황"));
+      h.auto.row = true;
+      h.auto.store = true;
+      await editText(view, "대표자명", "갱신대표");
+      await resolveCall(h.domainCalls.at(-1)!);
+      expect(view.container.textContent).not.toContain("이전현황");
+    });
+
+    it("사업자번호 없는 회사는 연락처 변경으로 새 조회를 시작하고 옛 응답을 버린다", async () => {
+      const { h, row, view } = await setup({ holdDetails: true, row: makeRow(v, { "15사업자번호": "", "04연락처": "01099990001" }) });
+      const old = h.domainCalls[0];
+      expect(old.args).toEqual(["p:01099990001"]);
+      await view.rerender({ ...row, "04연락처": "01099990002" });
+      const latest = h.domainCalls.find(c => c.args[0] === "p:01099990002");
+      expect(latest).toBeDefined();
+      await resolveCall(latest!, result("새연락처현황"));
+      await resolveCall(old, result("옛연락처현황"));
+      expect(view.container.textContent).toContain("새연락처현황");
+      expect(view.container.textContent).not.toContain("옛연락처현황");
+    });
+
+    it.each(["resolve", "reject"])("StrictMode 두번째 성공 뒤 첫번째 %s는 화면을 덮지 않는다", async (outcome) => {
+      const { h, view } = await setup({ holdDetails: true, strict: true });
+      expect(h.domainCalls).toHaveLength(2);
+      await resolveCall(h.domainCalls[1], result("최신성공현황"));
+      expect(view.container.textContent).toContain("최신성공현황");
+      if (outcome === "resolve") await resolveCall(h.domainCalls[0], result("이전응답현황"));
+      else await rejectCall(h.domainCalls[0], new Error("이전조회실패"));
+      expect(view.container.textContent).toContain("최신성공현황");
+      expect(view.container.textContent).not.toContain("이전응답현황");
+      expect(view.container.textContent).not.toContain("정보를 불러오지 못했습니다");
+    });
+
+    it.each(["resolve", "reject"])("silent 최신 조회가 초기 조회를 대체해도 loading이 풀리고 옛 %s를 무시한다", async (outcome) => {
+      const { h, view } = await setup({ holdDetails: true });
+      h.auto.row = true;
+      h.auto.store = true;
+      await editText(view, "대표자명", "갱신대표");
+      expect(h.domainCalls).toHaveLength(2);
+      await resolveCall(h.domainCalls[1], result("저장후최신"));
+      expect(view.container.textContent).not.toContain("영역 현황 불러오는 중");
+      expect(view.container.textContent).toContain("저장후최신");
+      if (outcome === "resolve") await resolveCall(h.domainCalls[0], result("초기옛값"));
+      else await rejectCall(h.domainCalls[0], new Error("초기실패"));
+      expect(view.container.textContent).toContain("저장후최신");
+      expect(view.container.textContent).not.toContain("초기옛값");
+      expect(view.container.textContent).not.toContain("정보를 불러오지 못했습니다");
+    });
+
+    it("행 ACK는 보관소 응답 전 표 복원 기준으로 전달되고 실패는 전달하지 않는다", async () => {
+      const { h, row, view } = await setup();
+      const note = vi.fn();
+      Object.assign(h.adapter.unsaved!, { noteBasicServerValue: note });
+      await editText(view, "대표자명", "A확정");
+      expect(note).not.toHaveBeenCalled();
+      await resolveCall(h.rowCalls[0]);
+      expect(note).toHaveBeenCalledExactlyOnceWith(`시험화면|${row._id}|${v.nameKey}`, { value: "A확정", present: true });
+      expect(h.storeCalls[0].settled).toBe(false);
+      await resolveCall(h.storeCalls[0]);
+      await editText(view, "대표자명", "B거절");
+      await rejectCall(h.rowCalls[1], permanent());
+      expect(note).toHaveBeenCalledTimes(1);
+    });
+
+    it("닫힘과 표 새 입력으로 무효화된 상세 ACK도 표로 전달한다", async () => {
+      const { h, row, view } = await setup();
+      const note = vi.fn();
+      Object.assign(h.adapter.unsaved!, { noteBasicServerValue: note });
+      await editText(view, "대표자명", "A확정");
+      await view.unmount();
+      const id = `시험화면|${row._id}|${v.nameKey}`;
+      const tableLease = h.adapter.unsaved!.beginBasicEdit!(id, () => {});
+      await resolveCall(h.rowCalls[0]);
+      expect(note).toHaveBeenCalledExactlyOnceWith(id, { value: "A확정", present: true });
+      expect(view.onSaved).toHaveBeenCalledTimes(1);
+      await resolveCall(h.storeCalls[0]);
+      tableLease.release();
+    });
+
+    it("무효화된 retry ACK도 표로 전달하되 후속 보관소·UI 통지는 막는다", async () => {
+      const { h, row, view } = await setup();
+      const note = vi.fn();
+      Object.assign(h.adapter.unsaved!, { noteBasicServerValue: note });
+      await editText(view, "대표자명", "A확정");
+      await rejectCall(h.rowCalls[0], transient());
+      const report = h.bar.entries[0];
+      let retry!: Promise<boolean>;
+      await act(async () => { retry = report.retry(); await sleep(); });
+      await editText(view, "대표자명", "B거절");
+      await resolveCall(h.rowCalls[1]);
+      expect(await retry).toBe(false);
+      expect(note).toHaveBeenCalledExactlyOnceWith(`시험화면|${row._id}|${v.nameKey}`, { value: "A확정", present: true });
+      expect(h.storeCalls).toHaveLength(0);
+      expect(view.onSaved).not.toHaveBeenCalled();
+      await rejectCall(h.rowCalls[2], permanent());
+      expect(shownValue(view, "대표자명")).toBe("A확정");
+    });
+
+    it("optional 표 콜백 예외는 성공한 저장을 실패로 바꾸지 않는다", async () => {
+      const { h, view } = await setup();
+      const note = vi.fn(() => { throw new Error("표 통지 실패"); });
+      Object.assign(h.adapter.unsaved!, { noteBasicServerValue: note });
+      await editText(view, "대표자명", "A확정");
+      await resolveCall(h.rowCalls[0]);
+      expect(note).toHaveBeenCalledTimes(1);
+      expect(h.storeCalls).toHaveLength(1);
+      await resolveCall(h.storeCalls[0]);
+      expect(shownValue(view, "대표자명")).toBe("A확정");
+      expect(h.alertMock).not.toHaveBeenCalled();
+      expect(h.bar.entries).toHaveLength(0);
+      expect(view.onSaved).toHaveBeenCalledTimes(1);
+    });
+  });
 
   it("같은 회사의 새 행: 안 바뀐 칸은 고친 값을 지키고, 서버에서 바뀐 칸만 갱신하되 저장 중인 칸은 건드리지 않는다", async () => {
     const { h, row, view } = await setup();
@@ -445,6 +984,36 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
     await resolveCall(h.storeCalls[0]);
     await view.rerender({ ...row, [v.nameKey]: "다음서버값" });
     expect(shownValue(view, "대표자명")).toBe("다음서버값");
+  });
+
+  it("없는 칸의 복원 기준을 관측한 뒤에는 새 서버 값을 반영한다", async () => {
+    const absent = makeRow(v);
+    delete absent[v.nameKey];
+    const mounted = await setup({ row: absent });
+    const h = mounted.h;
+    let view = mounted.view;
+    await editText(view, "대표자명", "A");
+    await rejectCall(h.rowCalls[0], transient());
+    await view.unmount();
+    view = await mount(v, h, { ...absent, [v.nameKey]: "A" });
+    await editText(view, "대표자명", "B");
+    await view.rerender({ ...absent });
+    await rejectCall(h.rowCalls[1], permanent());
+    expect(shownValue(view, "대표자명")).toBe("-");
+    await view.rerender({ ...absent, [v.nameKey]: "A" });
+    expect(shownValue(view, "대표자명")).toBe("A");
+  });
+
+  it("행 저장이 확인된 값을 보호 중 받았으면 이후 다른 사용자의 변경을 반영한다", async () => {
+    const { h, row, view } = await setup({ row: makeRow(v, { [AGREE_KEY]: false }) });
+    await toggle(view, "동의여부");
+    await resolveCall(h.rowCalls[0]);
+    expect(h.storeCalls[0].settled).toBe(false);
+    await view.rerender({ ...row, [AGREE_KEY]: true });
+    expect(isChecked(view, "동의여부")).toBe(true);
+    await resolveCall(h.storeCalls[0]);
+    await view.rerender({ ...row, [AGREE_KEY]: false });
+    expect(isChecked(view, "동의여부")).toBe(false);
   });
 
   it("보관소 기록이 실패해도 예전처럼 조용히 넘어가고(경고·보관함 없음) 입력 보호는 풀린다", async () => {
@@ -959,7 +1528,7 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
     let result: Promise<boolean> | undefined;
     await act(async () => { result = report.retry(); void result.then(() => { done = true; }); await sleep(); });
     expect(h.rowCalls).toHaveLength(2);
-    expect(h.rowCalls[1].args).toEqual([report.rowId, v.nameKey, "재시도값"]);
+    expect(h.rowCalls[1].args).toEqual([report.rowId, v.nameKey, "재시도값", undefined, { shouldContinue: expect.any(Function) }]);
     expect(view.onSaved).not.toHaveBeenCalled(); // 행 저장이 끝나기 전엔 부르지 않는다
     expect(h.storeCalls).toHaveLength(0);
 

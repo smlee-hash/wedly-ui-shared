@@ -74,7 +74,7 @@ export interface UnifiedDetailApi {
   getCachedDomainRows(key: string): CustomerDetailLite | null;
 
   /** 자기 분야 칸 1개 저장 — ERP: PATCH /api/tax-amendment/{id} */
-  saveOwnField(entryId: string, key: string, value: string | number | boolean | null): Promise<void>;
+  saveOwnField(entryId: string, key: string, value: string | number | boolean | null, editContext?: undefined, execution?: Readonly<{ shouldContinue: () => boolean }>): Promise<void>;
   /** 비주소입력을 수락한 행으로 관리자 확인 대상을 고정한다. 전송은 기존 칸별 큐에서 수행한다. */
   captureOwnFieldSave?(row: Record<string, unknown>): UnifiedDetailApi["saveOwnField"];
 
@@ -166,6 +166,16 @@ export interface UnifiedDetailApi {
  * 안 넘기는 앱은 예전 그대로 동작한다(되돌리기 + 경고창).
  */
 export type BasicRestoreOriginal = { value: string | number | boolean | null; present: boolean };
+/** 표·상세의 이어지는 편집이 함께 보유하는 확정값. original 부재는 아직 모르는 값이다. */
+export type BasicRecovery = {
+  /** 미완료 편집을 수락한 고객과 최신 입력. sessionStorage에는 저장하지 않는다. */
+  lifetime?: { active: boolean }; confirmedIdentities?: string[];
+  pendingRefresh?: () => void;
+  originIdentity?: string;
+  draft?: { value: string | number | boolean | null; present: boolean };
+  identity?: string;
+  sourceIdentity?: string;
+  applyToDetail?: (original: { value: string | number | boolean | null; present: boolean }) => void; original?: BasicRestoreOriginal; applyToTable?: (original: BasicRestoreOriginal) => void };
 
 export type UnsavedBridge = {
   /** 이 화면의 이름 — 앱의 표와 같은 글자여야 같은 칸의 실패가 한 항목으로 묶인다. */
@@ -184,11 +194,15 @@ export type UnsavedBridge = {
     retry: () => Promise<boolean>;
     revert?: () => void;
     onDiscard?: () => void;
-    basicRestore?: { original?: BasicRestoreOriginal; apply: (original: BasicRestoreOriginal) => boolean; applyToTable?: (original: BasicRestoreOriginal) => void };
+    basicRestore?: BasicRecovery & { apply: (original: BasicRestoreOriginal) => boolean };
   }) => void;
   resolve: (id: string) => void;
-  getBasicRecovery?: (id: string) => { original?: BasicRestoreOriginal; applyToTable?: (original: BasicRestoreOriginal) => void } | undefined;
-  beginBasicEdit?: (id: string, onSuperseded: () => void) => { isCurrent: () => boolean; release: () => void };
+  getBasicRecovery?: (id: string) => BasicRecovery | undefined;
+  /** 현재 열린 부모 목록의 실제 저장 칸을 복원한다. */
+  applyToTable?: (rowId: string, fieldKey: string, original: BasicRestoreOriginal) => void;
+  /** 상세 행 저장의 실제 성공값을 표의 진행 중 복원 묶음에 알린다(ERP와 같은 선택 계약). */
+  noteBasicServerValue?: (id: string, original: BasicRestoreOriginal) => void;
+  beginBasicEdit?: (id: string, onSuperseded: () => void, recovery?: BasicRecovery) => { isCurrent: () => boolean; release: () => void };
   runBasicWrite?: <T>(id: string, task: () => Promise<T>) => Promise<T>;
 };
 
