@@ -1754,6 +1754,8 @@ function BasicInfoPanel({
     basicFieldIntents.forEach((intent, id) => {
       if (!intent.valid || !intent.edit?.open) return;
       const [rowId, key] = JSON.parse(id) as [string, string];
+      const bridge = adapter.unsaved;
+      if (bridge?.getBasicRecovery && bridge.getBasicRecovery(bridge.makeId(bridge.scope, rowId, key)) !== intent.edit.recovery) return;
       if (rowId === entryId) retainedFieldEdits.set(key, matchesBasicRecoveryIdentity(intent.edit.recovery, basicIdentity) ? intent.edit : null);
     });
     return {
@@ -2004,7 +2006,8 @@ function BasicInfoPanel({
       const previousIntent = basicFieldIntents.get(intentId);
       // 이 화면에 열린 묶음이 없어도 다른(닫힌) 화면의 입력이 아직 진행 중이면 그 묶음을 잇는다 —
       // 앞 저장이 성공하면 이 입력의 실패도 그 값으로 되돌려야 한다(화면별 기준을 따로 두면 옛 값으로 돌아간다).
-      const inherited = !chain?.open && retained !== null && previousIntent?.valid && previousIntent.edit?.open && matchesBasicRecoveryIdentity(previousIntent.edit.recovery, owner.basicIdentity) ? previousIntent.edit : undefined;
+      const inherited = !chain?.open && retained !== null && previousIntent?.valid && previousIntent.edit?.open && matchesBasicRecoveryIdentity(previousIntent.edit.recovery, owner.basicIdentity)
+        && (!unsaved?.getBasicRecovery || recovery === previousIntent.edit.recovery) ? previousIntent.edit : undefined;
       // 표 되돌리기는 지금 화면의 표 통로가 우선이다. 이전 화면(다른 페이지·닫힌 창)의 통로는 이미 사라진 표를 가리킬 수 있다.
       const hostApplyToTable = unsaved?.applyToTable;
       const applyToTable = (hostApplyToTable ? (original: BasicFieldOriginal) => hostApplyToTable(entryId, key, original) : undefined)
@@ -2113,7 +2116,8 @@ function BasicInfoPanel({
         if (unsavedId) {
           const currentRecovery = unsaved?.getBasicRecovery?.(unsavedId);
           const currentIdentity = currentRecovery ? currentRecovery.identity : undefined;
-          if ((!currentIdentity || currentIdentity === owner.basicIdentity)
+          const ownsCurrentRecovery = !unsaved?.getBasicRecovery || currentRecovery === edit.recovery;
+          if (ownsCurrentRecovery && (!currentIdentity || currentIdentity === owner.basicIdentity)
             && (!basicFieldIntents.get(intentId) || basicFieldIntents.get(intentId)?.identity === owner.basicIdentity)) {
             unsaved?.noteBasicServerValue?.(unsavedId, { value: newVal, present: true });
           }

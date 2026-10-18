@@ -2011,6 +2011,69 @@ function liveRecoveryBridge() {
 }
 
 describe.each(HOSTS)("x6 표·상세의 살아 있는 확정값 — $name", host => {
+  it.each(["same", "different", "different-unknown", "missing", "legacy"])("note ownership: %s host only receives its own recovery ACK", async boundary => {
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `note-owner-${host.name}-${boundary}`, [REPRESENTATIVE]: "confirmed A" });
+    const previous = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await previous.edit(REPRESENTATIVE, "accepted B");
+    const oldRecovery = bridge.beginBasicEdit.mock.calls.at(-1)![2]!;
+    expect(oldRecovery).toBeDefined();
+    await previous.unmount();
+    const currentRecovery: BridgeRecovery | undefined = boundary === "same" || boundary === "legacy" ? oldRecovery
+      : boundary === "missing" ? undefined
+      : { identity: oldRecovery.identity, ...(boundary === "different" ? { original: { value: "server C", present: true } } : {}) };
+    const originalBefore = currentRecovery?.original;
+    if (boundary === "legacy") delete bridge.unsaved.getBasicRecovery;
+    else bridge.unsaved.getBasicRecovery = () => currentRecovery;
+    const note = vi.fn<NonNullable<UnsavedBridge["noteBasicServerValue"]>>((_id, original) => {
+      if (currentRecovery) currentRecovery.original = original;
+    });
+    bridge.unsaved.noteBasicServerValue = note;
+    await respond(s.rows[0]);
+    expect(oldRecovery.original).toEqual({ value: "accepted B", present: true });
+    if (boundary === "same" || boundary === "legacy") {
+      expect(note).toHaveBeenCalledTimes(1);
+      expect(note).toHaveBeenCalledWith(bridge.unsaved.makeId(bridge.unsaved.scope, String(row._id), REPRESENTATIVE), { value: "accepted B", present: true });
+    } else {
+      expect(note).not.toHaveBeenCalled();
+      expect(currentRecovery?.original).toBe(originalBefore);
+    }
+    expect(s.stores).toHaveLength(1);
+    await respond(s.stores[0]);
+  });
+
+  it.each([false, true])("page inheritance: replacement=%s keeps the current page's confirmed baseline", async replacement => {
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `page-inheritance-${host.name}-${replacement}`, [REPRESENTATIVE]: "confirmed A" });
+    const previous = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await previous.edit(REPRESENTATIVE, "accepted B");
+    await respond(s.rows[0]);
+    expect(s.stores).toHaveLength(1);
+    const oldRecovery = bridge.beginBasicEdit.mock.calls.at(-1)![2];
+    expect(oldRecovery).toBeDefined();
+    await previous.unmount();
+    if (replacement) {
+      const currentRecovery = bridge.unsaved.getBasicRecovery!;
+      bridge.unsaved.getBasicRecovery = id => {
+        const recovery = currentRecovery(id);
+        return recovery === oldRecovery ? undefined : recovery;
+      };
+    }
+    const current = await mountHost(host, { ...row, [REPRESENTATIVE]: replacement ? "server C" : "accepted B" }, s.saveOwnField, bridge.unsaved, s.api);
+    expect(current.value(REPRESENTATIVE)).toBe(replacement ? "server C" : "accepted B");
+    await current.edit(REPRESENTATIVE, "failed D");
+    await respond(s.stores[0]);
+    expect(s.rows).toHaveLength(2);
+    await respond(s.rows[1], transientFailure());
+    const failed = bridge.report.mock.calls.at(-1)![0];
+    expect(failed.basicRestore?.original).toEqual({ value: replacement ? "server C" : "accepted B", present: true });
+    await act(async () => { failed.revert?.(); });
+    await settle();
+    expect(current.value(REPRESENTATIVE)).toBe(replacement ? "server C" : "accepted B");
+  });
+
   const failureCases = [
     { label: "영구 실패", error: () => new Error("x6 permanent rejection"), transient: false },
     { label: "잠깐 실패 후 되돌림", error: transientFailure, transient: true },
