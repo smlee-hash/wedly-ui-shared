@@ -1472,7 +1472,12 @@ function BasicInfoPanel({
   const ownerRef = useRef<BasicOwner | null>(null);
   let ownerNow = ownerRef.current;
   if (!ownerNow || ownerNow.entryId !== entryId || ownerNow.bizno !== bizno || ownerNow.identity !== basicIdentity || ownerNow.adapter !== adapter || ownerNow.saveOwnField !== saveOwnField) {
-    ownerNow = { entryId, bizno, identity: basicIdentity, adapter, saveOwnField, active: true, intent: new Map(), confirmed: pendingBasicFieldConfirmations(entryId, basicIdentity), recoveryKeys: new Set(), pending: new Set() };
+    const confirmed = pendingBasicFieldConfirmations(entryId, basicIdentity);
+    const bridge = adapter.unsaved;
+    if (bridge?.getBasicRecovery) for (const [key, recovery] of confirmed) {
+      if (bridge.getBasicRecovery(bridge.makeId(bridge.scope, entryId, key)) !== recovery) confirmed.delete(key);
+    }
+    ownerNow = { entryId, bizno, identity: basicIdentity, adapter, saveOwnField, active: true, intent: new Map(), confirmed, recoveryKeys: new Set(), pending: new Set() };
     ownerRef.current = ownerNow;
   }
   const owner: BasicOwner = ownerNow;
@@ -1649,7 +1654,7 @@ function BasicInfoPanel({
       // Provider가 새로 연결한 현재 표 복원 통로가 이전 화면의 통로보다 우선한다.
       if (recovery?.applyToTable) owner.confirmed.get(key)!.applyToTable = recovery.applyToTable;
       const acceptedIdentity = basicRecoveryIdentity({ ...row, ...basicRow, [key]: newVal }, ownDomain);
-      const retained = retainBasicFieldConfirmation(entryId, key, owner.confirmed.get(key)!, acceptedIdentity);
+      const retained = retainBasicFieldConfirmation(entryId, key, owner.confirmed.get(key)!, acceptedIdentity, !!bridge?.getBasicRecovery);
       const confirmed = retained.confirmed;
       if (bridge?.applyToTable) confirmed.applyToTable = original => bridge.applyToTable!(entryId, key, original);
       const recoveryLifetime = beginRecoveryLifetime(confirmed, owner.identity);
@@ -1708,7 +1713,8 @@ function BasicInfoPanel({
         try {
           const currentRecovery = unsavedId ? bridge?.getBasicRecovery?.(unsavedId) : undefined;
           const currentIdentity = currentRecovery ? currentRecovery.identity : undefined;
-          if (unsavedId && (!currentIdentity || currentIdentity === owner.identity)) bridge?.noteBasicServerValue?.(unsavedId, { value: newVal, present: true });
+          const ownsCurrentRecovery = !bridge?.getBasicRecovery || currentRecovery === confirmed;
+          if (unsavedId && ownsCurrentRecovery && (!currentIdentity || currentIdentity === owner.identity)) bridge?.noteBasicServerValue?.(unsavedId, { value: newVal, present: true });
         }
         catch (err) { console.error("[basic-field noteBasicServerValue]", err); }
         if (isRetry && !isCurrent()) return false;

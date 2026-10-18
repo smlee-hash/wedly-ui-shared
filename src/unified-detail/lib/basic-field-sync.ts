@@ -75,10 +75,11 @@ export function observeBasicFieldConfirmation(confirmed: BasicFieldConfirmation 
 }
 
 /** 이미 수락한 같은 행·칸 저장끼리 확정값을 공유한다. 모두 끝나면 버려 다음 입력은 최신 표시값에서 시작한다. */
-export function retainBasicFieldConfirmation(entryId: string, key: string, initial: BasicFieldConfirmation, identity?: string) {
+export function retainBasicFieldConfirmation(entryId: string, key: string, initial: BasicFieldConfirmation, identity?: string, requireSameRecovery = false) {
   const id = laneKeyOf(entryId, key);
   const previous = confirmations.get(id);
-  const shared = previous && (previous.identity === identity || (identity !== undefined && matchesBasicRecoveryIdentity(previous.confirmed, identity))) ? previous : { confirmed: initial, writes: 0, identity };
+  const shared = previous && (!requireSameRecovery || previous.confirmed === initial)
+    && (previous.identity === identity || (identity !== undefined && matchesBasicRecoveryIdentity(previous.confirmed, identity))) ? previous : { confirmed: initial, writes: 0, identity };
   shared.writes += 1;
   confirmations.set(id, shared);
   if (initial.applyToTable) shared.confirmed.applyToTable = initial.applyToTable;

@@ -321,6 +321,69 @@ afterEach(async () => {
 });
 
 describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
+  it.each(["same", "different", "different-unknown", "missing", "legacy"])("note ownership: %s host only receives its own recovery ACK", async boundary => {
+    const h = makeHarness(v);
+    const row = makeRow(v, { _id: `note-owner-${v.name}-${boundary}`, [v.nameKey]: "confirmed A" });
+    const previous = await mount(v, h, row);
+    await editText(previous, "대표자명", "accepted B");
+    const bridge = h.adapter.unsaved!;
+    const id = bridge.makeId(bridge.scope, String(row._id), v.nameKey);
+    const oldRecovery = bridge.getBasicRecovery!(id)!;
+    expect(oldRecovery).toBeDefined();
+    await previous.unmount();
+    const currentRecovery: Recovery | undefined = boundary === "same" || boundary === "legacy" ? oldRecovery
+      : boundary === "missing" ? undefined
+      : { identity: oldRecovery.identity, ...(boundary === "different" ? { original: { value: "server C", present: true } } : {}) };
+    const originalBefore = currentRecovery?.original;
+    if (boundary === "legacy") delete bridge.getBasicRecovery;
+    else bridge.getBasicRecovery = () => currentRecovery;
+    const note = vi.fn<NonNullable<UnsavedBridge["noteBasicServerValue"]>>((_id, original) => {
+      if (currentRecovery) currentRecovery.original = original;
+    });
+    bridge.noteBasicServerValue = note;
+    await resolveCall(h.rowCalls[0]);
+    expect(oldRecovery.original).toEqual({ value: "accepted B", present: true });
+    if (boundary === "same" || boundary === "legacy") expect(note).toHaveBeenCalledExactlyOnceWith(id, { value: "accepted B", present: true });
+    else {
+      expect(note).not.toHaveBeenCalled();
+      expect(currentRecovery?.original).toBe(originalBefore);
+    }
+    expect(h.storeCalls).toHaveLength(1);
+    await resolveCall(h.storeCalls[0]);
+  });
+
+  it.each([false, true])("page inheritance: replacement=%s preserves the current page's draft and baseline", async replacement => {
+    const h = makeHarness(v);
+    const row = makeRow(v, { [v.nameKey]: "confirmed A" });
+    const previous = await mount(v, h, row);
+    await editText(previous, "대표자명", "accepted B");
+    await resolveCall(h.rowCalls[0]);
+    expect(h.storeCalls).toHaveLength(1);
+    const bridge = h.adapter.unsaved!;
+    const id = bridge.makeId(bridge.scope, String(row._id), v.nameKey);
+    const oldRecovery = bridge.getBasicRecovery!(id);
+    expect(oldRecovery).toBeDefined();
+    await previous.unmount();
+    if (replacement) {
+      const currentRecovery = bridge.getBasicRecovery!;
+      bridge.getBasicRecovery = key => {
+        const recovery = currentRecovery(key);
+        return recovery === oldRecovery ? undefined : recovery;
+      };
+    }
+    const current = await mount(v, h, { ...row, [v.nameKey]: replacement ? "server C" : "accepted B" });
+    expect(shownValue(current, "대표자명")).toBe(replacement ? "server C" : "accepted B");
+    await editText(current, "대표자명", "failed D");
+    await resolveCall(h.storeCalls[0]);
+    expect(h.rowCalls).toHaveLength(2);
+    await rejectCall(h.rowCalls[1], transient());
+    const failed = h.bar.entries[0];
+    expect(failed.basicRestore?.original).toEqual({ value: replacement ? "server C" : "accepted B", present: true });
+    await act(async () => { failed.revert?.(); });
+    await tick();
+    expect(shownValue(current, "대표자명")).toBe(replacement ? "server C" : "accepted B");
+  });
+
   const setup = async (opts: { bridge?: boolean; row?: Record<string, unknown>; holdReads?: boolean; progress?: boolean; holdDetails?: boolean; strict?: boolean } = {}) => {
     const h = makeHarness(v, { bridge: opts.bridge, progress: opts.progress });
     harnesses.push(h);
@@ -478,7 +541,7 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       expect(h.rowCalls).toHaveLength(3);
     });
 
-    it.each(["B 입력 뒤", "첫 입력 전"])("Provider가 바뀌어도 pending 기준은 이어받고 새 표 통로를 우선한다(%s 완료)", async (timing) => {
+    it.each(["B 입력 뒤", "첫 입력 전"])("같은 복구 객체를 가진 새 표 통로는 pending 기준을 이어받는다(%s 완료)", async (timing) => {
       const { h, row, view } = await setup({ row: makeRow(v, { [v.nameKey]: "첫원본" }) });
       const oldApply = vi.fn();
       const recovery: Recovery = { original: { value: "첫원본", present: true }, applyToTable: oldApply };
@@ -487,7 +550,8 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       await view.unmount();
       const provider = makeHarness(v);
       const newApply = vi.fn();
-      Object.assign(provider.adapter.unsaved!, { getBasicRecovery: () => ({ applyToTable: newApply }) });
+      recovery.applyToTable = newApply;
+      Object.assign(provider.adapter.unsaved!, { getBasicRecovery: () => recovery });
       const begin = vi.spyOn(provider.adapter.unsaved!, "beginBasicEdit");
       h.adapter.unsaved = provider.adapter.unsaved;
       const fresh = await mount(v, h, row);
@@ -505,6 +569,38 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       expect(newApply).toHaveBeenCalledExactlyOnceWith({ value: "A확정", present: true });
       expect(oldApply).not.toHaveBeenCalled();
       expect(begin.mock.calls[0][2]).toBe(recovery);
+    });
+
+    it.each(["B 입력 뒤", "첫 입력 전"])("다른 현재 복구 객체의 unknown 기준은 옛 pending ACK를 물려받지 않는다(%s 완료)", async timing => {
+      const { h, row, view } = await setup({ row: makeRow(v, { [v.nameKey]: "첫원본" }) });
+      const oldApply = vi.fn();
+      const recovery: Recovery = { original: { value: "첫원본", present: true }, applyToTable: oldApply };
+      vi.spyOn(h.adapter.unsaved!, "getBasicRecovery").mockReturnValue(recovery);
+      await editText(view, "대표자명", "A확정");
+      await view.unmount();
+      const provider = makeHarness(v);
+      const newApply = vi.fn();
+      const currentRecovery: Recovery = { applyToTable: newApply };
+      Object.assign(provider.adapter.unsaved!, { getBasicRecovery: () => currentRecovery });
+      const begin = vi.spyOn(provider.adapter.unsaved!, "beginBasicEdit");
+      h.adapter.unsaved = provider.adapter.unsaved;
+      const fresh = await mount(v, h, row);
+      if (timing === "첫 입력 전") {
+        await resolveCall(h.rowCalls[0]); await resolveCall(h.storeCalls[0]);
+      }
+      await editText(fresh, "대표자명", "B실패");
+      if (timing === "B 입력 뒤") {
+        await resolveCall(h.rowCalls[0]); await resolveCall(h.storeCalls[0]);
+      }
+      await rejectCall(h.rowCalls[1], transient());
+      const failed = provider.bar.entries[0];
+      expect(begin.mock.calls[0][2]).toBe(currentRecovery);
+      expect(failed.basicRestore).toBe(currentRecovery);
+      expect(currentRecovery.original).toBeUndefined();
+      expect(failed.revert).toBeUndefined();
+      expect(shownValue(fresh, "대표자명")).toBe("B실패");
+      expect(newApply).not.toHaveBeenCalled();
+      expect(oldApply).not.toHaveBeenCalled();
     });
 
     it("세번째 인수를 쓰지 않는 기존 두 인수 bridge도 상세 저장·복원을 유지한다", async () => {
@@ -819,7 +915,9 @@ describe.each(VARIANTS)("기본정보 칸 동기화 — $name", (v) => {
       await editText(view, "대표자명", "A확정");
       await view.unmount();
       const id = `시험화면|${row._id}|${v.nameKey}`;
-      const tableLease = h.adapter.unsaved!.beginBasicEdit!(id, () => {});
+      const sharedRecovery = h.adapter.unsaved!.getBasicRecovery!(id);
+      expect(sharedRecovery).toBeDefined();
+      const tableLease = h.adapter.unsaved!.beginBasicEdit!(id, () => {}, sharedRecovery);
       await resolveCall(h.rowCalls[0]);
       expect(note).toHaveBeenCalledExactlyOnceWith(id, { value: "A확정", present: true });
       expect(view.onSaved).toHaveBeenCalledTimes(1);
