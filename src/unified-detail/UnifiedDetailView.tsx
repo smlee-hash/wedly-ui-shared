@@ -1523,11 +1523,16 @@ function BasicInfoPanel({
   const currentIdentityRef = useRef({ entryId, identity: basicIdentity });
   currentIdentityRef.current = { entryId, identity: basicIdentity };
   const owner = useMemo<BasicOwner>(() => {
+    const bridge = adapter.unsaved;
     const fields = new Map<string, BasicFieldIntent>();
     const prefix = `${entryId}\u0000`;
     // 새 입력 전에 인계한다. 이전 저장이 완료돼 전역 lease가 없어져도 이 화면의 확정값은 남긴다.
     for (const [queueKey, lease] of basicIntentLeases) {
-      if (queueKey.startsWith(prefix) && lease.valid && lease.field && matchesBasicRecoveryIdentity(lease.field.recovery, basicIdentity)) fields.set(queueKey.slice(prefix.length), lease.field);
+      if (!queueKey.startsWith(prefix) || !lease.valid || !lease.field || !matchesBasicRecoveryIdentity(lease.field.recovery, basicIdentity)) continue;
+      const key = queueKey.slice(prefix.length);
+      // 같은 고객이어도 교체된 페이지의 복구값은 별개다. 현재 호스트가 같은 객체를 보유할 때만 이어 쓴다.
+      if (bridge?.getBasicRecovery && bridge.getBasicRecovery(bridge.makeId(bridge.scope, entryId, key)) !== lease.field.recovery) continue;
+      fields.set(key, lease.field);
     }
     return { entryId, identity: basicIdentity, active: true, superseded: false, fields, inherited: new Set(fields.keys()) };
   }, [entryId, bizno, basicIdentity, adapter, saveOwnField]);
@@ -1686,7 +1691,9 @@ function BasicInfoPanel({
             const bridge = adapter.unsaved;
             const currentRecovery = bridge?.getBasicRecovery?.(bridge.makeId(bridge.scope, entryId, key));
             const currentIdentity = currentRecovery ? currentRecovery.identity : undefined;
-            if (!currentIdentity || currentIdentity === owner.identity) {
+            // 조회가 있는 호스트에는 같은 복구 객체의 ACK만 알린다. 교체된 페이지의 표 기준은 건드리지 않는다.
+            const ownsCurrentRecovery = !bridge?.getBasicRecovery || (!!field && currentRecovery === field.recovery);
+            if (ownsCurrentRecovery && (!currentIdentity || currentIdentity === owner.identity)) {
               bridge?.noteBasicServerValue?.(bridge.makeId(bridge.scope, entryId, key), { value, present: true });
             }
             if (isRetry && !control.isCurrent()) return;
@@ -1732,7 +1739,8 @@ function BasicInfoPanel({
       const hostRecovery = unsavedId ? bridge?.getBasicRecovery?.(unsavedId) : undefined;
       const recovery = hostRecovery && matchesBasicRecoveryIdentity(hostRecovery, owner.identity) ? hostRecovery : undefined;
       const previous = basicIntentLeases.get(basicFieldQueueKey(entryId, key));
-      let field = owner.fields.get(key) ?? (previous?.valid && previous.field && matchesBasicRecoveryIdentity(previous.field.recovery, owner.identity) ? previous.field : undefined);
+      let field = owner.fields.get(key) ?? (previous?.valid && previous.field && matchesBasicRecoveryIdentity(previous.field.recovery, owner.identity)
+        && (!bridge?.getBasicRecovery || hostRecovery === previous.field.recovery) ? previous.field : undefined);
       if (field) owner.fields.set(key, field);
       if (!field) {
         field = basicFieldIntent();

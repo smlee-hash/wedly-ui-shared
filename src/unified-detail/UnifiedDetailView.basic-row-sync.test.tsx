@@ -340,15 +340,80 @@ describe("기본정보 칸 행 동기화·저장 (compact)", () => {
       await act(async () => { pending = h.bar.entries[0].retry(); });
       await settle();
     }
+    const bridge = h.adapter.unsaved!;
+    const id = bridge.makeId(bridge.scope, h.idA, "03대표자명");
+    const recovery = bridge.getBasicRecovery!(id);
+    expect(recovery).toBeDefined();
     await view.unmount();
-    h.adapter.unsaved!.beginBasicEdit!(`test:${h.idA}:03대표자명`, () => {});
+    bridge.beginBasicEdit!(id, () => {}, recovery);
+    bridge.resolve(id);
+    expect(bridge.getBasicRecovery!(id)).toBe(recovery);
     await act(async () => { h.rows[retry ? 1 : 0].d.resolve(); });
     await settle();
     expect(note).toHaveBeenCalledExactlyOnceWith(`test:${h.idA}:03대표자명`, { value: "저장된 A", present: true });
+    expect(recovery!.original).toEqual({ value: "저장된 A", present: true });
     expect(h.onSaved).toHaveBeenCalledTimes(retry ? 0 : 1);
     expect(h.stores).toHaveLength(retry ? 0 : 1);
     if (pending) expect(await pending).toBe(false);
   });
+
+  for (const retry of [false, true]) {
+    it.each([
+      { host: "같은 고객의 다른 객체", hasLookup: true, absent: false, notified: false },
+      { host: "현재 복구 객체 없음", hasLookup: true, absent: true, notified: false },
+      { host: "복구 조회 기능 없음", hasLookup: false, absent: false, notified: true },
+    ])(`HX 최초/재시도(${retry}) ACK의 호스트 알림 소유권: $host`, async ({ hasLookup, absent, notified }) => {
+      const h = setup({ holdRows: true, holdStores: true });
+      const bridge = h.adapter.unsaved!;
+      const id = bridge.makeId(bridge.scope, h.idA, "03대표자명");
+      const view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "옛 B");
+      const oldRecovery = bridge.getBasicRecovery!(id)!;
+      expect(oldRecovery).toBeDefined();
+      let pending: Promise<boolean> | undefined;
+      if (retry) {
+        await act(async () => { h.rows[0].d.reject(failure("일시 실패", "transient")); });
+        await settle();
+        await act(async () => { pending = h.bar.entries[0].retry(); });
+        await settle();
+      }
+      await view.unmount();
+      const currentRecovery: BasicRecovery | undefined = absent ? undefined : {
+        identity: oldRecovery.identity, original: { value: "현재 C", present: true },
+      };
+      // 호스트 수신부는 같은 id의 현재 표 기준을 갱신한다. 고객 식별만 같아도 발신하면 새 기준이 오염된다.
+      const note = vi.fn((notedId: string, original: BasicRestoreOriginal) => {
+        expect(notedId).toBe(id);
+        if (currentRecovery) currentRecovery.original = original;
+      });
+      bridge.noteBasicServerValue = note;
+      const lease = bridge.beginBasicEdit!(id, () => {}, currentRecovery);
+      bridge.resolve(id);
+      expect(bridge.getBasicRecovery!(id)).toBe(currentRecovery);
+      expect(currentRecovery).not.toBe(oldRecovery);
+      if (currentRecovery) expect(currentRecovery.identity).toBe(oldRecovery.identity);
+      if (!hasLookup) delete bridge.getBasicRecovery;
+
+      await act(async () => { h.rows[retry ? 1 : 0].d.resolve(); });
+      await settle();
+      expect(oldRecovery.original).toEqual({ value: "옛 B", present: true });
+      if (notified) expect(note).toHaveBeenCalledExactlyOnceWith(id, { value: "옛 B", present: true });
+      else expect(note).not.toHaveBeenCalled();
+      if (currentRecovery) expect(currentRecovery.original).toEqual({ value: notified ? "옛 B" : "현재 C", present: true });
+      expect(h.onSaved).toHaveBeenCalledTimes(retry ? 0 : 1);
+      expect(h.stores).toHaveLength(retry ? 0 : 1);
+      if (!retry) {
+        expect(h.stores[0]).toMatchObject({ bizno: BIZNO_A, fieldId: "대표자명", value: "옛 B" });
+        await act(async () => { h.stores[0].d.resolve(record({ "대표자명": "옛 B" })); });
+        await settle();
+      }
+      if (pending) expect(await pending).toBe(false);
+      expect(h.rows).toHaveLength(retry ? 2 : 1);
+      expect(h.bar.entries).toHaveLength(0);
+      expect(lease.isCurrent()).toBe(true);
+      lease.release();
+    });
+  }
 
   describe("hx6 표·상세 확정값 객체 인계", () => {
     // 표의 진행 중 PATCH와 Provider의 칸별 저장 줄. 실제 상세를 마운트하고 같은 객체를 인계한다.
@@ -650,6 +715,140 @@ describe("기본정보 칸 행 동기화·저장 (compact)", () => {
       await settle();
       expect(view.container.textContent).not.toContain("정보를 불러오지 못했습니다");
       expect(view.container.querySelector('[title="최신현황"]')).not.toBeNull();
+    });
+  });
+
+  describe("HX 페이지 등록별 복구 상속", () => {
+    // 같은 Provider라도 페이지 등록이 바뀌면 옛 객체를 반환하지 않는다. 교체만으로 옛 저장을 취소하지 않는다.
+    function trackPageRegistration(h: Harness) {
+      const bridge = h.adapter.unsaved!;
+      let current = new Map<string, BasicRecovery>();
+      const begin = bridge.beginBasicEdit!;
+      bridge.getBasicRecovery = (id) => current.get(id);
+      bridge.beginBasicEdit = (id, supersede, recovery) => {
+        const page = current;
+        const lease = begin(id, supersede, recovery);
+        if (recovery) page.set(id, recovery);
+        return {
+          isCurrent: () => current === page && lease.isCurrent(),
+          release: () => {
+            lease.release();
+            if (page.get(id) === recovery) page.delete(id);
+          },
+        };
+      };
+      return {
+        replace: (id: string, recovery?: BasicRecovery) => {
+          current = new Map(recovery ? [[id, recovery]] : []);
+        },
+      };
+    }
+
+    for (const kind of ["permanent", "transient"] as const) {
+      it.each([
+        { phase: "행 응답 대기", ackBeforeReplace: false, distinctRecovery: false },
+        { phase: "보관소 대기", ackBeforeReplace: true, distinctRecovery: false },
+        { phase: "다른 현재 복구 객체", ackBeforeReplace: true, distinctRecovery: true },
+      ])(`$phase 중 교체한 페이지의 D ${kind}는 현재 C를 기준으로 복구한다`, async ({ ackBeforeReplace, distinctRecovery }) => {
+        const h = setup({ holdRows: true, holdStores: true });
+        const pages = trackPageRegistration(h);
+        const bridge = h.adapter.unsaved!;
+        const id = bridge.makeId(bridge.scope, h.idA, "03대표자명");
+        let view = await mount(h, h.rowA());
+        await editText(view, "대표자명", "옛 B");
+        const oldRecovery = bridge.getBasicRecovery!(id)!;
+        if (ackBeforeReplace) {
+          await act(async () => { h.rows[0].d.resolve(); });
+          await settle();
+          expect(h.stores).toHaveLength(1);
+        }
+        const oldOriginal = oldRecovery.original;
+        const oldLifetime = oldRecovery.lifetime;
+        expect(oldLifetime?.active).toBe(true);
+        await view.unmount();
+        const currentRecovery: BasicRecovery | undefined = distinctRecovery
+          ? { identity: oldRecovery.identity, original: { value: "현재 C", present: true } }
+          : undefined;
+        pages.replace(id, currentRecovery);
+        expect(bridge.getBasicRecovery!(id)).toBe(currentRecovery);
+        const oldOnSaved = h.onSaved;
+        h.onSaved = vi.fn(() => {});
+        view = await mount(h, h.rowA({ "03대표자명": "현재 C" }));
+        expect(valueOf(view, "대표자명")).toBe("현재 C");
+        expect(oldRecovery.original).toBe(oldOriginal);
+        expect(oldRecovery.lifetime).toBe(oldLifetime);
+        expect(oldLifetime?.active).toBe(true);
+
+        // 옛 저장이 끝나기 전에 새 입력을 받아도 전역 fallback으로 옛 객체를 다시 가져오지 않는다.
+        await editText(view, "대표자명", "새 D");
+        const nextRecovery = bridge.getBasicRecovery!(id)!;
+        expect(nextRecovery).not.toBe(oldRecovery);
+        if (currentRecovery) expect(nextRecovery).toBe(currentRecovery);
+        expect(nextRecovery.original).toEqual({ value: "현재 C", present: true });
+        expect(h.rows).toHaveLength(1);
+        if (!ackBeforeReplace) {
+          await act(async () => { h.rows[0].d.resolve(); });
+          await settle();
+        }
+        expect(oldRecovery.original).toEqual({ value: "옛 B", present: true });
+        expect(nextRecovery.original).toEqual({ value: "현재 C", present: true });
+        expect(valueOf(view, "대표자명")).toBe("새 D");
+        expect(h.stores).toHaveLength(1);
+        expect(h.stores[0]).toMatchObject({ bizno: BIZNO_A, fieldId: "대표자명", value: "옛 B" });
+        await act(async () => { h.stores[0].d.resolve(record({ "대표자명": "옛 B" })); });
+        await settle();
+        expect(h.rows).toHaveLength(2);
+        expect(h.rows[1]).toMatchObject({ entryId: h.idA, key: "03대표자명", value: "새 D" });
+        expect(bridge.getBasicRecovery!(id)).toBe(nextRecovery);
+        expect(nextRecovery.original).toEqual({ value: "현재 C", present: true });
+        expect(valueOf(view, "대표자명")).toBe("새 D");
+        await act(async () => { h.rows[1].d.reject(failure("새 D 실패", kind)); });
+        await settle();
+        if (kind === "transient") {
+          expect(valueOf(view, "대표자명")).toBe("새 D");
+          expect(h.bar.entries).toHaveLength(1);
+          expect(h.bar.entries[0].basicRestore).toBe(nextRecovery);
+          expect(h.bar.entries[0].basicRestore!.original).toEqual({ value: "현재 C", present: true });
+          await act(async () => {
+            const entry = h.bar.entries[0];
+            entry.revert?.();
+            bridge.resolve(entry.id); // 실제 HIVE UnsavedSaveBar의 되돌리기 버튼은 복원 뒤 현재 항목을 제거한다.
+          });
+          await settle();
+        }
+        expect(valueOf(view, "대표자명")).toBe("현재 C");
+        expect(oldOnSaved).toHaveBeenCalledTimes(1);
+        expect(h.onSaved).not.toHaveBeenCalled();
+        expect(h.stores).toHaveLength(1);
+        expect(h.bar.entries).toHaveLength(0);
+      });
+    }
+
+    it.each([true, false])("같은 페이지 재열기는 진행 중인 객체를 유지한다 (호스트 조회: %s)", async (hostRecovery) => {
+      const h = setup({ holdRows: true, holdStores: true });
+      trackPageRegistration(h);
+      const bridge = h.adapter.unsaved!;
+      const id = bridge.makeId(bridge.scope, h.idA, "03대표자명");
+      let view = await mount(h, h.rowA());
+      await editText(view, "대표자명", "같은 B");
+      const recovery = bridge.getBasicRecovery!(id)!;
+      await view.unmount();
+      if (!hostRecovery) delete bridge.getBasicRecovery;
+      view = await mount(h, h.rowA());
+      expect(valueOf(view, "대표자명")).toBe("같은 B");
+      if (hostRecovery) expect(bridge.getBasicRecovery!(id)).toBe(recovery);
+      await editText(view, "대표자명", "다음 D");
+      if (hostRecovery) expect(bridge.getBasicRecovery!(id)).toBe(recovery);
+      await act(async () => { h.rows[0].d.resolve(); });
+      await settle();
+      expect(recovery.original).toEqual({ value: "같은 B", present: true });
+      expect(valueOf(view, "대표자명")).toBe("다음 D");
+      await act(async () => { h.stores[0].d.resolve(null); });
+      await settle();
+      await act(async () => { h.rows[1].d.reject(failure("다음 D 실패", "permanent")); });
+      await settle();
+      expect(valueOf(view, "대표자명")).toBe("같은 B");
+      expect(h.bar.entries).toHaveLength(0);
     });
   });
 
