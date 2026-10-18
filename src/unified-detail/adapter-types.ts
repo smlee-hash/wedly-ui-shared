@@ -269,9 +269,15 @@ export type UnsavedBridge = {
   getBasicRecovery?: (id: string) => { original?: { value: string | number | boolean | null; present: boolean }; applyToTable?: (original: { value: string | number | boolean | null; present: boolean }) => void } | undefined;
   /**
    * 상세에서 실패한 기본정보 값을 되돌릴 때 앱 표의 같은 칸도 확정값으로 되돌린다. 앱이 재조회 때 실패값을 표에
-   * 다시 얹을 수 있어서다. 앞서 표에서 실패한 항목이 있으면 그 항목의 applyToTable 이 먼저 쓰인다.
+   * 다시 얹을 수 있어서다. 지금 화면이 준 이 통로가 실패 항목에 남은 옛 통로보다 먼저 쓰인다(옛 통로는 사라진 표를 가리킬 수 있다).
    */
   applyToTable?: (entryId: string, key: string, original: { value: string | number | boolean | null; present: boolean }) => void;
+  /**
+   * 상세의 기본정보 행 저장을 서버가 받은 순간 알린다. 같은 칸 저장 줄(runBasicWrite)을 함께 쓰는 앱 표가
+   * 자기 묶음의 복원 기준을 서버가 실제로 가진 값으로 맞추게 한다 — 안 그러면 표의 뒤 입력이 실패했을 때
+   * 상세가 저장한 값이 아니라 그 전 값으로 되돌린다.
+   */
+  noteBasicServerValue?: (id: string, original: { value: string | number | boolean | null; present: boolean }) => void;
   /** 표·상세의 비주소 최초 입력부터 같은 칸의 최신 권한을 대조한다. */
   beginBasicEdit?: (id: string, onSuperseded: () => void) => { isCurrent: () => boolean; release: () => void };
   /** 표·상세의 같은 칸 저장을 행과 추가 기록까지 한 줄로 끝낸다. */

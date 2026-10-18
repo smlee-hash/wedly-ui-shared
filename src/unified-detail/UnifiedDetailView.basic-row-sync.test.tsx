@@ -1513,6 +1513,23 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       expect(stale).not.toHaveBeenCalled();
       expect(applyToTable).toHaveBeenCalledWith("row-1", REPRESENTATIVE, { value: "가상 대표", present: true });
     });
+
+    // review-0e8838f2 P2: 같은 칸 저장 줄을 쓰는 앱 표가 복원 기준을 서버가 받은 상세 값으로 맞출 수 있게 알린다.
+    it("행 저장을 서버가 받으면 그 값을 앱에 알리고, 실패한 입력은 알리지 않는다", async () => {
+      const { unsaved } = failureBridge();
+      const noteBasicServerValue = vi.fn();
+      const s = twoStores();
+      const h = await mount(companyRow(), s.saveOwnField, { ...unsaved, noteBasicServerValue }, s.api);
+      await h.edit(REPRESENTATIVE, "받은 입력");
+      expect(noteBasicServerValue).not.toHaveBeenCalled();
+      await respond(s.rows[0]);
+      expect(noteBasicServerValue).toHaveBeenCalledTimes(1);
+      expect(noteBasicServerValue).toHaveBeenCalledWith(`synthetic:row-1:${REPRESENTATIVE}`, { value: "받은 입력", present: true });
+      await respond(s.stores[0]);
+      await h.edit(REPRESENTATIVE, "실패 입력");
+      await respond(s.rows[1], transientFailure());
+      expect(noteBasicServerValue).toHaveBeenCalledTimes(1);
+    });
   });
 
   // review-09cd2c02 #2는 반영하지 않는다: 저장 뒤 비교 기준을 확정값으로 옮기면 저장 전 값을 싣고 늦게 온 옛 응답이
