@@ -1536,6 +1536,19 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
   // 체크를 되돌린다(이 파일의 "같은 회사 새 row 도착" 10건이 실패 — 해피콜 초기화 원래 결함). 값만으로는 늦은 옛 응답과
   // 다른 사용자의 되돌림을 구분할 수 없어, 원래 결함 차단을 우선한다. 되돌린 뒤의 기준만 보호선으로 둔다.
   describe("v11 보호 완료 뒤 비교 기준", () => {
+    it("행 저장이 확인된 값을 보호 중 받았으면 이후 다른 사용자의 변경을 반영한다", async () => {
+      const s = twoStores();
+      const row = (value: boolean) => companyRow({ _id: "row-confirmed-observation", [FLAG]: value });
+      const h = await mount(row(false), s.saveOwnField, undefined, s.api);
+      await h.edit(FLAG, true);
+      await respond(s.rows[0]);
+      await h.rerender(row(true)); // 행 저장 성공, 공용 기록은 아직 대기 중
+      expect(h.value(FLAG)).toBe("true");
+      await respond(s.stores[0]);
+      await h.rerender(row(false)); // 다른 사용자가 이후 해제한 최신 조회
+      expect(h.value(FLAG)).toBe("false");
+    });
+
     it("영구 실패로 되돌린 뒤에는 되돌린 값이 기준이라, 서버가 다른 값을 주면 반영한다", async () => {
       vi.stubGlobal("alert", vi.fn());
       // 앞 시험이 row-1 해피콜 입력을 열어 둔 채 끝나므로(모듈 단위 입력 장부) 다른 행으로 고립한다.

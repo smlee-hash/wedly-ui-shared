@@ -1789,7 +1789,15 @@ function BasicInfoPanel({
     addressOwner.fieldEdits.forEach((edit, key) => { if (edit.open) keep.add(key); });
     // 보호 중 건너뛴 값은 적용한 비교 기준으로 소비하지 않는다. 완료 시 옛 응답을 재적용하지 않고,
     // 다음 새 row가 같은 값을 다시 주면 그때 실제 변경으로 반영한다.
-    basicRowRef.current = { row, owner: addressOwner, applied: mergeIncomingRow(previous, previous, incoming, keep) };
+    const comparisonKeep = new Set(keep);
+    addressOwner.fieldEdits.forEach((edit, key) => {
+      // 서버가 받아들인 값이 새 조회에도 실렸으면 비교 기준에만 반영한다.
+      // 입력 표시는 계속 보호하되, 저장이 끝난 뒤 다른 사용자의 되돌림을 "변경 없음"으로 버리지 않는다.
+      if (edit.open && edit.confirmed
+        && edit.confirmed.present === Object.prototype.hasOwnProperty.call(incoming, key)
+        && sameFieldValue(edit.confirmed.value, incoming[key])) comparisonKeep.delete(key);
+    });
+    basicRowRef.current = { row, owner: addressOwner, applied: mergeIncomingRow(previous, previous, incoming, comparisonKeep) };
     setBasicRow((current) => addressOwnerRef.current === addressOwner ? mergeIncomingRow(current, previous, incoming, keep) : current);
   }, [row, addressOwner]);
 
