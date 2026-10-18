@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import { act, StrictMode, useLayoutEffect, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RowData } from "../collab/collab-table-core";
@@ -12,6 +12,7 @@ import type {
 } from "./adapter-types";
 import type { CustomerDetailLite } from "./lib/customer-detail";
 import UnifiedDetailView from "./UnifiedDetailView";
+import { useDetailLoadState } from "./detail-load-state";
 
 // 같은 회사의 "새 row 객체"가 도착했을 때 기본정보 칸(BasicInfoPanel)이 사용자의 낙관적 입력을 어떻게 다루는지 잰다.
 //
@@ -140,6 +141,8 @@ type HostCase = {
   layout: "wide" | "compact";
   /** 처음 열 탭. compact 는 기본정보 탭(미지정), wide 는 기본정보가 왼쪽 고정이라 가운데는 분야 탭. */
   initialTab?: string;
+  strictMode?: boolean;
+  onCommit?: () => void;
 };
 
 // 기본정보 칸은 compact 의 기본정보 탭과 wide 의 왼쪽 칸에서 같은 BasicInfoPanel 로 그려진다.
@@ -296,11 +299,12 @@ async function mountHost(
   saveOwnField: UnifiedDetailApi["saveOwnField"] = async () => {},
   unsaved?: UnsavedBridge,
   store?: Partial<UnifiedDetailApi>,
+  providedAdapter?: UnifiedDetailAdapter,
 ) {
   setViewport(true);
   const onSaved = vi.fn();
   const onClose = vi.fn();
-  let adapter = buildAdapter(saveOwnField, unsaved, store);
+  let adapter = providedAdapter ?? buildAdapter(saveOwnField, unsaved, store);
   let currentRow = initial;
 
   const container = document.createElement("div");
@@ -308,7 +312,7 @@ async function mountHost(
   const root = createRoot(container);
   mounted.push({ root, container });
   // adapter·콜백은 그대로 두고 row 만 바꿔 다시 그린다 — ERP 가 같은 열린 창에 새 행 객체를 내려주는 것과 같다.
-  const view = (row: RowData) => (
+  const detailView = (row: RowData) => (
     <UnifiedDetailView
       row={row}
       onClose={onClose}
@@ -318,6 +322,10 @@ async function mountHost(
       layout={c.layout}
     />
   );
+  const view = (row: RowData) => {
+    const observed = <CommitObserver onCommit={c.onCommit}>{detailView(row)}</CommitObserver>;
+    return c.strictMode ? <StrictMode>{observed}</StrictMode> : observed;
+  };
   await act(async () => {
     root.render(view(initial));
   });
@@ -363,6 +371,11 @@ async function mountHost(
       await click(button);
     },
   };
+}
+
+function CommitObserver({ children, onCommit }: { children: ReactNode; onCommit?: () => void }) {
+  useLayoutEffect(() => { onCommit?.(); });
+  return children;
 }
 
 beforeEach(() => {
@@ -743,7 +756,7 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
         storeCall(FLAG_FIELD_ID, false),
       ]);
       expect(h.value(FLAG)).toBe("false");
-      expect(h.onSaved).toHaveBeenCalledTimes(1); // 새 입력 뒤 이전 완료는 현재 화면 갱신을 부르지 않는다.
+      expect(h.onSaved).toHaveBeenCalledTimes(1); // 승인 시안: 연속 입력의 마지막 성공만 부모에게 알린다.
     });
 
     it("오래된 저장 실패는 더 새 입력을 되돌리거나 알리지 않고, 새 입력은 이어서 그대로 저장된다", async () => {
@@ -804,7 +817,7 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       await respond(s.stores[0], new Error("synthetic store failure"));
       expect(s.calls).toEqual([rowCall(FLAG, true), storeCall(FLAG_FIELD_ID, true), rowCall(FLAG, false)]);
       expect(h.value(FLAG)).toBe("false");
-      expect(h.onSaved).not.toHaveBeenCalled(); // 이전 응답은 최신 입력의 화면 갱신을 부르지 않는다.
+      expect(h.onSaved).not.toHaveBeenCalled(); // 뒤 입력이 대기하므로 앞 성공의 통지는 보류한다.
       expect(alertSpy).not.toHaveBeenCalled();
     });
 
@@ -876,7 +889,7 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       const pending = entry.retry().then((ok: boolean) => { retried = ok; });
       await settle();
       expect(s.saveOwnField).toHaveBeenCalledTimes(2);
-      expect(s.saveOwnField).toHaveBeenLastCalledWith("row-1", REPRESENTATIVE, "내 입력");
+      expect(s.saveOwnField).toHaveBeenLastCalledWith("row-1", REPRESENTATIVE, "내 입력", undefined, { shouldContinue: expect.any(Function) });
       expect(retried).toBeUndefined();
 
       await respond(s.rows[1]);
@@ -969,7 +982,7 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
         rowCall(FLAG, false),
         storeCall(FLAG_FIELD_ID, false),
       ]);
-      // 최신 입력 성공은 원래 부모에 한 번 알리고, 새 회사 상세 상태는 건드리지 않는다.
+      // 수락된 두 최초 저장은 원래 부모에 각각 알리고, 새 회사 상세 상태는 건드리지 않는다.
       expect(h.onSaved).toHaveBeenCalledTimes(1);
       expect(alertSpy).not.toHaveBeenCalled();
       if (switched) expect(h.value(REPRESENTATIVE)).toBe("다른 대표");
@@ -1113,20 +1126,20 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
 
       await respond(s.rows[1]);
       await queued;
-      // 중복 재시도는 false. 첫 재시도의 행 저장은 실제로 됐으니 공용 기록도 그 값으로 맞춘 뒤 새 입력이 출발한다(v10).
+      // 중복 재시도는 false. 취소된 재시도의 ACK 후 새 PUT 없이 최신 입력이 출발한다.
       expect(second).toBe(false);
       expect(s.calls).toEqual([
         rowCall(REPRESENTATIVE, "내 입력"),
         rowCall(REPRESENTATIVE, "내 입력"),
-        storeCall(REPRESENTATIVE_FIELD_ID, "내 입력"),
+        rowCall(REPRESENTATIVE, "새 입력"),
       ]);
       expect(h.value(REPRESENTATIVE)).toBe("새 입력");
-      await respond(s.stores[0]);
+      expect(s.stores).toHaveLength(0);
       expect(await first).toBe(false);
       expect(s.calls.at(-1)).toBe(rowCall(REPRESENTATIVE, "새 입력"));
 
       await respond(s.rows[2]);
-      await respond(s.stores[1]);
+      await respond(s.stores[0]);
       expect(s.calls.at(-1)).toBe(storeCall(REPRESENTATIVE_FIELD_ID, "새 입력"));
       expect(h.value(REPRESENTATIVE)).toBe("새 입력");
       expect(h.onSaved).toHaveBeenCalledTimes(1);
@@ -1148,7 +1161,7 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       const retry = entry.retry();
       await settle();
       expect(s.saveOwnField).toHaveBeenCalledTimes(2);
-      expect(s.saveOwnField).toHaveBeenLastCalledWith("row-1", REPRESENTATIVE, "보존할 입력");
+      expect(s.saveOwnField).toHaveBeenLastCalledWith("row-1", REPRESENTATIVE, "보존할 입력", undefined, { shouldContinue: expect.any(Function) });
       await respond(s.rows[1]);
       expect(s.calls.at(-1)).toBe(storeCall(REPRESENTATIVE_FIELD_ID, "보존할 입력"));
       await respond(s.stores[0]);
@@ -1256,10 +1269,8 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       await b.edit(REPRESENTATIVE, "새 입력");
       await respond(first.rows[1]);
       expect(await queued).toBe(false);
-      // 성공한 옛 재시도는 공용 기록도 맞춘다(v10). 새 입력은 그 기록이 끝난 뒤 출발한다.
-      expect(first.calls.at(-1)).toBe(storeCall(REPRESENTATIVE_FIELD_ID, "옛 실패 입력"));
-      expect(second.saveOwnField).not.toHaveBeenCalled();
-      await respond(first.stores[0]);
+      // 취소된 옛 재시도는 ACK만 반영하고 새 공용 PUT을 시작하지 않는다.
+      expect(first.stores).toHaveLength(0);
       expect(await running).toBe(false);
       expect(first.saveOwnField).toHaveBeenCalledTimes(2);
       expect(second.saveOwnField).toHaveBeenCalledTimes(1);
@@ -1385,7 +1396,7 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
 
   // v10: 독립 리뷰(review-26c8f49b) P2 재현 — 앞 저장 성공 뒤 마지막 입력 실패, 다시 연 창, 첫 조회 중 대상 전환.
   describe("v10 앞 저장 성공 뒤 마지막 입력 실패", () => {
-    it("더 새 입력이 생긴 재시도의 성공도 확정값·공용 기록에 남아, 새 입력이 영구 실패하면 그 값으로 되돌린다", async () => {
+    it("더 새 입력이 생긴 재시도의 성공도 복원 기준에 남아, 새 입력이 영구 실패하면 그 값으로 되돌린다", async () => {
       const alertSpy = vi.fn();
       vi.stubGlobal("alert", alertSpy);
       const { unsaved, report } = failureBridge();
@@ -1397,20 +1408,20 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       await settle();
       await h.edit(REPRESENTATIVE, "둘째 입력");
       await respond(s.rows[1]);
-      expect(await Promise.race([retry, Promise.resolve("대기")])).toBe("대기");
+      expect(await retry).toBe(false);
       expect(s.calls).toEqual([
         rowCall(REPRESENTATIVE, "첫 입력"),
         rowCall(REPRESENTATIVE, "첫 입력"),
-        storeCall(REPRESENTATIVE_FIELD_ID, "첫 입력"),
+        rowCall(REPRESENTATIVE, "둘째 입력"),
       ]);
-      await respond(s.stores[0]);
+      expect(s.stores).toHaveLength(0);
       expect(await retry).toBe(false);
       expect(s.calls.at(-1)).toBe(rowCall(REPRESENTATIVE, "둘째 입력"));
       expect(h.onSaved).not.toHaveBeenCalled();
       await respond(s.rows[2], new Error("synthetic permanent failure"));
       expect(h.value(REPRESENTATIVE)).toBe("첫 입력");
       expect(alertSpy).toHaveBeenCalledTimes(1);
-      expect(h.onSaved).toHaveBeenCalledTimes(1);
+      expect(h.onSaved).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -1596,6 +1607,140 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
     });
   });
 
+  describe("x4 재열기 확정값과 관측 기준", () => {
+    it("재열기 뒤 이전 저장이 먼저 끝나도 다음 입력 실패는 그 확정값으로 복원한다", async () => {
+      vi.stubGlobal("alert", vi.fn());
+      const first = twoStores();
+      const second = twoStores();
+      const row = companyRow({ _id: "x4-reopen-before-input" });
+      const a = await mount(row, first.saveOwnField, undefined, first.api);
+      await a.edit(REPRESENTATIVE, "A");
+      await a.unmount();
+      const b = await mount(row, second.saveOwnField, undefined, second.api);
+      await respond(first.rows[0]);
+      await respond(first.stores[0]);
+      expect(a.onSaved).toHaveBeenCalledTimes(1);
+      await b.edit(REPRESENTATIVE, "B");
+      await respond(second.rows[0], new Error("synthetic permanent failure"));
+      expect(b.value(REPRESENTATIVE)).toBe("A");
+    });
+
+    it("이전 owner의 ACK 전에 관측한 확정값도 다음 row 비교 기준으로 쓴다", async () => {
+      vi.stubGlobal("alert", vi.fn());
+      const first = twoStores();
+      const second = twoStores();
+      const row = (value: string) => companyRow({ _id: "x4-reopen-observed-ack", [REPRESENTATIVE]: value });
+      const a = await mount(row("가상 대표"), first.saveOwnField, undefined, first.api);
+      await a.edit(REPRESENTATIVE, "A");
+      await a.unmount();
+      const b = await mount(row("가상 대표"), second.saveOwnField, undefined, second.api);
+      await b.edit(REPRESENTATIVE, "B");
+      await b.rerender(row("A"));
+      await respond(first.rows[0]);
+      await respond(first.stores[0]);
+      await respond(second.rows[0], new Error("synthetic permanent failure"));
+      expect(b.value(REPRESENTATIVE)).toBe("A");
+      await b.rerender(row("가상 대표"));
+      expect(b.value(REPRESENTATIVE)).toBe("가상 대표");
+    });
+
+    it.each(["공용 기록 전", "공용 기록 후"])("재열기 뒤 실제 새 row를 적용했으면 오래된 확정값으로 복원하지 않는다 — %s", async timing => {
+      vi.stubGlobal("alert", vi.fn());
+      const first = twoStores();
+      const second = twoStores();
+      const row = companyRow({ _id: "x4-reopen-new-row" });
+      const a = await mount(row, first.saveOwnField, undefined, first.api);
+      await a.edit(REPRESENTATIVE, "A");
+      await a.unmount();
+      const b = await mount(row, second.saveOwnField, undefined, second.api);
+      await respond(first.rows[0]);
+      if (timing === "공용 기록 후") await respond(first.stores[0]);
+      await b.rerender({ ...row, [REPRESENTATIVE]: "외부 변경" });
+      expect(b.value(REPRESENTATIVE)).toBe("외부 변경");
+      await b.edit(REPRESENTATIVE, "B");
+      if (timing === "공용 기록 전") await respond(first.stores[0]);
+      await respond(second.rows[0], new Error("synthetic permanent failure"));
+      expect(b.value(REPRESENTATIVE)).toBe("외부 변경");
+    });
+
+    it.each(["공용 기록 전", "공용 기록 후"])("재열기 뒤 실제 보관함 값을 적용했으면 그 값을 다음 복원 기준으로 쓴다 — %s", async timing => {
+      vi.stubGlobal("alert", vi.fn());
+      const first = twoStores();
+      const second = twoStores();
+      const config = deferred<unknown>();
+      const reads = lateStoreReads();
+      const row = companyRow({ _id: "x4-reopen-new-store", [REPRESENTATIVE]: "" });
+      const a = await mount(row, first.saveOwnField, undefined, first.api);
+      await a.edit(REPRESENTATIVE, "A");
+      await a.unmount();
+      const b = await mount(row, second.saveOwnField, undefined, {
+        ...second.api, loadBasicStore: reads.loadBasicStore, loadColumnConfig: () => config.promise,
+      });
+      await respond(first.rows[0]);
+      if (timing === "공용 기록 후") await respond(first.stores[0]);
+      await act(async () => { config.resolve({ data: { basicAddedColumns: [FLAG] } }); });
+      await settle();
+      await answerRead(reads.latest(), storeRecord({ [REPRESENTATIVE_FIELD_ID]: "보관함 최신값" }));
+      expect(b.value(REPRESENTATIVE)).toBe("보관함 최신값");
+      await b.edit(REPRESENTATIVE, "B");
+      if (timing === "공용 기록 전") await respond(first.stores[0]);
+      await respond(second.rows[0], new Error("synthetic permanent failure"));
+      expect(b.value(REPRESENTATIVE)).toBe("보관함 최신값");
+    });
+
+    it("새 관측을 적용한 뒤에는 앱 보관함의 옛 복원 정보도 우선하지 않는다", async () => {
+      vi.stubGlobal("alert", vi.fn());
+      const { unsaved, report } = failureBridge();
+      unsaved.getBasicRecovery = () => report.mock.calls.at(-1)?.[0].basicRestore;
+      const first = twoStores();
+      const second = twoStores();
+      const row = companyRow({ _id: "x4-reopen-new-row-recovery" });
+      const a = await mount(row, first.saveOwnField, unsaved, first.api);
+      await a.edit(REPRESENTATIVE, "A");
+      await respond(first.rows[0], transientFailure());
+      await a.unmount();
+      const b = await mount(row, second.saveOwnField, unsaved, second.api);
+      await b.rerender({ ...row, [REPRESENTATIVE]: "새 관측값" });
+      await b.edit(REPRESENTATIVE, "B");
+      await respond(second.rows[0], new Error("synthetic permanent failure"));
+      expect(b.value(REPRESENTATIVE)).toBe("새 관측값");
+    });
+
+    it("완료 후 새로 연 창에는 성공값을 전역 캐시로 남기지 않는다", async () => {
+      vi.stubGlobal("alert", vi.fn());
+      const first = twoStores();
+      const second = twoStores();
+      const row = companyRow({ _id: "x4-no-global-confirmed-cache" });
+      const a = await mount(row, first.saveOwnField, undefined, first.api);
+      await a.edit(REPRESENTATIVE, "A");
+      await a.unmount();
+      await respond(first.rows[0]);
+      await respond(first.stores[0]);
+      const b = await mount(row, second.saveOwnField, undefined, second.api);
+      await b.edit(REPRESENTATIVE, "B");
+      await respond(second.rows[0], new Error("synthetic permanent failure"));
+      expect(b.value(REPRESENTATIVE)).toBe("가상 대표");
+    });
+
+    it("확정값을 관측하지 않았으면 ACK만으로 비교 기준을 옮기지 않는다", async () => {
+      const first = twoStores();
+      const second = twoStores();
+      const row = companyRow({ _id: "x4-reopen-unobserved-ack", [FLAG]: false });
+      const a = await mount(row, first.saveOwnField, undefined, first.api);
+      await a.edit(FLAG, true);
+      await a.unmount();
+      const b = await mount(row, second.saveOwnField, undefined, second.api);
+      await b.edit(FLAG, true);
+      await respond(first.rows[0]);
+      await respond(first.stores[0]);
+      await respond(second.rows[0]);
+      await respond(second.stores[0]);
+      await b.rerender({ ...row, ...withReport });
+      expect(b.value(FLAG)).toBe("true");
+      expect(b.files()).toBe("1");
+    });
+  });
+
   describe("v10 첫 조회 중 대상 전환", () => {
     it("첫 분야 조회가 끝나기 전에 다른 회사로 바꾸면 새 회사를 다시 불러와 '불러오는 중'에 멈추지 않는다", async () => {
       const held = deferred<CustomerDetailLite>();
@@ -1613,6 +1758,152 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
   });
 });
 
+
+describe("x4 실제 분야 소비자의 회사 격리와 최신 조회", () => {
+  const detail = (entryId: string): CustomerDetailLite => ({
+    ...syntheticDetail(),
+    domainRows: [{ domain: "tax-amendment", domainLabel: "경정청구", entryId, row: { _id: entryId } }],
+  });
+  const contractButton = () => document.querySelector<HTMLButtonElement>("[data-x4-contract]");
+  async function mountDetail(
+    row: RowData,
+    loadDomainRows: UnifiedDetailApi["loadDomainRows"],
+    options: { cached?: CustomerDetailLite; strictMode?: boolean; onCommit?: () => void } = {},
+  ) {
+    const saveOwnField = vi.fn(async () => {});
+    const adapter = buildAdapter(saveOwnField, undefined, {
+      loadDomainRows,
+      getCachedDomainRows: () => options.cached ?? null,
+      loadBasicStore: async () => null,
+    });
+    adapter.domains = [{ key: "tax-amendment", label: "경정청구", domains: ["tax-amendment"] }];
+    adapter.ownTieredFieldsPath = () => "synthetic://contract-fields";
+    adapter.components.SettlementInfoTab = ({ entryId, onSave }) => (
+      <button data-x4-contract={entryId} onClick={() => { void onSave("합성 계약"); }}>계약 저장</button>
+    );
+    adapter.components.sectionPanelHeaders = {
+      "tax-amendment": function ReadState({ rows }) {
+        const { rowsLoadFailed } = useDetailLoadState();
+        return <output data-x4-rows>{rows.map(item => item.entryId).join(",")}|{String(rowsLoadFailed)}</output>;
+      },
+    };
+    const h = await mountHost({ name: "x4", layout: "compact", initialTab: "tax-amendment", ...options }, row, saveOwnField, undefined, undefined, adapter);
+    const contractTab = [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "계약정보");
+    if (contractTab) await click(contractTab);
+    return { ...h, saveOwnField };
+  }
+
+  it("새 회사 조회가 null이면 이전 회사 계약을 수정할 수 없다", async () => {
+    const load = vi.fn().mockResolvedValueOnce(detail("recA-1")).mockResolvedValue(null);
+    const h = await mountDetail(companyRow(), load);
+    expect(contractButton()?.dataset.x4Contract).toBe("recA-1");
+    await h.rerender(otherCompanyRow());
+    if (contractButton()) await click(contractButton()!);
+    expect(h.saveOwnField).not.toHaveBeenCalled();
+    expect(contractButton()).toBeNull();
+  });
+
+  it.each([false, true])("회사 전환을 commit하는 순간부터 이전 계약 편집을 제거한다 (캐시=%s)", async cached => {
+    const next = deferred<CustomerDetailLite | null>();
+    const load = vi.fn().mockResolvedValueOnce(detail("recA-1")).mockImplementationOnce(() => next.promise);
+    const commits: Array<string | undefined> = [];
+    const h = await mountDetail(companyRow(), load, {
+      ...(cached ? { cached: detail("recB-1") } : {}),
+      onCommit: () => { commits.push(contractButton()?.dataset.x4Contract); },
+    });
+    expect(contractButton()?.dataset.x4Contract).toBe("recA-1");
+    commits.length = 0;
+    await h.rerender(otherCompanyRow());
+    expect(commits).not.toContain("recA-1");
+    expect(contractButton()?.dataset.x4Contract).not.toBe("recA-1");
+    await act(async () => { next.resolve(detail("recB-1")); });
+    await settle();
+    expect(contractButton()?.dataset.x4Contract).toBe("recB-1");
+  });
+
+  it("같은 회사의 최신 조회가 null이어도 기존 계약 편집 경로를 제거한다", async () => {
+    const load = vi.fn().mockResolvedValueOnce(detail("recA-1")).mockResolvedValue(null);
+    const h = await mountDetail(companyRow(), load);
+    await click(contractButton()!);
+    expect(h.saveOwnField).toHaveBeenCalledTimes(1);
+    expect(contractButton()).toBeNull();
+    expect(document.querySelector("[data-x4-rows]")?.textContent).toBe("|false");
+  });
+
+  it("첫 연락처 조회가 진행 중이어도 새 연락처 키로 조회한다", async () => {
+    const old = deferred<CustomerDetailLite | null>();
+    const load = vi.fn().mockImplementationOnce(() => old.promise).mockResolvedValue(detail("recB-1"));
+    const row = makeRow({ _id: "x4-initial-phone", "04연락처": "01099990001" });
+    const h = await mountDetail(row, load);
+    await h.rerender({ ...row, "04연락처": "01099990002" });
+    expect(load.mock.calls.map(args => args[0])).toEqual(["p:01099990001", "p:01099990002"]);
+    expect(document.querySelector("[data-x4-rows]")?.textContent).toBe("recB-1|false");
+    await act(async () => { old.resolve(detail("recA-late")); });
+    await settle();
+    expect(document.querySelector("[data-x4-rows]")?.textContent).toBe("recB-1|false");
+  });
+
+  it("사업자번호가 없으면 연락처 대체 키로 다시 조회하고 옛 결과는 버린다", async () => {
+    const old = deferred<CustomerDetailLite | null>();
+    const load = vi.fn().mockResolvedValueOnce(detail("recA-1")).mockImplementationOnce(() => old.promise).mockResolvedValue(detail("recB-1"));
+    const row = makeRow({ _id: "x4-phone", "04연락처": "01099990001" });
+    const h = await mountDetail(row, load);
+    await click(contractButton()!); // 이전 연락처의 silent 조회를 보류한다.
+    await h.rerender({ ...row, "04연락처": "01099990002" });
+    await act(async () => { old.resolve(detail("recA-late")); });
+    await settle();
+    expect(load.mock.calls.map(args => args[0])).toContain("p:01099990002");
+    expect(contractButton()?.dataset.x4Contract).toBe("recB-1");
+  });
+
+  it.each(["resolve", "reject"])("같은 owner의 새 조회가 끝난 뒤 옛 %s는 화면을 바꾸지 않는다", async outcome => {
+    const old = deferred<CustomerDetailLite | null>();
+    const load = vi.fn().mockResolvedValueOnce(detail("recA-1")).mockImplementationOnce(() => old.promise).mockResolvedValue(detail("recA-new"));
+    const h = await mountDetail(companyRow(), load);
+    await click(contractButton()!);
+    await click(contractButton()!);
+    expect(load).toHaveBeenCalledTimes(3);
+    expect(document.querySelector("[data-x4-rows]")?.textContent).toBe("recA-new|false");
+    await act(async () => {
+      if (outcome === "resolve") old.resolve(detail("recA-late"));
+      else old.reject(new Error("synthetic old request failure"));
+    });
+    await settle();
+    expect(document.body.textContent).not.toContain("정보를 불러오지 못했습니다");
+    expect(h.saveOwnField).toHaveBeenCalledTimes(2);
+    expect(document.querySelector("[data-x4-rows]")?.textContent).toBe("recA-new|false");
+  });
+
+  it("초기 조회를 대신한 silent 조회가 끝나면 loading도 끝난다", async () => {
+    const first = deferred<CustomerDetailLite | null>();
+    const load = vi.fn().mockImplementationOnce(() => first.promise).mockResolvedValue(detail("recA-new"));
+    const h = await mountHost(HOSTS[0], makeRow({ _id: "x4-silent-loading" }), async () => {}, undefined, { loadDomainRows: load });
+    await h.edit(FLAG, true);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(document.body.textContent).not.toContain("불러오는 중");
+    await act(async () => { first.reject(new Error("synthetic superseded initial failure")); });
+    await settle();
+    expect(document.body.textContent).not.toContain("정보를 불러오지 못했습니다");
+  });
+
+  it("StrictMode 두 번째 성공 뒤 첫 요청 실패가 정상 화면을 덮지 않는다", async () => {
+    const first = deferred<CustomerDetailLite | null>();
+    const second = deferred<CustomerDetailLite | null>();
+    const load = vi.fn().mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise);
+    await mountDetail(companyRow(), load, { strictMode: true });
+    expect(load).toHaveBeenCalledTimes(2);
+    await act(async () => { second.resolve(detail("recA-new")); });
+    await settle();
+    const tab = [...document.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent === "계약정보");
+    expect(tab).toBeDefined();
+    await click(tab!);
+    expect(contractButton()?.dataset.x4Contract).toBe("recA-new");
+    await act(async () => { first.reject(new Error("synthetic StrictMode old failure")); });
+    await settle();
+    expect(contractButton()?.dataset.x4Contract).toBe("recA-new");
+    expect(document.body.textContent).not.toContain("정보를 불러오지 못했습니다");
+  });
+});
 
 describe("v9 상세 조회 응답의 원래 회사 소유권", () => {
   it.each(["resolve", "reject"])("구회사 조회 시작 뒤 같은 상세 instance를 바꾸면 옛 %s는 현재 상태에 닿지 않는다", async outcome => {
@@ -1663,5 +1954,295 @@ describe("v9 상세 조회 응답의 원래 회사 소유권", () => {
       resolveOld(detail("정리"));
       await React.act(async () => { root.unmount(); }); container.remove();
     }
+  });
+});
+
+// x6: 실제 상세는 그대로 마운트하고 앱 경계만 주입한다. host는 세 번째 인수의 객체를 보관·반환하며,
+// 표 A의 ACK와 상세 B를 같은 줄에서 진행한다. 복원값을 시험용 병합 함수로 계산하지 않는다.
+type BridgeRecovery = NonNullable<ReturnType<NonNullable<UnsavedBridge["getBasicRecovery"]>>>;
+function liveRecoveryBridge() {
+  const failures = new Map<string, Parameters<UnsavedBridge["report"]>[0]>();
+  const leases = new Map<string, { recovery?: BridgeRecovery; supersede: () => void }>();
+  const tails = new Map<string, Promise<unknown>>();
+  const applyToTable = vi.fn();
+  const report = vi.fn<UnsavedBridge["report"]>(entry => { failures.set(entry.id, entry); });
+  const beginBasicEdit = vi.fn((id: string, supersede: () => void, recovery?: BridgeRecovery) => {
+    leases.get(id)?.supersede();
+    const lease = { recovery, supersede };
+    leases.set(id, lease);
+    return {
+      isCurrent: () => leases.get(id) === lease,
+      release: () => { if (leases.get(id) === lease) leases.delete(id); },
+    };
+  });
+  const unsaved: UnsavedBridge = {
+    scope: "x6",
+    makeId: (scope, rowId, key) => `${scope}:${rowId}:${key}`,
+    report,
+    resolve: id => { failures.delete(id); },
+    getBasicRecovery: id => failures.get(id)?.basicRestore ?? leases.get(id)?.recovery,
+    beginBasicEdit,
+    applyToTable,
+    runBasicWrite: <T,>(id: string, task: () => Promise<T>) => {
+      const previous = tails.get(id);
+      const step = previous ? previous.then(task, task) : task();
+      const tail = step.catch(() => {}).finally(() => { if (tails.get(id) === tail) tails.delete(id); });
+      tails.set(id, tail);
+      return step;
+    },
+  };
+  const tableWrite = (row: RowData, key: string, recovery: BridgeRecovery, value: string | number | boolean | null) => {
+    const id = unsaved.makeId(unsaved.scope, String(row._id), key);
+    const answer = deferred<boolean>();
+    const lease = beginBasicEdit(id, () => {}, recovery);
+    const done = unsaved.runBasicWrite!(id, async () => {
+      if (await answer.promise) recovery.original = { value, present: true };
+      lease.release();
+    });
+    return {
+      id,
+      async answer(accepted: boolean) {
+        await act(async () => { answer.resolve(accepted); await done; });
+        await settle();
+      },
+    };
+  };
+  return { unsaved, report, beginBasicEdit, applyToTable, tableWrite };
+}
+
+describe.each(HOSTS)("x6 표·상세의 살아 있는 확정값 — $name", host => {
+  const failureCases = [
+    { label: "영구 실패", error: () => new Error("x6 permanent rejection"), transient: false },
+    { label: "잠깐 실패 후 되돌림", error: transientFailure, transient: true },
+  ];
+  const cases = [true, false].flatMap(accepted => [false, true].flatMap(beforeInput =>
+    failureCases.map(failure => ({ accepted, beforeInput, ...failure }))));
+
+  it.each(cases)("표 A 성공=$accepted · 첫 입력 전 완료=$beforeInput · 상세 B $label", async ({ accepted, beforeInput, error, transient }) => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `x6-table-${accepted}-${beforeInput}-${transient}`, [REPRESENTATIVE]: accepted && beforeInput ? "목록의 옛 대표" : "표 A" });
+    const recovery: BridgeRecovery = { original: { value: "확정 대표", present: true } };
+    const table = bridge.tableWrite(row, REPRESENTATIVE, recovery, "표 A");
+    if (beforeInput) {
+      const previous = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+      await previous.unmount();
+    }
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    if (beforeInput) await table.answer(accepted);
+    await h.edit(REPRESENTATIVE, "상세 B");
+    if (!beforeInput) {
+      expect(s.rows).toHaveLength(0);
+      await table.answer(accepted);
+    }
+    expect(h.value(REPRESENTATIVE)).toBe("상세 B");
+    await respond(s.rows[0], error());
+    if (transient) {
+      expect(h.value(REPRESENTATIVE)).toBe("상세 B");
+      await act(async () => { bridge.report.mock.calls.at(-1)![0].revert?.(); });
+      await settle();
+    }
+    const original = { value: accepted ? "표 A" : "확정 대표", present: true };
+    expect(h.value(REPRESENTATIVE)).toBe(original.value);
+    expect(bridge.applyToTable).toHaveBeenLastCalledWith(String(row._id), REPRESENTATIVE, original);
+    expect(bridge.beginBasicEdit.mock.calls.at(-1)![2]).toBe(recovery);
+    expect(s.saveBasicField).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])("알 수 없는 원본은 표 성공=%s 이후 실제 ACK가 있을 때만 복원 가능하다", async accepted => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `x6-unknown-${host.name}-${accepted}`, [REPRESENTATIVE]: "표 A" });
+    const recovery: BridgeRecovery = {};
+    const table = bridge.tableWrite(row, REPRESENTATIVE, recovery, "표 A");
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "상세 B");
+    expect(recovery.original).toBeUndefined();
+    await table.answer(accepted);
+    await respond(s.rows[0], transientFailure());
+    const entry = bridge.report.mock.calls.at(-1)![0];
+    if (accepted) {
+      await act(async () => { entry.revert?.(); });
+      await settle();
+      expect(h.value(REPRESENTATIVE)).toBe("표 A");
+      expect(entry.basicRestore?.original).toEqual({ value: "표 A", present: true });
+    } else {
+      expect(entry.revert).toBeUndefined();
+      expect(entry.basicRestore?.original).toBeUndefined();
+      expect(h.value(REPRESENTATIVE)).toBe("상세 B");
+      expect(bridge.applyToTable).not.toHaveBeenCalled();
+    }
+    expect(bridge.beginBasicEdit.mock.calls.at(-1)![2]).toBe(recovery);
+  });
+
+  it.each([
+    { label: "false", key: FLAG, original: { value: false, present: true }, optimistic: true, next: false, shown: "false" },
+    { label: "null", key: REPRESENTATIVE, original: { value: null, present: true }, optimistic: "표 A", next: "상세 B", shown: "null" },
+    { label: "키 부재", key: REPRESENTATIVE, original: { value: null, present: false }, optimistic: "표 A", next: "상세 B", shown: "null" },
+  ])("표 A 실패 후 상세 B 실패는 $label과 키 존재 여부를 유지한다", async ({ key, original, optimistic, next, shown }) => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `x6-presence-${original.present}-${String(original.value)}`, [key]: optimistic });
+    const recovery: BridgeRecovery = { original };
+    const table = bridge.tableWrite(row, key, recovery, optimistic);
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await table.answer(false); // 복구 lease가 사라진 뒤 첫 입력
+    await h.edit(key, next);
+    await respond(s.rows[0], new Error("x6 permanent rejection"));
+    expect(h.value(key)).toBe(shown);
+    expect(bridge.applyToTable).toHaveBeenLastCalledWith(String(row._id), key, original);
+    expect(bridge.beginBasicEdit.mock.calls.at(-1)![2]).toBe(recovery);
+  });
+
+  it("행에 없는 동적 칸도 정의가 도착하면 입력 전에 복구 객체를 보유한다", async () => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const key = "custom_x6_dynamic";
+    const defs = deferred<Array<{ key: string; label: string; type: string }>>();
+    const row = companyRow({ _id: "x6-dynamic-absent" });
+    const recovery: BridgeRecovery = { original: { value: null, present: false } };
+    const table = bridge.tableWrite(row, key, recovery, "표 A");
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, { ...s.api, loadCommonBasicFields: () => defs.promise });
+    await act(async () => { defs.resolve([{ key, label: "동적 칸", type: "text" }]); });
+    await settle();
+    expect(h.value(key)).toBe("null");
+    await table.answer(true);
+    await h.edit(key, "상세 B");
+    await respond(s.rows[0], new Error("x6 permanent rejection"));
+    expect(h.value(key)).toBe("표 A");
+    expect(bridge.beginBasicEdit.mock.calls.at(-1)![2]).toBe(recovery);
+  });
+
+  it.each(["row", "store"].flatMap(source => [true, false].map(beforeAck => ({ source, beforeAck }))))(
+    "새 $source 관측과 실제 ACK의 순서(관측 먼저=$beforeAck)에 따라 같은 복원 객체를 갱신한다", async ({ source, beforeAck }) => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const reads = lateStoreReads();
+    const optimistic = source === "store" ? "" : "표 A";
+    const row = companyRow({ _id: `x6-fresh-${source}-${beforeAck}`, [REPRESENTATIVE]: optimistic });
+    const recovery: BridgeRecovery = { original: { value: "확정 대표", present: true } };
+    const table = bridge.tableWrite(row, REPRESENTATIVE, recovery, optimistic);
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, { ...s.api, loadBasicStore: reads.loadBasicStore });
+    if (!beforeAck) await table.answer(true);
+    if (source === "row") await h.rerender({ ...row, [REPRESENTATIVE]: "새 관측값" });
+    else await answerRead(reads.latest(), storeRecord({ [REPRESENTATIVE_FIELD_ID]: "새 관측값" }));
+    expect(h.value(REPRESENTATIVE)).toBe("새 관측값");
+    await h.edit(REPRESENTATIVE, "상세 B");
+    if (beforeAck) await table.answer(true);
+    await respond(s.rows[0], new Error("x6 permanent rejection"));
+    expect(h.value(REPRESENTATIVE)).toBe(beforeAck ? optimistic : "새 관측값");
+    expect(bridge.beginBasicEdit.mock.calls.at(-1)![2]).toBe(recovery);
+  });
+
+  it.each([false, null])("표 ACK의 실제 값 %s도 unknown을 확정값으로 바꾼다", async acceptedValue => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `x6-ack-value-${host.name}-${String(acceptedValue)}`, [REPRESENTATIVE]: "미확정 표 값" });
+    const recovery: BridgeRecovery = {};
+    const table = bridge.tableWrite(row, REPRESENTATIVE, recovery, acceptedValue);
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "상세 B");
+    await table.answer(true);
+    await respond(s.rows[0], new Error("x6 permanent rejection"));
+    expect(h.value(REPRESENTATIVE)).toBe(String(acceptedValue));
+    expect(bridge.applyToTable).toHaveBeenLastCalledWith(String(row._id), REPRESENTATIVE, { value: acceptedValue, present: true });
+  });
+
+  it("상세 A의 권한이 표로 넘어가도 실제 ACK를 공유해 뒤 상세 C의 실패를 복원한다", async () => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `x6-detail-table-detail-${host.name}` });
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "상세 A");
+    const recovery = bridge.beginBasicEdit.mock.calls.at(-1)![2]!;
+    const table = bridge.tableWrite(row, REPRESENTATIVE, recovery, "표 B");
+    await h.edit(REPRESENTATIVE, "상세 C");
+    await respond(s.rows[0]);
+    expect(recovery.original).toEqual({ value: "상세 A", present: true });
+    expect(h.value(REPRESENTATIVE)).toBe("상세 C");
+    await respond(s.stores[0]);
+    await table.answer(false);
+    await respond(s.rows[1], new Error("x6 permanent rejection"));
+    expect(h.value(REPRESENTATIVE)).toBe("상세 A");
+    expect(bridge.beginBasicEdit.mock.calls.at(-1)![2]).toBe(recovery);
+  });
+
+  it("이미 보낸 재시도의 ACK는 unknown 복원 객체를 갱신하고 더 새 표·상세의 화면 권한은 지킨다", async () => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `x6-sent-retry-${host.name}`, [REPRESENTATIVE]: "표의 미확정값" });
+    const recovery: BridgeRecovery = {};
+    const first = bridge.tableWrite(row, REPRESENTATIVE, recovery, "표 A");
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "상세 B");
+    await first.answer(false);
+    await respond(s.rows[0], transientFailure());
+    const entry = bridge.report.mock.calls.at(-1)![0];
+    expect(entry.basicRestore).toBe(recovery);
+    expect(entry.revert).toBeUndefined();
+    const retry = entry.retry();
+    await settle();
+    expect(s.rows).toHaveLength(2);
+    const table = bridge.tableWrite(row, REPRESENTATIVE, recovery, "표 C");
+    await h.edit(REPRESENTATIVE, "상세 D");
+    await respond(s.rows[1]);
+    expect(entry.basicRestore?.original).toEqual({ value: "상세 B", present: true });
+    expect(h.value(REPRESENTATIVE)).toBe("상세 D");
+    expect(s.stores).toHaveLength(0);
+    expect(await retry).toBe(false);
+    expect(h.onSaved).not.toHaveBeenCalled();
+    await table.answer(false);
+    await respond(s.rows[2], new Error("x6 permanent rejection"));
+    expect(h.value(REPRESENTATIVE)).toBe("상세 B");
+    expect(bridge.report).toHaveBeenCalledTimes(1);
+  });
+
+  it("아직 출발하지 않은 옛 재시도는 표의 새 lease 뒤 행·공용 기록을 보내지 않는다", async () => {
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `x6-queued-retry-${host.name}` });
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "실패한 상세 A");
+    await respond(s.rows[0], transientFailure());
+    const entry = bridge.report.mock.calls.at(-1)![0];
+    const recovery = bridge.beginBasicEdit.mock.calls.at(-1)![2]!;
+    const blocker = deferred<void>();
+    const blocking = bridge.unsaved.runBasicWrite!(entry.id, () => blocker.promise);
+    const retry = entry.retry();
+    const table = bridge.tableWrite(row, REPRESENTATIVE, recovery, "표 B");
+    await act(async () => { blocker.resolve(); await blocking; });
+    await settle();
+    await table.answer(false);
+    expect(await retry).toBe(false);
+    expect(s.rows).toHaveLength(1);
+    expect(s.stores).toHaveLength(0);
+    await act(async () => { entry.revert?.(); });
+    await settle();
+    expect(bridge.applyToTable).not.toHaveBeenCalled();
+    expect(h.onSaved).not.toHaveBeenCalled();
+  });
+
+  it("표의 체인이 끝난 뒤 처음 연 상세는 전역의 옛 성공값을 상속하지 않는다", async () => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = liveRecoveryBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `x6-no-permanent-cache-${host.name}`, [REPRESENTATIVE]: "새 서버 값" });
+    const recovery: BridgeRecovery = { original: { value: "옛 서버 값", present: true } };
+    const table = bridge.tableWrite(row, REPRESENTATIVE, recovery, "표 A");
+    await table.answer(true);
+    expect(bridge.unsaved.getBasicRecovery?.(table.id)).toBeUndefined();
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "상세 B");
+    await respond(s.rows[0], new Error("x6 permanent rejection"));
+    expect(h.value(REPRESENTATIVE)).toBe("새 서버 값");
+    expect(bridge.beginBasicEdit.mock.calls.at(-1)![2]).not.toBe(recovery);
   });
 });

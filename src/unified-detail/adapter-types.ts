@@ -237,6 +237,20 @@ export type AddressUnsavedEditOwnership = Readonly<{
   cancelUnused: () => boolean;
 }>;
 
+/** 같은 칸의 진행 중 표·상세 저장이 함께 쓰는 실제 확정값. original 부재는 미확정이다. */
+export type BasicRecovery = {
+  /** 미완료 편집을 수락한 고객과 최신 입력. sessionStorage에는 저장하지 않는다. */
+  lifetime?: { active: boolean }; confirmedIdentities?: string[];
+  pendingRefresh?: () => void;
+  originIdentity?: string;
+  draft?: { value: string | number | boolean | null; present: boolean };
+  identity?: string;
+  sourceIdentity?: string;
+  applyToDetail?: (original: { value: string | number | boolean | null; present: boolean }) => void;
+  original?: { value: string | number | boolean | null; present: boolean };
+  applyToTable?: (original: { value: string | number | boolean | null; present: boolean }) => void;
+};
+
 export type UnsavedBridge = {
   /** 이 화면의 이름 — 앱의 표와 같은 글자여야 같은 칸의 실패가 한 항목으로 묶인다. */
   scope: string;
@@ -257,16 +271,14 @@ export type UnsavedBridge = {
     retry: () => Promise<boolean>;
     revert?: () => void;
     onDiscard?: () => void;
-    basicRestore?: {
-      original?: { value: string | number | boolean | null; present: boolean };
-      applyToTable?: (original: { value: string | number | boolean | null; present: boolean }) => void;
+    basicRestore?: BasicRecovery & {
       apply: (original: { value: string | number | boolean | null; present: boolean }) => boolean;
     };
   }) => void;
   /** expectedAttemptId가 있으면 그 시도가 현재 항목일 때만 지운다. */
   resolve: (id: string, expectedAttemptId?: string) => void;
-  /** 기본정보 실패 항목의 최초 확정값. {}는 항목은 있지만 확정값을 모르는 경우다. */
-  getBasicRecovery?: (id: string) => { original?: { value: string | number | boolean | null; present: boolean }; applyToTable?: (original: { value: string | number | boolean | null; present: boolean }) => void } | undefined;
+  /** 현재 실패 항목/편집의 공유 객체 자체를 반환한다. {}는 확정값을 아직 모르는 경우다. */
+  getBasicRecovery?: (id: string) => BasicRecovery | undefined;
   /**
    * 상세에서 실패한 기본정보 값을 되돌릴 때 앱 표의 같은 칸도 확정값으로 되돌린다. 앱이 재조회 때 실패값을 표에
    * 다시 얹을 수 있어서다. 지금 화면이 준 이 통로가 실패 항목에 남은 옛 통로보다 먼저 쓰인다(옛 통로는 사라진 표를 가리킬 수 있다).
@@ -278,8 +290,8 @@ export type UnsavedBridge = {
    * 상세가 저장한 값이 아니라 그 전 값으로 되돌린다.
    */
   noteBasicServerValue?: (id: string, original: { value: string | number | boolean | null; present: boolean }) => void;
-  /** 표·상세의 비주소 최초 입력부터 같은 칸의 최신 권한을 대조한다. */
-  beginBasicEdit?: (id: string, onSuperseded: () => void) => { isCurrent: () => boolean; release: () => void };
+  /** 표·상세의 비주소 최신 권한과 복원 객체를 잇는다. 기존 두 인수 host도 지원한다. */
+  beginBasicEdit?: (id: string, onSuperseded: () => void, recovery?: BasicRecovery) => { isCurrent: () => boolean; release: () => void };
   /** 표·상세의 같은 칸 저장을 행과 추가 기록까지 한 줄로 끝낸다. */
   runBasicWrite?: <T>(id: string, task: () => Promise<T>) => Promise<T>;
   /** 이미 다른 시도로 교체/취소된 주소 retry를 거절하는 앱 보관함 조회. */

@@ -8,6 +8,7 @@ import type { ColumnDef } from "../types/columns";
 import * as sections from "../unified/sections";
 import * as basicSections from "./lib/unified-sections";
 import * as customerDetail from "./lib/customer-detail";
+import * as basicRecovery from "./lib/basic-recovery";
 import * as editConfirm from "./lib/edit-confirm-gate";
 import { saveFailureKindOf, type AddressEditContextV1, type AddressEditObservationV1, type AddressEditPreparation, type AddressSourceTable, type BasicRecord, type UnifiedDetailApi, type UnifiedDetailAdapter, type UnsavedBridge } from "./adapter-types";
 import type { DomainRowLite } from "./lib/customer-detail";
@@ -125,7 +126,7 @@ const dependencies: Record<string, unknown> = {
   react: hooks, "react/jsx-runtime": jsxRuntime,
   "react-dom": { createPortal: <T>(element: T) => element },
   "../index": indexModule, "../unified/sections": sections,
-  "./lib/unified-sections": basicSections, "./lib/customer-detail": customerDetail,
+  "./lib/unified-sections": basicSections, "./lib/customer-detail": customerDetail, "./lib/basic-recovery": basicRecovery,
   "./lib/edit-confirm-gate": editConfirm,
   "./adapter-types": { saveFailureKindOf },
   "./field-options-context": { useFieldOptions: () => optionBundle },

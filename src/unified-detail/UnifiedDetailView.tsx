@@ -1,5 +1,7 @@
 "use client";
 
+import { basicRecoveryIdentity, matchesBasicRecoveryIdentity, beginRecoveryLifetime, endRecoveryLifetime, flushBasicRefresh, acknowledgeBasicRecovery } from "./lib/basic-recovery";
+
 import { useEffect, useState, useCallback, useRef, useMemo, type DragEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, refreshCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
@@ -39,7 +41,7 @@ import {
 } from "./lib/unified-sections";
 import { basicFieldOptionsFromRow, isCommonBasicLabel } from "../unified/sections";
 import { applyTabConfig } from "./lib/unified-tab-config";
-import type { AddressEditContextV1, AddressEditObservationV1, AddressEditPreparation, AddressEditSaveResult, AddressRevisionToken, AddressSaveExecution, AddressSourceTable, AddressUnsavedAttemptOwnership, AddressUnsavedEditOwnership, AtomicAddressSaveReceipt, BasicRecord, UnifiedDetailApi, UnsavedBridge } from "./adapter-types";
+import type { AddressEditContextV1, AddressEditObservationV1, AddressEditPreparation, AddressEditSaveResult, AddressRevisionToken, AddressSaveExecution, AddressSourceTable, AddressUnsavedAttemptOwnership, AddressUnsavedEditOwnership, AtomicAddressSaveReceipt, BasicRecord, BasicRecovery, UnifiedDetailApi, UnsavedBridge } from "./adapter-types";
 import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
 import { modalBoxClass, narrowPaneTabs } from "./three-pane-layout";
@@ -235,17 +237,16 @@ type BasicFieldEdit = {
   latest: object;
   /** 저장 중이거나 실패 보관함에 담긴 동안 true — 이 동안 새 row 가 이 칸을 덮지 않는다. */
   open: boolean;
-  /** 서버가 마지막으로 받아들인 값(없으면 첫 입력 직전 값) — 실패 되돌림의 기준. */
-  confirmed?: BasicFieldOriginal;
-  applyToTable?: (original: BasicFieldOriginal) => void;
-  /** 더 새 입력 때문에 알리지 않은 앞 저장의 성공 — 마지막 입력이 실패하면 그때 부모에 한 번 알린다. */
-  unnotified?: () => void;
+  /** 표·상세가 공유하는 복원 객체. 실제 ACK만 original을 갱신한다. */
+  recovery: BasicRecovery;
 };
 
 // 화면을 닫아도 앱 막대에 남은 실패는 복구할 수 있다. 새 입력은 같은 회사·칸의 옛 복구를 영구 취소한다.
 // 진행 중인 입력·현재 실패만 남기고 성공·영구 실패·되돌림이 끝나면 지운다. owner는 UI 수명만 관리한다.
 // edit 는 닫았다 다시 연 창이 아직 끝나지 않은 앞 입력의 묶음(확정값·되돌림 기준)을 이어받는 데 쓴다.
-const basicFieldIntents = new Map<string, { valid: boolean; edit?: BasicFieldEdit }>();
+type BasicFieldIntent = { valid: boolean; identity: string; edit?: BasicFieldEdit; cancel?: () => void };
+const basicFieldIntents = new Map<string, BasicFieldIntent>();
+// 진행 중 객체에만 고객 식별을 붙인다. 같은 행 번호가 다른 고객을 가리키면 복원값을 넘기지 않는다.
 const basicFieldTails = new Map<string, Promise<void>>();
 // start 는 행 저장까지 끝낸 뒤 결과(value)와 "그 뒤에 남은 일"(stored: 공용 보관함 기록)을 돌려준다.
 // 호출자는 value 만 기다리고, 다음 입력은 stored 까지 끝난 뒤에 출발한다. 끝난 꼬리는 지운다.
@@ -1745,23 +1746,36 @@ function BasicInfoPanel({
   const supportsAddressEdit = adapter.api.supportsAddressEdit;
   const addressEditSupported = !!loadAddressEdit && supportsAddressEdit?.(entryId) !== false;
   const addressKey = baseSection.fields.find((field) => ADDRESS_FIELD_KEYS.includes(field.key))?.key ?? "";
-  const makeAddressOwner = () => ({
-    entryId, bizno, adapter, source: saveOwnField, loadAddressEdit, supportsAddressEdit, addressEditSupported, addressKey, ownDomain,
-    generation: 0, intent: 0, inputVersion: 0, hasValue: false, value: null as unknown, pending: false, active: true,
-    // 주소가 아닌 칸의 입력 의도 — 주소 generation 과 무관하고, 소유자(회사)가 바뀌면 함께 버려진다.
-    fieldEdits: new Map<string, BasicFieldEdit>(),
-    preparation: null as AddressEditPreparation | null,
-    preparing: null as Promise<AddressEditPreparation> | null,
-    preparationEpoch: 0,
-    multiDraft: null as {
-      preparation: AddressEditPreparation; intent: number; ownership: AddressCaptureOwnership;
-      value: string | number | boolean | null; inputVersion: number; savedInputVersion: number;
-      pending: boolean; serial: Promise<AddressEditSaveResult> | null;
-      serialVersion: number; failedAttemptId: string | null;
-    } | null,
-  });
+  const basicIdentity = basicRecoveryIdentity(row, ownDomain);
+  const makeAddressOwner = () => {
+    // 재열기 때 진행 중인 묶음을 즉시 보유한다. 다음 입력 전에 전역 lease가 끝나도 확정값은 이 owner에 남는다.
+    // null은 새 관측이 적용됐다는 표시로, 아직 남은 옛 전역 lease를 다시 상속하지 못하게 한다.
+    const retainedFieldEdits = new Map<string, BasicFieldEdit | null>();
+    basicFieldIntents.forEach((intent, id) => {
+      if (!intent.valid || !intent.edit?.open) return;
+      const [rowId, key] = JSON.parse(id) as [string, string];
+      if (rowId === entryId) retainedFieldEdits.set(key, matchesBasicRecoveryIdentity(intent.edit.recovery, basicIdentity) ? intent.edit : null);
+    });
+    return {
+      entryId, bizno, basicIdentity, adapter, source: saveOwnField, loadAddressEdit, supportsAddressEdit, addressEditSupported, addressKey, ownDomain,
+      generation: 0, intent: 0, inputVersion: 0, hasValue: false, value: null as unknown, pending: false, active: true,
+      // 주소가 아닌 칸의 입력 의도 — 주소 generation 과 무관하고, 소유자(회사)가 바뀌면 함께 버려진다.
+      fieldEdits: new Map<string, BasicFieldEdit>(),
+      retainedFieldEdits,
+      preparation: null as AddressEditPreparation | null,
+      preparing: null as Promise<AddressEditPreparation> | null,
+      preparationEpoch: 0,
+      multiDraft: null as {
+        preparation: AddressEditPreparation; intent: number; ownership: AddressCaptureOwnership;
+        value: string | number | boolean | null; inputVersion: number; savedInputVersion: number;
+        pending: boolean; serial: Promise<AddressEditSaveResult> | null;
+        serialVersion: number; failedAttemptId: string | null;
+      } | null,
+    };
+  };
   const addressOwnerRef = useRef(makeAddressOwner());
   if (addressOwnerRef.current.entryId !== entryId || addressOwnerRef.current.bizno !== bizno
+    || addressOwnerRef.current.basicIdentity !== basicIdentity
     || addressOwnerRef.current.adapter !== adapter || addressOwnerRef.current.source !== saveOwnField
     || addressOwnerRef.current.loadAddressEdit !== loadAddressEdit
     || addressOwnerRef.current.supportsAddressEdit !== supportsAddressEdit
@@ -1770,6 +1784,45 @@ function BasicInfoPanel({
     addressOwnerRef.current = makeAddressOwner();
   }
   const addressOwner = addressOwnerRef.current;
+  // 입력 전에 표의 진행 중 복원 객체도 보유한다. 첫 입력 전에 표 lease가 끝나도 같은 객체의 ACK를 읽는다.
+  // 뒤늦은 공통·커스텀 칸 정의와 row에 없는 키도 포함한다. 새 row/store를 적용한 null 표시는 다시 상속하지 않는다.
+  const unsaved = adapter.unsaved;
+  if (unsaved?.getBasicRecovery) {
+    const keys = new Set([...Object.keys(row), ...ownColumns.map(field => field.key), ...allBasicFields.map(field => field.key)]);
+    for (const key of keys) {
+      if (ADDRESS_FIELD_KEYS.includes(key) || addressOwner.fieldEdits.has(key) || addressOwner.retainedFieldEdits.has(key)) continue;
+      const recovery = unsaved.getBasicRecovery(unsaved.makeId(unsaved.scope, entryId, key));
+      if (recovery) {
+        const previousIdentity = recovery.identity;
+        if (previousIdentity && !matchesBasicRecoveryIdentity(recovery, basicIdentity)) addressOwner.retainedFieldEdits.set(key, null);
+        else {
+          recovery.identity ??= basicIdentity;
+          addressOwner.retainedFieldEdits.set(key, { latest: {}, open: true, recovery });
+        }
+      }
+    }
+  }
+  // 복원 동작은 닫힌 창의 setState 대신 현재 열린 창에 연결한다. 정리할 때도 자신의 연결만 지운다.
+  useEffect(() => {
+    const bridge = unsaved;
+    for (const key of new Set([...Object.keys(row), ...allBasicFields.map(field => field.key)])) {
+      const id = bridge?.makeId(bridge.scope, entryId, key);
+      const recovery = id ? bridge?.getBasicRecovery?.(id) : undefined;
+      if (id && recovery?.identity && !matchesBasicRecoveryIdentity(recovery, basicIdentity)) bridge?.resolve(id);
+    }
+    const bindings = ([...addressOwner.retainedFieldEdits, ...addressOwner.fieldEdits].flatMap(([key, edit]) => edit ? [[key, edit.recovery] as const] : [])).map(([key, recovery]) => {
+      const apply: NonNullable<BasicRecovery["applyToDetail"]> = original => {
+        if (!(addressOwner.active && addressOwnerRef.current === addressOwner) || (recovery.identity && !matchesBasicRecoveryIdentity(recovery, basicIdentity))) return;
+        const edit = addressOwner.fieldEdits.get(key) ?? addressOwner.retainedFieldEdits.get(key);
+        if (edit) edit.open = false;
+        setBasicRow(current => { const next = { ...current }; if (original.present) next[key] = original.value; else delete next[key]; return next; });
+      };
+      recovery.applyToDetail = apply;
+      return { recovery, apply };
+    });
+    return () => { for (const { recovery, apply } of bindings) if (recovery.applyToDetail === apply) delete recovery.applyToDetail; };
+  });
+
   // row 객체가 새로 들어오면(저장 후 갱신 등) 값 동기화 — 같은 객체면 입력 중 값 보존.
   // 같은 소유자(회사)면 이전 전달값과 새 전달값이 실제 다른 칸만 반영하고(저장 중인 칸은 현재 입력 유지),
   // 소유자가 바뀌었으면 이전 입력·보호를 버리고 새 row 로 통째로 바꾼다 — row 참조가 그대로여도 소유자(어댑터·저장 함수 등)가 바뀌면 같다.
@@ -1784,7 +1837,16 @@ function BasicInfoPanel({
       setBasicRow((current) => addressOwnerRef.current === addressOwner ? { ...incoming } : current);
       return;
     }
-    const previous = seen.applied;
+    let previous = seen.applied;
+    addressOwner.fieldEdits.forEach((edit, key) => {
+      // ACK는 이전 창에서 끝날 수도 있다. 현재 창이 이미 관측한 값과 확정값이 같을 때만 기준을 옮긴다.
+      const confirmed = edit.recovery.original;
+      if (confirmed && confirmed.present === Object.prototype.hasOwnProperty.call(seen.row, key)
+        && (!confirmed.present || sameFieldValue(confirmed.value, (seen.row as Record<string, unknown>)[key]))) {
+        previous = { ...previous };
+        if (confirmed.present) previous[key] = confirmed.value; else delete previous[key];
+      }
+    });
     const keep = new Set<string>();
     addressOwner.fieldEdits.forEach((edit, key) => { if (edit.open) keep.add(key); });
     // 보호 중 건너뛴 값은 적용한 비교 기준으로 소비하지 않는다. 완료 시 옛 응답을 재적용하지 않고,
@@ -1793,21 +1855,62 @@ function BasicInfoPanel({
     addressOwner.fieldEdits.forEach((edit, key) => {
       // 서버가 받아들인 값이 새 조회에도 실렸으면 비교 기준에만 반영한다.
       // 입력 표시는 계속 보호하되, 저장이 끝난 뒤 다른 사용자의 되돌림을 "변경 없음"으로 버리지 않는다.
-      if (edit.open && edit.confirmed
-        && edit.confirmed.present === Object.prototype.hasOwnProperty.call(incoming, key)
-        && (!edit.confirmed.present || sameFieldValue(edit.confirmed.value, incoming[key]))) comparisonKeep.delete(key);
+      const confirmed = edit.recovery.original;
+      if (edit.open && confirmed
+        && confirmed.present === Object.prototype.hasOwnProperty.call(incoming, key)
+        && (!confirmed.present || sameFieldValue(confirmed.value, incoming[key]))) comparisonKeep.delete(key);
+    });
+    // 이어받은 묶음은 복원 기준만 보유한다. 현재 창에서 입력하기 전 새 행 값이 적용되면 그 값을 우선한다.
+    addressOwner.retainedFieldEdits.forEach((edit, key) => {
+      if (Object.prototype.hasOwnProperty.call(previous, key) === Object.prototype.hasOwnProperty.call(incoming, key)
+        && sameFieldValue(previous[key], incoming[key])) return;
+      if (edit) {
+        const draft = edit.recovery.draft;
+        const hostRecovery = unsaved?.getBasicRecovery?.(unsaved.makeId(unsaved.scope, entryId, key));
+        // 부모의 미저장 overlay는 서버의 새 확정값이 아니다. 실제 다른 관측값만 복원 기준으로 쓴다.
+        if (hostRecovery === edit.recovery && draft
+          && draft.present === Object.prototype.hasOwnProperty.call(incoming, key)
+          && (!draft.present || sameFieldValue(draft.value, incoming[key]))) return;
+        const value = incoming[key];
+        edit.recovery.original = !Object.prototype.hasOwnProperty.call(incoming, key) ? { value: null, present: false }
+          : value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+            ? { value, present: true } : undefined;
+      }
     });
     basicRowRef.current = { row, owner: addressOwner, applied: mergeIncomingRow(previous, previous, incoming, comparisonKeep) };
     setBasicRow((current) => addressOwnerRef.current === addressOwner ? mergeIncomingRow(current, previous, incoming, keep) : current);
-  }, [row, addressOwner]);
+  }, [row, addressOwner, entryId, unsaved]);
+
+  // 실제 앱 복구 항목에 연결된 입력만 재열기에 표시한다. 모듈의 진행 중 ACK는 복원 기준만 잇는다.
+  useEffect(() => {
+    const edits = [...addressOwner.retainedFieldEdits, ...addressOwner.fieldEdits];
+    setBasicRow(current => {
+      const next = { ...current };
+      for (const [key, edit] of edits) if (edit?.open && edit.recovery.draft
+        && unsaved?.getBasicRecovery?.(unsaved.makeId(unsaved.scope, entryId, key)) === edit.recovery
+        && matchesBasicRecoveryIdentity(edit.recovery, addressOwner.basicIdentity)) {
+        if (edit.recovery.draft.present) next[key] = edit.recovery.draft.value; else delete next[key];
+      }
+      return next;
+    });
+  }, [addressOwner, entryId, unsaved]);
 
   // ── 공용 보관함 읽기 — 변경 내역 표시 + 비어 있는 칸만 보관함 값으로 채움(기존 행 값은 보호) ──
   const [basicRecord, setBasicRecord] = useState<BasicRecord | null>(null);
   useEffect(() => {
     addressOwner.active = true;
+    // 닫기만 했을 때는 보관함 복구를 유지한다. 고객 식별이 실제 바뀐 경우에만 옛 복구를 끝낸다.
+    basicFieldIntents.forEach((intent, id) => {
+      const [rowId, key] = JSON.parse(id) as [string, string];
+      if (rowId !== entryId || (intent.edit ? matchesBasicRecoveryIdentity(intent.edit.recovery, basicIdentity) : intent.identity === basicIdentity)) return;
+      const unsavedId = unsaved?.makeId(unsaved.scope, entryId, key);
+      const oldRecovery = unsavedId ? unsaved?.getBasicRecovery?.(unsavedId) : undefined;
+      intent.cancel?.();
+      if (unsavedId && oldRecovery === intent.edit?.recovery) unsaved?.resolve(unsavedId);
+    });
     setBasicRecord(null);
     return () => { addressOwner.active = false; };
-  }, [addressOwner]);
+  }, [addressOwner, basicIdentity, entryId, unsaved]);
   const [showBasicLog, setShowBasicLog] = useState(false);
   const appLabel = useCallback((a: string) => (a === "erp" ? "ERP" : a === "hive" ? "하이브" : a === "illua" ? "일루아" : a), []);
   const fmtVal = useCallback((v: unknown) => (v == null || v === "" ? "(빈값)" : typeof v === "object" ? JSON.stringify(v) : String(v)), []);
@@ -1861,7 +1964,14 @@ function BasicInfoPanel({
             const cur = next[f.key];
             // 진행상태는 3앱 완전 동기화(NO.56 사장님 결정 2026-06-21): 값이 있어도 공용 보관함 최신값으로 덮어쓴다.
             // 그 외 칸은 기존대로 '빈 칸만' 채워 기존 값을 보호.
-            if (f.label === "진행상태" || cur == null || cur === "") next[f.key] = entry.value;
+            if (f.label === "진행상태" || cur == null || cur === "") {
+              next[f.key] = entry.value;
+              const retained = addressOwner.retainedFieldEdits.get(f.key);
+              if (retained) {
+                const value = entry.value;
+                retained.recovery.original = value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? { value, present: true } : undefined;
+              }
+            }
           }
         }
         return next;
@@ -1889,39 +1999,53 @@ function BasicInfoPanel({
           ? { value: currentValue as BasicFieldValue, present: true } : undefined;
       // 끝나지 않은 앞선 입력이 있으면 같은 묶음으로 잇고(되돌림 기준 유지), 없으면 지금 화면 값을 기준으로 새로 연다.
       const chain = owner.fieldEdits.get(key);
+      const retained = owner.retainedFieldEdits.get(key);
       const intentId = JSON.stringify([entryId, key]);
       const previousIntent = basicFieldIntents.get(intentId);
       // 이 화면에 열린 묶음이 없어도 다른(닫힌) 화면의 입력이 아직 진행 중이면 그 묶음을 잇는다 —
       // 앞 저장이 성공하면 이 입력의 실패도 그 값으로 되돌려야 한다(화면별 기준을 따로 두면 옛 값으로 돌아간다).
-      const inherited = !chain?.open && previousIntent?.valid && previousIntent.edit?.open ? previousIntent.edit : undefined;
+      const inherited = !chain?.open && retained !== null && previousIntent?.valid && previousIntent.edit?.open && matchesBasicRecoveryIdentity(previousIntent.edit.recovery, owner.basicIdentity) ? previousIntent.edit : undefined;
       // 표 되돌리기는 지금 화면의 표 통로가 우선이다. 이전 화면(다른 페이지·닫힌 창)의 통로는 이미 사라진 표를 가리킬 수 있다.
       const hostApplyToTable = unsaved?.applyToTable;
       const applyToTable = (hostApplyToTable ? (original: BasicFieldOriginal) => hostApplyToTable(entryId, key, original) : undefined)
         ?? recovery?.applyToTable;
-      const edit: BasicFieldEdit = chain?.open ? chain : inherited ?? { latest: {}, open: true, confirmed: recovery === undefined ? renderedOriginal : recovery.original ? { ...recovery.original } : undefined, applyToTable };
-      if (edit === inherited && applyToTable) inherited.applyToTable = applyToTable;
+      const edit: BasicFieldEdit = chain?.open ? chain : retained ?? inherited ?? {
+        latest: {}, open: true, recovery: retained === null || (recovery && (recovery.identity !== undefined) && !matchesBasicRecoveryIdentity(recovery, owner.basicIdentity))
+          ? { original: renderedOriginal } : recovery ?? { original: renderedOriginal, sourceIdentity: chain?.recovery.sourceIdentity },
+      };
+      if (applyToTable) edit.recovery.applyToTable = applyToTable;
       if (previousIntent) previousIntent.valid = false;
-      const mine = { valid: true, edit };
+      const acceptedIdentity = basicRecoveryIdentity({ ...row, ...basicRow, [key]: newVal }, ownDomain);
+      const recoveryLifetime = beginRecoveryLifetime(edit.recovery, owner.basicIdentity);
+      edit.recovery.draft = { value: newVal, present: true };
+      edit.recovery.sourceIdentity ??= owner.basicIdentity;
+      edit.recovery.identity = acceptedIdentity;
+      const mine: BasicFieldIntent = { valid: true, identity: acceptedIdentity, edit };
       basicFieldIntents.set(intentId, mine);
       edit.latest = mine;
       edit.open = true;
       owner.fieldEdits.set(key, edit);
+      owner.retainedFieldEdits.delete(key);
       let lease: ReturnType<NonNullable<UnsavedBridge["beginBasicEdit"]>> | undefined;
-      const latest = () => mine.valid && basicFieldIntents.get(intentId) === mine && (lease?.isCurrent() ?? true);
+      const latest = () => mine.valid && (addressOwnerRef.current.entryId !== owner.entryId
+        || matchesBasicRecoveryIdentity(edit.recovery, addressOwnerRef.current.basicIdentity))
+        && basicFieldIntents.get(intentId) === mine && (lease?.isCurrent() ?? true);
       const uiLatest = () => owner.fieldEdits.get(key) === edit && edit.latest === mine;
       const release = () => {
         mine.valid = false;
         if (basicFieldIntents.get(intentId) === mine) basicFieldIntents.delete(intentId);
         lease?.release();
       };
-      const finish = () => { if (uiLatest()) edit.open = false; release(); };
-      if (unsavedId) lease = unsaved?.beginBasicEdit?.(unsavedId, finish);
+      const finish = () => { if (uiLatest()) edit.open = false; endRecoveryLifetime(edit.recovery, recoveryLifetime); release(); };
+      mine.cancel = finish;
+      if (unsavedId) lease = unsaved?.beginBasicEdit?.(unsavedId, finish, edit.recovery);
       // 같은 칸의 새 입력은 이전 실패 항목을 먼저 없앤다. host의 old.revert 보존을 새 callback에 넘기지 않는다.
       if (unsavedId) unsaved?.resolve(unsavedId);
       const restore = (original: BasicFieldOriginal): boolean => {
         if (!latest()) return false;
         // 표의 낙관적 행도 함께 복원해야 닫았다 다시 열 때 미저장 값이 되살아나지 않는다.
-        edit.applyToTable?.(original);
+        edit.recovery.applyToTable?.(original);
+        edit.recovery.applyToDetail?.(original);
         if (!latest()) return false;
         finish();
         if (uiLive() && uiLatest()) setBasicRow((r) => {
@@ -1932,14 +2056,12 @@ function BasicInfoPanel({
         });
         return true;
       };
-      const revert = () => { if (edit.confirmed) restore(edit.confirmed); else finish(); };
+      const revert = () => { if (edit.recovery.original) restore(edit.recovery.original); else finish(); };
       const fail = (e: unknown) => {
         // 더 새 입력 뒤의 실패는 버린다. 화면 종료만으로 현재 입력의 앱 전체 복구를 버리지 않는다.
         if (!latest()) return;
         // 앞 입력은 서버에 저장됐는데 마지막 입력이 실패했다 — 부모 목록이 저장된 값을 다시 읽게 한 번 알린다.
-        const notify = edit.unnotified;
-        edit.unnotified = undefined;
-        notify?.();
+        flushBasicRefresh(edit.recovery);
         // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
         const m = e instanceof Error ? e.message : "";
         const kind = saveFailureKindOf(e);
@@ -1952,8 +2074,8 @@ function BasicInfoPanel({
             error: m || `'${key}' 저장에 실패했습니다.`, kind,
             retry: async () => latest() ? resend() : false,
             onDiscard: finish,
-            basicRestore: { original: edit.confirmed, apply: restore, applyToTable: edit.applyToTable },
-            revert: edit.confirmed ? revert : undefined,
+            basicRestore: Object.assign(edit.recovery, { apply: restore }),
+            revert: edit.recovery.original ? revert : undefined,
           });
           return;
         }
@@ -1970,23 +2092,32 @@ function BasicInfoPanel({
         if (retry && !latest()) return { value: false, stored: noMore };
         let result: unknown;
         try {
-          result = await acceptedSave(entryId, key, newVal);
+          result = retry
+            ? await acceptedSave(entryId, key, newVal, undefined, { shouldContinue: latest })
+            : await acceptedSave(entryId, key, newVal);
         } catch (e) {
           if (!retry || saveFailureKindOf(e) === "permanent") fail(e);
           return { value: false, stored: noMore };
         }
         // 이미 출발한 요청은 취소한 척하지 않는다. 더 새 입력이 생긴 재시도라도 행 저장은 실제로 됐으니
-        // 확정값과 공용 기록은 그 값으로 맞춘다(더 새 입력은 같은 칸 줄에서 이 뒤에 출발한다). 화면·막대는 바꾸지 않는다.
+        // 확정값은 그 값으로 맞춘다. 취소된 재시도는 새 공용 기록을 시작하지 않는다. 화면·막대는 바꾸지 않는다.
         // row ACK는 실제 확정 근거다. store 대기 중 막대의 되돌림도 같은 descriptor를 읽는다.
-        if (edit.confirmed) { edit.confirmed.value = newVal; edit.confirmed.present = true; }
-        else edit.confirmed = { value: newVal, present: true };
+        edit.recovery.original = { value: newVal, present: true };
+        acknowledgeBasicRecovery(edit.recovery, acceptedIdentity);
         // 저장 응답보다 먼저 이 값을 받은 경우에도 그 관측을 확정 뒤 비교 기준으로 쓴다.
         const observed = basicRowRef.current;
         if (observed.owner === owner && Object.prototype.hasOwnProperty.call(observed.row, key)
           && sameFieldValue((observed.row as Record<string, unknown>)[key], newVal)) {
           observed.applied = { ...observed.applied, [key]: newVal };
         }
-        if (unsavedId) unsaved?.noteBasicServerValue?.(unsavedId, { value: newVal, present: true });
+        if (unsavedId) {
+          const currentRecovery = unsaved?.getBasicRecovery?.(unsavedId);
+          const currentIdentity = currentRecovery ? currentRecovery.identity : undefined;
+          if ((!currentIdentity || currentIdentity === owner.basicIdentity)
+            && (!basicFieldIntents.get(intentId) || basicFieldIntents.get(intentId)?.identity === owner.basicIdentity)) {
+            unsaved?.noteBasicServerValue?.(unsavedId, { value: newVal, present: true });
+          }
+        }
         if (result != null && typeof result === "object" && Object.prototype.hasOwnProperty.call(result, "atomicAddress")) {
           // 주소가 아닌 칸에 주소 확인증이 붙으면 칸이 맞지 않는다. 저장 실패로 바꾸거나 공용 PUT 으로 재전송하지 않는다.
           const read = uiLive() ? ++owner.generation : 0;
@@ -2005,6 +2136,7 @@ function BasicInfoPanel({
         // 공통·커스텀 칸 모두 회사 보관소(basic-store)에도 기록(누가·앱·이전→새값) — 실패해도 행 저장은 유지.
         // 커스텀칸은 그 칸의 라벨(keyToFieldId)을 보관소 키로 사용 → 읽기 빈칸채움(allBasicFields 루프)이 같은 라벨로 되읽음.
         // 이 기록이 끝나야 같은 칸의 다음 입력이 출발한다.
+        if (retry && !latest()) return { value: false, stored: noMore };
         let stored: Promise<void> = noMore;
         if (fieldId && bizno) {
           // 행 저장 대기가 끝나고 공용 PUT이 실제 출발할 때 주소 세대를 관측한다.
@@ -2036,8 +2168,10 @@ function BasicInfoPanel({
           finish();
         });
         const saved = { value: true, stored: finished, completed: () => completed };
-        if (!retry && latest()) { edit.unnotified = undefined; onSaved?.(); }
-        else if (!latest() && onSaved) edit.unnotified = onSaved;
+        if (!retry) {
+          if (!(edit.recovery.lifetime !== recoveryLifetime && edit.recovery.lifetime?.active)) { delete edit.recovery.pendingRefresh; onSaved?.(); }
+          else edit.recovery.pendingRefresh = onSaved;
+        }
         return saved;
       };
       const host = unsavedId && unsaved?.runBasicWrite
@@ -2059,14 +2193,14 @@ function BasicInfoPanel({
         }, host).then(async value => {
           await stored;
           const ok = value && completed();
-          if (ok) { edit.unnotified = undefined; onSaved?.(); }
+          if (ok) { delete edit.recovery.pendingRefresh; onSaved?.(); }
           return ok;
         }).finally(() => { retryInFlight = false; });
       };
       setBasicRow((r) => uiLive() ? { ...r, [key]: newVal } : r);
       await send();
     },
-    [addressOwner, adapter, basicRow, bizno, entryId, onSaved, row, saveOwnField],
+    [addressOwner, adapter, basicRow, bizno, entryId, onSaved, ownDomain, row, saveOwnField],
   );
 
   const handleBasicUpdate = useCallback(
@@ -2206,7 +2340,7 @@ function BasicInfoPanel({
       };
       await persist();
     },
-    [basicRow, detail, entryId, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter, addressOwner, addressEditSupported, saveBasicFieldIntent],
+    [basicRow, detail, entryId, onSaved, commonFieldIdForKey, keyToFieldId, bizno, isNew, onDraftChange, saveOwnField, adapter, addressOwner, addressEditSupported, saveBasicFieldIntent, row],
   );
 
   const [, setAddressPreparationVersion] = useState(0);
@@ -3574,12 +3708,27 @@ export default function UnifiedDetailView({
   /** wide 헤더에 값 칩으로 보여줄 행 칸 키 목록. */
   headerChipKeys?: string[];
 }) {
+  const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
+  const customerKey = customerKeyFromTaxRow(row, adapter.ownDomain);
+  const detailOwner = useMemo(() => ({ entryId, customerKey, adapter }), [entryId, customerKey, adapter]);
+  const detailOwnerRef = useRef(detailOwner);
+  detailOwnerRef.current = detailOwner;
+  const detailRequestRef = useRef(0);
   const [detail, setDetail] = useState<CustomerDetailLite | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // ★"행이 0건"과 "못 불러왔다"는 다르다 — 못 불러온 상태에서 첫 메모 입력칸이 열리면
   //  거기 저장할 때 새 계약 줄이 생긴다(자료 어긋남). 아래 부품이 이 값을 보고 그 통로를 닫는다.
   const [rowsLoadFailed, setRowsLoadFailed] = useState(false);
+  const [detailStateOwner, setDetailStateOwner] = useState(detailOwner);
+  // 새 회사의 자식이 commit되기 전에 이전 자료·편집 경로를 제거한다. 늦은 effect에만 맡기지 않는다.
+  if (detailStateOwner !== detailOwner) {
+    setDetailStateOwner(detailOwner);
+    setDetail(null);
+    setLoading(true);
+    setError(null);
+    setRowsLoadFailed(false);
+  }
   const [activeTab, setActiveTab] = useState<TopTab>(initialTab ?? "__basic__");
   const [subTab, setSubTab] = useState<SubTab>("history");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -3646,12 +3795,7 @@ export default function UnifiedDetailView({
   }, [narrowSwitch]);
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
-  const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
   // 부모 목록 통지는 저장 당시 콜백으로 보낸다. 상세 내부 조회·상태는 현재 회사 소유권에서만 적용한다.
-  const detailBizno = normalizeBizno(row["15사업자번호"] ?? row["04사업자번호"] ?? row["사업자번호"]);
-  const detailOwner = useMemo(() => ({ entryId, bizno: detailBizno, adapter }), [entryId, detailBizno, adapter]);
-  const detailOwnerRef = useRef(detailOwner);
-  detailOwnerRef.current = detailOwner;
   const [nameValue, setNameValue] = useState(() => String(row["02상호명"] ?? ""));
   // ── 신규 등록 모드 상태 (isNew 일 때만 사용) ──
   // NO.56: 신규 등록은 어떤 칸도 자동 선택값을 넣지 않는다(영업담당 "하이브" 하드코딩 제거 — 안 골라도 저장되던 버그).
@@ -3732,7 +3876,9 @@ export default function UnifiedDetailView({
   // 동기 캐시 읽기는 adapter.api.getCachedDomainRows 경유 — ERP 전용 캐시 모듈 직접 의존 제거.
   const loadDetail = useCallback((silent = false) => {
     if (!mountedRef.current || detailOwnerRef.current !== detailOwner) return;
-    const key = customerKeyFromTaxRow(row, adapter.ownDomain);
+    const request = ++detailRequestRef.current;
+    const current = () => mountedRef.current && detailOwnerRef.current === detailOwner && detailRequestRef.current === request;
+    const key = detailOwner.customerKey;
     if (!silent) {
       // 표에서 미리 받아둔 분야 현황이 있으면 즉시 표시(불러오는 중 없이), 없으면 로딩 표시.
       const cached = adapter.api.getCachedDomainRows(key);
@@ -3746,21 +3892,22 @@ export default function UnifiedDetailView({
     }
     adapter.api.loadDomainRows(key)
       .then((data) => {
-        if (!mountedRef.current || detailOwnerRef.current !== detailOwner) return;
-        if (data) setDetail(data);
+        if (!current()) return;
+        setDetail(data);
         setRowsLoadFailed(false);
-        if (!silent) setLoading(false);
+        setError(null);
+        setLoading(false);
       })
       .catch(() => {
-        if (!mountedRef.current || detailOwnerRef.current !== detailOwner) return;
+        if (!current()) return;
         // 조용한 새로고침이어도 "못 불러왔다"는 기억한다 — 이후 판정이 이 값을 본다.
         setRowsLoadFailed(true);
         if (!silent) {
           setError("정보를 불러오지 못했습니다. 다시 시도해 주세요.");
-          setLoading(false);
         }
+        setLoading(false);
       });
-  }, [row, adapter, detailOwner]);
+  }, [adapter, detailOwner]);
 
   // 처음과 대상(회사·어댑터)이 바뀔 때마다 불러온다 — 이전 대상의 응답은 버리므로 새 대상 조회가 없으면 '불러오는 중'에 멈춘다.
   // 어댑터는 앱마다 고정(memo)이라 대상이 그대로면 다시 부르지 않는다.
