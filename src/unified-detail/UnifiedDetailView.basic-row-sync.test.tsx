@@ -1556,6 +1556,19 @@ describe.each(HOSTS)("상세창 기본정보 칸 ↔ 새 row 동기화 — $name
       expect(h.value(REPRESENTATIVE)).toBe("A");
     });
 
+    it("서버 값을 먼저 관측하고 행 저장이 뒤에 확인돼도 다음 서버 변경을 반영한다", async () => {
+      const s = twoStores();
+      const row = (value: boolean) => companyRow({ _id: "row-observation-before-ack", [FLAG]: value });
+      const h = await mount(row(false), s.saveOwnField, undefined, s.api);
+      await h.edit(FLAG, true);
+      await h.rerender(row(true));
+      expect(h.value(FLAG)).toBe("true");
+      await respond(s.rows[0]);
+      await respond(s.stores[0]);
+      await h.rerender(row(false));
+      expect(h.value(FLAG)).toBe("false");
+    });
+
     it("행 저장이 확인된 값을 보호 중 받았으면 이후 다른 사용자의 변경을 반영한다", async () => {
       const s = twoStores();
       const row = (value: boolean) => companyRow({ _id: "row-confirmed-observation", [FLAG]: value });

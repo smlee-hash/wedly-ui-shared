@@ -1980,6 +1980,12 @@ function BasicInfoPanel({
         // row ACK는 실제 확정 근거다. store 대기 중 막대의 되돌림도 같은 descriptor를 읽는다.
         if (edit.confirmed) { edit.confirmed.value = newVal; edit.confirmed.present = true; }
         else edit.confirmed = { value: newVal, present: true };
+        // 저장 응답보다 먼저 이 값을 받은 경우에도 그 관측을 확정 뒤 비교 기준으로 쓴다.
+        const observed = basicRowRef.current;
+        if (observed.owner === owner && Object.prototype.hasOwnProperty.call(observed.row, key)
+          && sameFieldValue((observed.row as Record<string, unknown>)[key], newVal)) {
+          observed.applied = { ...observed.applied, [key]: newVal };
+        }
         if (unsavedId) unsaved?.noteBasicServerValue?.(unsavedId, { value: newVal, present: true });
         if (result != null && typeof result === "object" && Object.prototype.hasOwnProperty.call(result, "atomicAddress")) {
           // 주소가 아닌 칸에 주소 확인증이 붙으면 칸이 맞지 않는다. 저장 실패로 바꾸거나 공용 PUT 으로 재전송하지 않는다.
