@@ -2068,11 +2068,13 @@ function BasicInfoPanel({
       const fail = (e: unknown) => {
         // 더 새 입력 뒤의 실패는 버린다. 화면 종료만으로 현재 입력의 앱 전체 복구를 버리지 않는다.
         if (!reportable()) return;
+        const kind = saveFailureKindOf(e);
+        // 화면이 닫힌 뒤의 규칙상 거절은 되돌릴 화면이 없다 — 전처럼 아무것도 바꾸지 않고 막대 항목도 그대로 둔다.
+        if (kind === "permanent" && !latest()) return;
         // 앞 입력은 서버에 저장됐는데 마지막 입력이 실패했다 — 부모 목록이 저장된 값을 다시 읽게 한 번 알린다.
         flushBasicRefresh(edit.recovery);
         // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.
         const m = e instanceof Error ? e.message : "";
-        const kind = saveFailureKindOf(e);
         // 잠깐 실패(배포 교체·통신 끊김)·로그인 만료면 ★값을 지우지 않는다★ — 앱의 저장 실패 막대에 담아
         // 사용자가 '다시 저장'할 수 있게 한다. 지우면 배포 순간에 친 글자가 통째로 사라진다. 이 동안 칸은 보호(open)된다.
         if (unsaved && kind !== "permanent") {

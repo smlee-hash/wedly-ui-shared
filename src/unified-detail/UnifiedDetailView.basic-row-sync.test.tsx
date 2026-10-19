@@ -2427,3 +2427,94 @@ describe.each(HOSTS)("x6 표·상세의 살아 있는 확정값 — $name", host
     expect(bridge.beginBasicEdit.mock.calls.at(-1)![2]).not.toBe(recovery);
   });
 });
+
+// W28: 화면이 닫혀 보내기·게시는 막혀도(isCurrent=false) 같은 계정의 실패는 남길 수 있는(mayReport=true) host.
+function detachingBridge(withMayReport = true) {
+  const bridge = liveRecoveryBridge();
+  const base = bridge.unsaved.beginBasicEdit!;
+  const state = { detached: false };
+  const beginBasicEdit = vi.fn((id: string, supersede: () => void, recovery?: BridgeRecovery) => {
+    const lease = base(id, supersede, recovery);
+    const handle = { isCurrent: () => !state.detached && lease.isCurrent(), release: lease.release };
+    return withMayReport ? { ...handle, mayReport: () => lease.isCurrent() } : handle;
+  });
+  const resolve = vi.fn(bridge.unsaved.resolve);
+  return { ...bridge, state, resolve, unsaved: { ...bridge.unsaved, beginBasicEdit, resolve } as UnsavedBridge };
+}
+
+describe.each(HOSTS)("W28 화면 종료 뒤 같은 계정의 실패 — $name", host => {
+  it("잠깐 실패는 막대에 한 번 남기고, 그 항목의 다시 저장은 보내지 않는다", async () => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = detachingBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `w28-detached-transient-${host.name}`, [REPRESENTATIVE]: "확정 A" });
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "상세 B");
+    await h.unmount();
+    bridge.state.detached = true;
+    await respond(s.rows[0], transientFailure());
+    expect(bridge.report).toHaveBeenCalledTimes(1);
+    const entry = bridge.report.mock.calls[0]![0];
+    expect(entry).toMatchObject({ fieldKey: REPRESENTATIVE, value: "상세 B", kind: "transient" });
+    let retried: boolean | undefined;
+    await act(async () => { retried = await entry.retry(); });
+    expect(retried).toBe(false);
+    expect(s.saveOwnField).toHaveBeenCalledTimes(1);
+    expect(s.saveBasicField).not.toHaveBeenCalled();
+    expect(bridge.applyToTable).not.toHaveBeenCalled();
+  });
+
+  it("mayReport가 없는 옛 host는 화면 종료 뒤의 실패를 전처럼 남기지 않는다", async () => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = detachingBridge(false);
+    const s = twoStores();
+    const row = companyRow({ _id: `w28-detached-legacy-${host.name}`, [REPRESENTATIVE]: "확정 A" });
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "상세 B");
+    await h.unmount();
+    bridge.state.detached = true;
+    await respond(s.rows[0], transientFailure());
+    expect(bridge.report).not.toHaveBeenCalled();
+  });
+
+  it("규칙상 거절은 화면 종료 뒤 되돌리기·알림·항목 정리를 하지 않는다", async () => {
+    const alertSpy = vi.fn();
+    vi.stubGlobal("alert", alertSpy);
+    const bridge = detachingBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `w28-detached-permanent-${host.name}`, [REPRESENTATIVE]: "확정 A" });
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "상세 B");
+    const resolvedBefore = bridge.resolve.mock.calls.length;
+    await h.unmount();
+    bridge.state.detached = true;
+    await respond(s.rows[0], new Error("w28 permanent rejection"));
+    expect(bridge.report).not.toHaveBeenCalled();
+    expect(bridge.applyToTable).not.toHaveBeenCalled();
+    expect(bridge.resolve.mock.calls.length).toBe(resolvedBefore);
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  it("다시 저장 도중 화면이 닫히고 규칙상 거절되면 막대 항목을 그대로 둔다", async () => {
+    vi.stubGlobal("alert", vi.fn());
+    const bridge = detachingBridge();
+    const s = twoStores();
+    const row = companyRow({ _id: `w28-detached-retry-${host.name}`, [REPRESENTATIVE]: "확정 A" });
+    const h = await mountHost(host, row, s.saveOwnField, bridge.unsaved, s.api);
+    await h.edit(REPRESENTATIVE, "상세 B");
+    await respond(s.rows[0], transientFailure());
+    expect(bridge.report).toHaveBeenCalledTimes(1);
+    const entry = bridge.report.mock.calls[0]![0];
+    let retried: Promise<boolean> | undefined;
+    await act(async () => { retried = entry.retry(); });
+    await settle();
+    expect(s.saveOwnField).toHaveBeenCalledTimes(2);
+    const resolvedBefore = bridge.resolve.mock.calls.length;
+    await h.unmount();
+    bridge.state.detached = true;
+    await respond(s.rows[1], new Error("w28 permanent rejection"));
+    await act(async () => { await retried; });
+    expect(bridge.resolve.mock.calls.length).toBe(resolvedBefore);
+    expect(bridge.applyToTable).not.toHaveBeenCalled();
+  });
+});
