@@ -148,6 +148,12 @@ type SelectChildProps = Parameters<typeof import("./editors").SelectEditor>[0];
 const fixedCn = { cn: (...classes: unknown[]) => classes.filter(Boolean).join(" ") };
 dependencies["../lib/cn"] = fixedCn;
 const NativeTextEditor = compile<TextChildProps>("../components/Editors.tsx", "TextEditor");
+// 새 판의 선택 상자는 색 고르기 판을 함께 불러온다. 이 시험은 색을 고르지 않으므로 닫힌 판으로 채운다.
+dependencies["./option-color-picker"] = {
+  useOptionColorPicker: () => ({ openFor: null, pos: null, toggle: () => {}, close: () => {} }),
+  OptionColorButton: () => null,
+  OptionColorPanel: () => null,
+};
 const NativeSelectDropdownBody = compile<SelectDropdownBodyProps>(
   "../../node_modules/@wedly/detail-modal-shared/src/components/SelectDropdown.tsx", "SelectDropdownBody",
 );
