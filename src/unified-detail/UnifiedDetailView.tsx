@@ -2034,6 +2034,10 @@ function BasicInfoPanel({
       const latest = () => mine.valid && (addressOwnerRef.current.entryId !== owner.entryId
         || matchesBasicRecoveryIdentity(edit.recovery, addressOwnerRef.current.basicIdentity))
         && basicFieldIntents.get(intentId) === mine && (lease?.isCurrent() ?? true);
+      // 실패를 막대에 남겨도 되는가 — 페이지가 닫혀 보내기·게시는 막혀도 같은 계정의 실패 입력은 잃지 않는다.
+      const reportable = () => mine.valid && (addressOwnerRef.current.entryId !== owner.entryId
+        || matchesBasicRecoveryIdentity(edit.recovery, addressOwnerRef.current.basicIdentity))
+        && basicFieldIntents.get(intentId) === mine && (lease?.mayReport ? lease.mayReport() : (lease?.isCurrent() ?? true));
       const uiLatest = () => owner.fieldEdits.get(key) === edit && edit.latest === mine;
       const release = () => {
         mine.valid = false;
@@ -2063,7 +2067,7 @@ function BasicInfoPanel({
       const revert = () => { if (edit.recovery.original) restore(edit.recovery.original); else finish(); };
       const fail = (e: unknown) => {
         // 더 새 입력 뒤의 실패는 버린다. 화면 종료만으로 현재 입력의 앱 전체 복구를 버리지 않는다.
-        if (!latest()) return;
+        if (!reportable()) return;
         // 앞 입력은 서버에 저장됐는데 마지막 입력이 실패했다 — 부모 목록이 저장된 값을 다시 읽게 한 번 알린다.
         flushBasicRefresh(edit.recovery);
         // 서버가 준 사유(예: 'DB 분류' 위들리 잠금 안내)를 그대로 보여준다 — 일반 문구로 뭉개지 않는다.

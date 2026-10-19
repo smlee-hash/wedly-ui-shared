@@ -297,7 +297,11 @@ export type UnsavedBridge = {
    */
   noteBasicServerValue?: (id: string, original: { value: string | number | boolean | null; present: boolean }) => void;
   /** 표·상세의 비주소 최신 권한과 복원 객체를 잇는다. 기존 두 인수 host도 지원한다. */
-  beginBasicEdit?: (id: string, onSuperseded: () => void, recovery?: BasicRecovery) => { isCurrent: () => boolean; release: () => void };
+  beginBasicEdit?: (id: string, onSuperseded: () => void, recovery?: BasicRecovery) => {
+    isCurrent: () => boolean; release: () => void;
+    /** 보내도 되는가(isCurrent)와 별개로, 같은 계정의 이 입력 실패를 막대에 남겨도 되는가. 없으면 isCurrent 를 따른다. */
+    mayReport?: () => boolean;
+  };
   /** 표·상세의 같은 칸 저장을 행과 추가 기록까지 한 줄로 끝낸다. */
   runBasicWrite?: <T>(id: string, task: () => Promise<T>) => Promise<T>;
   /** 이미 다른 시도로 교체/취소된 주소 retry를 거절하는 앱 보관함 조회. */
