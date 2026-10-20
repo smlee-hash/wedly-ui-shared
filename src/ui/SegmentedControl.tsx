@@ -27,8 +27,11 @@ export function SegmentedControl({
             type="button"
             aria-pressed={on}
             onClick={() => onChange(opt.value)}
+            // 키보드 초점은 WEDLY 링으로 보인다. 링은 box-shadow 라 transition 목록에서 빼야
+            // 초점이 빠질 때 서서히 사라지며 남지 않는다. 초점 동안 위로 올려 옆 흰 알약이 링을 덮지 않게 한다.
             className={cn(
-              "rounded-full px-4 py-1 text-wedly-sub transition",
+              "rounded-full px-4 py-1 text-wedly-sub transition-[color,background-color,border-color,outline-color,opacity,filter]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wedly-accent focus-visible:ring-offset-2 focus-visible:transition-none focus-visible:relative focus-visible:z-10",
               on ? "bg-white font-semibold text-wedly-t1 shadow-sm" : "text-wedly-t2 hover:text-wedly-t1",
             )}
           >
