@@ -2856,6 +2856,13 @@ export default function UnifiedDetailView({
   // 데이터 패치 — 처음 1회는 스피너와 함께, 저장 후 새로고침은 조용히(silent: 스피너 없이)
   // 비동기 로드는 adapter.api.loadDomainRows 경유(ERP 전용 경로 캡슐화).
   // 동기 캐시 읽기는 adapter.api.getCachedDomainRows 경유 — ERP 전용 캐시 모듈 직접 의존 제거.
+  // 조회 기준(사업자번호 → 연락처 → 항목 번호 순)이 지금 무엇인가. 연락처·사업자번호를 처음 저장하면 기준이 바뀐다.
+  //  행 객체만 새로 와서 기준이 같으면 다시 부르지 않고, 기준이 바뀐 뒤 늦게 도착한 옛 기준의 응답은 버린다
+  //  (10/15 「테스트」 업체: 옛 기준 실패 응답이 「못 불러옴」으로 화면을 덮었다).
+  const detailKey = customerKeyFromTaxRow(row, adapter.ownDomain);
+  const detailKeyRef = useRef(detailKey);
+  useEffect(() => { detailKeyRef.current = detailKey; }, [detailKey]);
+
   const loadDetail = useCallback((silent = false) => {
     const key = customerKeyFromTaxRow(row, adapter.ownDomain);
     if (!silent) {
@@ -2871,13 +2878,13 @@ export default function UnifiedDetailView({
     }
     adapter.api.loadDomainRows(key)
       .then((data) => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || detailKeyRef.current !== key) return;
         if (data) setDetail(data);
         setRowsLoadFailed(false);
         if (!silent) setLoading(false);
       })
       .catch(() => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || detailKeyRef.current !== key) return;
         // 조용한 새로고침이어도 "못 불러왔다"는 기억한다 — 이후 판정이 이 값을 본다.
         setRowsLoadFailed(true);
         if (!silent) {
@@ -2893,13 +2900,24 @@ export default function UnifiedDetailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 조회 기준이 바뀌면 새 기준으로 다시 부른다. 이미 화면에 내용이 있고 오류가 없으면 조용히(스피너 없이 —
+  //  입력하던 칸이 사라지지 않게), 아직 못 받았거나 오류가 떠 있으면 처음처럼 부른다.
+  const keyLoadedRef = useRef(detailKey);
+  useEffect(() => {
+    if (isNew || keyLoadedRef.current === detailKey) return;
+    keyLoadedRef.current = detailKey;
+    loadDetail(detail !== null && error === null);
+  }, [detailKey, isNew, loadDetail, detail, error]);
+
   // 어떤 칸이든 저장되면: 모달의 분야 데이터(detail)를 조용히 새로고침
   //  → '전체 영역 현황' 요약표·상단 상태점·분야 탭 값이 그 자리에서 바로 반영된다.
   //  + 뒤에 있는 목록 표도 새로고침(onSaved)하여 표↔상세창이 어긋나지 않게 한다.
+  //  저장하는 사이 조회 기준이 바뀌었으면(= 이 함수는 저장을 시작할 때의 옛 기준을 들고 있다) 옛 기준으로 다시 부르지 않는다.
+  //  기준이 바뀔 때 새 기준으로 이미 불렀고, 표 새로고침(onSaved)은 그래도 끝까지 부른다.
   const handleSaved = useCallback(() => {
-    loadDetail(true);
+    if (detailKeyRef.current === detailKey) loadDetail(true);
     onSaved?.();
-  }, [loadDetail, onSaved]);
+  }, [loadDetail, onSaved, detailKey]);
 
   // ── 신규 등록: 입력값(draft) 전체를 한 번에 POST. adapter.api.createEntry 경유(ERP 전용 경로 캡슐화). ──
   // 성공 후 히스토리 임시 메모 등록은 adapter.api.addComment + auth/me(공용) 경유.
