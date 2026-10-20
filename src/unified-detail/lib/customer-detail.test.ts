@@ -97,3 +97,38 @@ describe("표와 상세의 고객 식별", () => {
     expect(basicRecoveryIdentity({ _id: "1" })).not.toBe(basicRecoveryIdentity({ _id: "2" }));
   });
 });
+
+describe("정책자금 복구 고객 식별", () => {
+  it("사업자번호의 표시가 달라도 같은 고객이며 실제 분야를 유지한다", () => {
+    const identity = basicRecoveryIdentity({ _id: "1", "04사업자번호": "123-45-67890" }, "policy-fund");
+    expect(identity).toBe(basicRecoveryIdentity({ _id: "2", "04사업자번호": "1234567890" }, "policy-fund"));
+    expect(identity).toBe(JSON.stringify(["policy-fund", "b:1234567890"]));
+  });
+
+  it("행 id가 같아도 사업자번호가 바뀌면 다른 고객이다", () => {
+    const row = { _id: "1", "04사업자번호": "123-45-67890", "03대표연락처": "01012345678" };
+    expect(basicRecoveryIdentity(row, "policy-fund")).not.toBe(
+      basicRecoveryIdentity({ ...row, "04사업자번호": "987-65-43210" }, "policy-fund"),
+    );
+  });
+
+  it("사업자번호가 없으면 정규화한 대표연락처로 같은 고객을 찾는다", () => {
+    const identity = basicRecoveryIdentity({ _id: "1", "03대표연락처": "+82 10-1234-5678" }, "policy-fund");
+    expect(identity).toBe(basicRecoveryIdentity({ _id: "2", "03대표연락처": "01012345678" }, "policy-fund"));
+    expect(identity).toBe(JSON.stringify(["policy-fund", "p:01012345678"]));
+  });
+
+  it("사업자번호가 없고 행 id가 같아도 대표연락처가 바뀌면 다른 고객이다", () => {
+    expect(basicRecoveryIdentity({ _id: "1", "03대표연락처": "010-1234-5678" }, "policy-fund")).not.toBe(
+      basicRecoveryIdentity({ _id: "1", "03대표연락처": "010-9876-5432" }, "policy-fund"),
+    );
+  });
+
+  it("식별값이 없으면 실제 분야와 행 id를 함께 구분한다", () => {
+    const identity = basicRecoveryIdentity({ _id: "1" }, "policy-fund");
+    expect(identity).toBe(JSON.stringify(["policy-fund", "i:policy-fund:1"]));
+    expect(identity).not.toBe(basicRecoveryIdentity({ _id: "1" }, "government-subsidy"));
+    expect(identity).not.toBe(basicRecoveryIdentity({ _id: "1" }, "tax-amendment"));
+    expect(identity).not.toBe(basicRecoveryIdentity({ _id: "2" }, "policy-fund"));
+  });
+});

@@ -30,7 +30,7 @@ function recoveryPhoneDigits(phone: unknown): string {
 
 /** 표 원본과 공유 상세가 같은 고객의 진행 중 복원 객체를 식별한다. */
 export function basicRecoveryIdentity(row: Record<string, unknown>, ownDomain = "tax-amendment"): string {
-  const normalized = ownDomain === "government-subsidy" ? { ...row,
+  const normalized = ownDomain === "government-subsidy" || ownDomain === "policy-fund" ? { ...row,
     "15사업자번호": row["15사업자번호"] ?? row["04사업자번호"],
     "04연락처": row["04연락처"] ?? row["03대표연락처"],
   } : row;
