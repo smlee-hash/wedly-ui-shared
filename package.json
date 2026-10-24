@@ -36,6 +36,10 @@
     "./ui/required-tokens": {
       "types": "./src/ui/required-tokens.ts",
       "default": "./src/ui/required-tokens.ts"
+    },
+    "./history-scroll": {
+      "types": "./src/components/history-scroll.ts",
+      "default": "./src/components/history-scroll.ts"
     }
   },
   "files": [
