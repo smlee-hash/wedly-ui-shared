@@ -24,6 +24,7 @@ import {
   type UnifiedComment } from "../unified/history-core";
 import { HistoryRecapCard } from "./HistoryRecapCard";
 import { KakaoReportDialog } from "./KakaoReportDialog";
+import { isNearBottom, shouldScrollToBottom } from "./history-scroll";
 
 /** 대표님용 글을 기다리는 최대 시간 — 서버 쪽 AI 제한(45초)보다 조금 길게. */
 const KAKAO_AI_TIMEOUT_MS = 60_000;
@@ -547,12 +548,31 @@ export function HistoryPanel({
     };
   }, [draftId, sendOnLeave]);
 
+  // ─── 맨 아래로 따라가기 (노션 3fe7b6a9) ───────────────────────────────────
+  // ★전에는 목록(comments)이 바뀔 때마다 무조건 맨 아래로 내렸다. 5초 주기 갱신·부모 씨앗·수정·삭제도
+  //  새 배열을 만들어서, 위로 올려 이전 내역을 읽는 중에도 5초 안에 맨 아래로 끌려갔다.
+  //  이제는 ① 사용자가 맨 아래에 붙어 있을 때(stuck) ② 내려가라고 정해 둔 때(force: 처음 열기·
+  //  내가 저장함·분류 탭을 직접 바꿈·다른 사업장으로 바뀜)만 내린다. 위로 올려 읽는 중이면 그대로 둔다.
   const listRef = useRef<HTMLDivElement>(null);
+  const stuckRef = useRef(true);
+  const forceScrollRef = useRef(true);
   useEffect(() => {
-    if (!loading && listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
+    forceScrollRef.current = true; // 다른 사업장 = 처음 여는 것과 같다(이 효과가 아래 효과보다 먼저 선언돼야 한다)
+    stuckRef.current = true;
+  }, [pageId]);
+  useEffect(() => {
+    const el = listRef.current;
+    if (loading || !el) return; // 불러오는 중에는 내리라는 요청(force)을 그대로 둔다
+    if (shouldScrollToBottom({ force: forceScrollRef.current, stuck: stuckRef.current })) {
+      el.scrollTop = el.scrollHeight;
+      stuckRef.current = true;
     }
+    forceScrollRef.current = false;
   }, [comments, loading, activeCategory]);
+  const handleListScroll = useCallback(() => {
+    const el = listRef.current;
+    if (el) stuckRef.current = isNearBottom(el);
+  }, []);
 
   // R9 — handlePaste (from ERP, gated by enableImagePaste)
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -631,6 +651,7 @@ export function HistoryPanel({
       const submitCategory: CommentCategory = activeCategory === "all" ? "general" : activeCategory;
       // R4: use adapter.create
       const updated = await adapter.create({ text: composed, category: submitCategory });
+      forceScrollRef.current = true; // 내가 방금 쓴 기록은 위치와 상관없이 보여 준다
       setComments(updated);
       onCountChange?.(updated.length);
       setDraft("");
@@ -811,6 +832,8 @@ export function HistoryPanel({
                         setEditingCategoryId(String(t.id));
                         setCategoryDraft(t.label);
                       } else {
+                        // 다른 분류로 바꿀 때만 그 분류의 맨 아래로 — 이미 보던 탭을 다시 누르면 아무것도 안 바뀐다
+                        if (t.id !== activeCategory) forceScrollRef.current = true;
                         setActiveCategory(t.id);
                       }
                     }}
@@ -933,7 +956,7 @@ export function HistoryPanel({
       )}
 
       {/* Comments list */}
-      <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-4 min-h-0">
+      <div ref={listRef} onScroll={handleListScroll} className="flex-1 overflow-y-auto px-4 py-3 space-y-4 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center py-10">
             <div className="w-5 h-5 border-2 border-wedly-accent/30 border-t-wedly-accent rounded-full animate-spin" />
