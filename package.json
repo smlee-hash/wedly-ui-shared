@@ -44,6 +44,10 @@
     "./unified-detail/three-pane": {
       "types": "./src/unified-detail/ThreePaneShell.tsx",
       "default": "./src/unified-detail/ThreePaneShell.tsx"
+    },
+    "./history-scroll": {
+      "types": "./src/components/history-scroll.ts",
+      "default": "./src/components/history-scroll.ts"
     }
   },
   "files": [
