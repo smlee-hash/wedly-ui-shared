@@ -25,6 +25,7 @@ import {
 import { HistoryRecapCard } from "./HistoryRecapCard";
 import { KakaoReportDialog } from "./KakaoReportDialog";
 import { isNearBottom, shouldScrollToBottom } from "./history-scroll";
+import { findScrollContainer, isListNearScrollerBottom, outerScrollDelta } from "./history-scroll-container";
 
 /** 대표님용 글을 기다리는 최대 시간 — 서버 쪽 AI 제한(45초)보다 조금 길게. */
 const KAKAO_AI_TIMEOUT_MS = 60_000;
@@ -565,6 +566,10 @@ export function HistoryPanel({
   //  새 배열을 만들어서, 위로 올려 이전 내역을 읽는 중에도 5초 안에 맨 아래로 끌려갔다.
   //  이제는 ① 사용자가 맨 아래에 붙어 있을 때(stuck) ② 내려가라고 정해 둔 때(force: 처음 열기·
   //  내가 저장함·분류 탭을 직접 바꿈·다른 사업장으로 바뀜)만 내린다. 위로 올려 읽는 중이면 그대로 둔다.
+  //  ★패널이 높이가 정해지지 않은 부모 안에 있으면 목록 상자는 스스로 스크롤되지 않고 **바깥 조상 칸**이 스크롤된다
+  //  (이때 listRef.scrollTop 을 바꿔도 아무 일이 없다). 그 배치에서는 바깥 칸을 패널 끝(입력 칸 포함)까지 내리고,
+  //  「맨 아래에 붙어 있나」도 바깥 칸의 scroll 로 판정한다. 목록 상자가 스스로 스크롤되는 배치는 전과 같다.
+  const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const stuckRef = useRef(true);
   const forceScrollRef = useRef(true);
@@ -577,11 +582,27 @@ export function HistoryPanel({
   useEffect(() => {
     const el = listRef.current;
     if (loading || !el) return; // 불러오는 중에는 내리라는 요청(force)을 그대로 둔다
+    const scroller = findScrollContainer(el);
+    const outer = scroller && scroller !== el ? scroller : null; // 바깥 조상 칸이 스크롤되는 배치
     if (shouldScrollToBottom({ force: forceScrollRef.current, stuck: stuckRef.current })) {
-      el.scrollTop = el.scrollHeight;
+      if (outer) {
+        const panel = rootRef.current;
+        if (panel) {
+          const delta = outerScrollDelta(panel.getBoundingClientRect().bottom, outer.getBoundingClientRect().bottom);
+          if (delta > 0) outer.scrollTop += delta;
+        }
+      } else {
+        el.scrollTop = el.scrollHeight;
+      }
       stuckRef.current = true;
     }
     forceScrollRef.current = false;
+    if (!outer) return;
+    const handleOuterScroll = () => {
+      stuckRef.current = isListNearScrollerBottom(el.getBoundingClientRect().bottom, outer.getBoundingClientRect().bottom);
+    };
+    outer.addEventListener("scroll", handleOuterScroll, { passive: true });
+    return () => outer.removeEventListener("scroll", handleOuterScroll);
   }, [comments, loading, activeCategory, scrollTick]);
   const handleListScroll = useCallback(() => {
     const el = listRef.current;
@@ -781,7 +802,7 @@ export function HistoryPanel({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div ref={rootRef} className="flex flex-col h-full">
       {/* Category tabs */}
       {!hideCategories && (
       <div className="border-b border-wedly-bd/60 flex-shrink-0 flex items-center">
