@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HistoryPanel, type HistoryAdapter } from "./HistoryPanel";
+import SectionHistoryPanel from "./SectionHistoryPanel";
 import type { UnifiedComment } from "../unified/history-core";
 
 // 사업장 상세창 히스토리에서 위쪽 이전 내역을 읽는 중인데 화면이 저절로 맨 아래로 내려가는 결함(노션 3fe7b6a9).
@@ -302,5 +303,89 @@ describe("맨 아래로 내려가야 하는 경우", () => {
     });
     await settle(30_000);
     expect(list().scrollTop).toBe(100);
+  });
+});
+
+// 분야별 히스토리(SectionHistoryPanel) 연결: 저장(onPersist)을 기다리는 동안 목록을 **먼저** 바꾸고(낙관적 반영),
+// 저장이 끝나면 같은 배열을 돌려준다. 그래서 부모 씨앗 효과가 저장을 기다리는 사이 이미 목록을 바꿔 버려,
+// 저장 뒤 setComments(같은 배열)는 React 가 버린다 — 내려가라는 요청(force)이 효과 없이 남는다.
+describe("분야별 히스토리 — 저장을 기다리는 사이 목록이 먼저 바뀌는 연결", () => {
+  const renderSection = async (initial: UnifiedComment[], onPersist: (next: UnifiedComment[]) => Promise<void>) => {
+    await act(async () => {
+      root.render(
+        <SectionHistoryPanel
+          storageId="1234567890:policy"
+          initial={initial}
+          onPersist={onPersist}
+          ownSource="hive"
+          currentUserName="나"
+        />,
+      );
+    });
+    await settle(0);
+  };
+  /** 저장이 한 틱(50ms) 뒤에 끝난다 — 저장을 기다리는 사이 화면이 먼저 바뀌는 것을 드러낸다. */
+  const slowPersist = () => vi.fn(() => new Promise<void>((resolve) => setTimeout(resolve, 50)));
+  const initialList = () => [mine(1), ...Array.from({ length: 29 }, (_, i) => other(i + 2))];
+
+  it("위로 올려 둔 채 내가 새 히스토리를 저장하면 저장이 끝난 뒤 맨 아래로 간다", async () => {
+    const persist = slowPersist();
+    await renderSection(initialList(), persist);
+    await readUp(100);
+    layout.height = 2120;
+    await typeInto(container.querySelector("textarea") as HTMLTextAreaElement, "방금 쓴 기록");
+    await act(async () => {
+      buttonByText(container, "등록").click();
+    });
+    await settle(100);
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(list().textContent).toContain("방금 쓴 기록");
+    expect(list().scrollTop).toBe(bottomOf());
+  });
+
+  it("내가 저장한 뒤 다시 위로 올려 옛 기록을 수정·저장해도 위치가 그대로다(내려가라는 요청이 남지 않는다)", async () => {
+    const persist = slowPersist();
+    await renderSection(initialList(), persist);
+    await readUp(100);
+    layout.height = 2120;
+    await typeInto(container.querySelector("textarea") as HTMLTextAreaElement, "방금 쓴 기록");
+    await act(async () => {
+      buttonByText(container, "등록").click();
+    });
+    await settle(100);
+    await readUp(100);
+    await act(async () => {
+      (container.querySelector('[aria-label="히스토리 수정"]') as HTMLButtonElement).click();
+    });
+    await typeInto(list().querySelector("textarea") as HTMLTextAreaElement, "고친 기록");
+    await act(async () => {
+      buttonByText(list(), "저장").click();
+    });
+    await settle(100);
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(list().textContent).toContain("고친 기록");
+    expect(list().scrollTop).toBe(100);
+  });
+});
+
+describe("저장이 실패했을 때", () => {
+  it("내려가라는 요청이 남지 않아, 이후 남이 쓴 새 내역이 와도 위로 올려 둔 위치가 그대로다", async () => {
+    const s = makeServer(manyOthers(30));
+    s.create.mockRejectedValue(new Error("저장 실패"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await render(s.adapter);
+    await readUp(100);
+    await typeInto(container.querySelector("textarea") as HTMLTextAreaElement, "저장 안 되는 기록");
+    await act(async () => {
+      buttonByText(container, "등록").click();
+    });
+    await settle(0);
+    expect(s.create).toHaveBeenCalledTimes(1);
+    layout.height = 2120;
+    s.set([...manyOthers(30), other(31)]);
+    await settle(5000);
+    expect(list().textContent).toContain("상담 내역 31");
+    expect(list().scrollTop).toBe(100);
+    errorSpy.mockRestore();
   });
 });
