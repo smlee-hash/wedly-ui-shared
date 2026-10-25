@@ -568,6 +568,8 @@ export function HistoryPanel({
   const listRef = useRef<HTMLDivElement>(null);
   const stuckRef = useRef(true);
   const forceScrollRef = useRef(true);
+  /** 목록이 같은 배열이어도 맨 아래로 내리는 효과를 다시 돌리는 신호(저장 뒤 같은 배열이 돌아오는 연결용). */
+  const [scrollTick, setScrollTick] = useState(0);
   useEffect(() => {
     forceScrollRef.current = true; // 다른 사업장 = 처음 여는 것과 같다(이 효과가 아래 효과보다 먼저 선언돼야 한다)
     stuckRef.current = true;
@@ -580,7 +582,7 @@ export function HistoryPanel({
       stuckRef.current = true;
     }
     forceScrollRef.current = false;
-  }, [comments, loading, activeCategory]);
+  }, [comments, loading, activeCategory, scrollTick]);
   const handleListScroll = useCallback(() => {
     const el = listRef.current;
     if (el) stuckRef.current = isNearBottom(el);
@@ -662,9 +664,19 @@ export function HistoryPanel({
 
       const submitCategory: CommentCategory = activeCategory === "all" ? "general" : activeCategory;
       // R4: use adapter.create
-      const updated = await adapter.create({ text: composed, category: submitCategory });
+      // 저장을 기다리는 사이 목록이 먼저 바뀌는 연결(분야별 히스토리)도 있어, 내려가라는 요청은 저장 전에 세운다
+      const prevForce = forceScrollRef.current;
+      forceScrollRef.current = true;
+      let updated: UnifiedComment[];
+      try {
+        updated = await adapter.create({ text: composed, category: submitCategory });
+      } catch (err) {
+        forceScrollRef.current = prevForce; // 저장이 실패하면 요청을 남기지 않는다
+        throw err;
+      }
       forceScrollRef.current = true; // 내가 방금 쓴 기록은 위치와 상관없이 보여 준다
       setComments(updated);
+      setScrollTick((t) => t + 1); // 돌아온 목록이 이미 화면의 그 배열이어도 맨 아래로 내리는 효과를 다시 돌린다
       onCountChange?.(updated.length);
       setDraft("");
       if (draftId) clearDraft(draftId);
