@@ -28,6 +28,7 @@ import { FieldOptionsProvider } from "./field-options-context";
 import SectionHistoryPanel from "./SectionHistoryPanel";
 import { EditableFieldRow, BasicScopeBadge, type FieldEditCapture } from "./editors";
 import BasicFilesField from "./BasicFilesField";
+import ReportRegenerateControl, { isReportRegenerateColumn } from "./ReportRegenerateControl";
 import NewEntryReportUpload, { type DraftFile } from "./NewEntryReportUpload";
 import { CommonFieldsLauncher } from "./CommonFieldsLauncher";
 import { UNIFIED_TYPE_OPTIONS } from "./lib/column-type-options";
@@ -2864,6 +2865,17 @@ function BasicInfoPanel({
                           saveOwnField={async (...args) => { await saveOwnField(...args); }}
                           onSaved={onSaved}
                         />
+                        {/* NO.611: 「리포트」 칸 아래의 「리포트 최신 버전으로 재생성」 — 어댑터가 통로를 줄 때만(신규 등록은 위에서 이미 제외). */}
+                        {adapter.reportRegenerate && isReportRegenerateColumn(col) && (
+                          <div className="mt-2">
+                            <ReportRegenerateControl
+                              key={String(r["_id"] ?? "")}
+                              row={r}
+                              adapter={adapter.reportRegenerate}
+                              onSaved={onSaved}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
