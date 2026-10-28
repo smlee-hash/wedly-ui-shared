@@ -2860,6 +2860,7 @@ function BasicInfoPanel({
                       <div className={stacked ? "w-full min-w-0" : "flex-1 min-w-0"}>
                         <BasicFilesField
                           row={r}
+                          detail={detail}
                           adapter={adapter}
                           entryId={String(r["_id"] ?? "")}
                           saveOwnField={async (...args) => { await saveOwnField(...args); }}
@@ -3644,11 +3645,13 @@ function WideGroupHistory({
 
 function WideFilesPane({
   row,
+  detail,
   entryId,
   adapter,
   onSaved,
 }: {
   row: RowData;
+  detail: CustomerDetailLite | null;
   entryId: string;
   adapter: UnifiedDetailAdapter;
   onSaved?: () => void;
@@ -3673,6 +3676,8 @@ function WideFilesPane({
         defaultCategoryKey={adapter.ownFileFields[0]?.key ?? "첨부파일"}
         readOnly={false}
         includeSharedFiles
+        // NO.611 §5 — 기본정보 파일 칸과 같은 회사 전체 목록(같은 업체의 모든 줄 합산).
+        allFiles={adapter.getAllFiles(row, detail)}
       />
     </div>
   );
@@ -4714,7 +4719,7 @@ export default function UnifiedDetailView({
                   );
                 })()
               ) : (
-                <WideFilesPane row={row} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
+                <WideFilesPane row={row} detail={detail} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
               )}
                 </>
               )}

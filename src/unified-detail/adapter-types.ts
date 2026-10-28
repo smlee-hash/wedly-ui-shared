@@ -392,8 +392,10 @@ export interface UnifiedDetailAdapter {
   /**
    * 회사 전체 파일을 모아 반환 — 기본정보 "파일" 칸(2개 미리보기 + 더보기 팝업)이 사용.
    * 앱별 저장 방식 흡수: 하이브·일루아 = row["_files"] 묶음, ERP = ownFileFields 칸별 파일 합치기.
+   * detail(같은 업체의 모든 줄)은 선택 인자 — 주면 앱이 모든 줄의 파일을 합쳐 세 앱이 같은 목록을 보인다(NO.611 §5).
+   * 인자 적은 옛 구현도 호환된다.
    */
-  getAllFiles: (row: Record<string, unknown>) => FileMetaLite[];
+  getAllFiles: (row: Record<string, unknown>, detail?: CustomerDetailLite | null) => FileMetaLite[];
 
   /**
    * NO.104 재작업: 기본정보 파일 칸 인라인 다운로드 통로 (선택 — 미주입 시 버튼 없음).
