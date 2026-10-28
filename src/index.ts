@@ -205,6 +205,7 @@ export type {
   UnsavedBridge,
 } from "./unified-detail/adapter-types";
 export { saveFailureKindOf } from "./unified-detail/adapter-types";
+export type { ReportRegenStatus } from "./unified-detail/ReportRegenerateControl";
 export { FieldOptionsProvider, useFieldOptions } from "./unified-detail/field-options-context";
 export type { CustomerDetailLite, DomainRowLite } from "./unified-detail/lib/customer-detail";
 export type { DomainGroup } from "./unified-detail/lib/domain-config";
