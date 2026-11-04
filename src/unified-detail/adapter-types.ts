@@ -238,6 +238,8 @@ export interface UnifiedDetailAdapter {
     SectionSettlementTab: React.ComponentType<any>;
     /** 분야 그룹별 커스텀 편집기. 키 = DomainGroup.key. 제공 시 기본 SectionDetailPanel 대신 렌더(미제공이면 기존 동작). */
     sectionPanels?: Record<string, React.ComponentType<SectionPanelProps>>;
+    /** 기본정보 탭 맨 아래(「기본정보 변경 내역」 바로 위)에 앱이 그리는 추가 부품 — 받는 값은 열린 행. 미제공이면 안 그림(하이브: 담당 팀장 변경 기록 NO.663). */
+    BasicInfoExtra?: React.ComponentType<{ row: Record<string, unknown> }>;
   };
 
   /** 자기 도메인(경정청구) 파일 탭 칸 정의 목록 */

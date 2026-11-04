@@ -1216,3 +1216,60 @@ describe("v9 상세 조회 응답의 원래 회사 소유권", () => {
     }
   });
 });
+
+describe("NO.663 기본정보 추가 부품 자리(BasicInfoExtra)", () => {
+  // 앱이 components.BasicInfoExtra 로 끼우는 부품 — 받은 행의 _id 만 표시 속성으로 남긴다.
+  const Extra = ({ row }: { row: Record<string, unknown> }) => createElement("span", { "data-basic-extra": String(row._id) });
+  function makeExtraAdapter(withExtra: boolean): UnifiedDetailAdapter {
+    return {
+      appName: "HIVE", ownDomain: "tax-amendment", ownColumns: [], configScope: "no663-basic-extra", domains: [],
+      api: { loadDomainRows: async () => ({ key: "b:1234567890", bizno: "1234567890", company: "합성 회사", ceo: "", phone: "", domainRows: [] }), getCachedDomainRows: () => null, loadTabConfig: async () => ({ data: {} }), saveTabConfig: async () => {}, loadColumnConfig: async () => ({ data: {} }), saveColumnConfig: async () => {}, loadManagers: async () => [], saveOwnField: async () => {}, loadBasicStore: async () => null },
+      fieldOptions: FIELD_OPTIONS,
+      components: { SettlementInfoTab: () => null, MeetingsTab: () => null, ErpFilesPanel: () => null, SectionSettlementTab: () => null, ...(withExtra ? { BasicInfoExtra: Extra } : {}) },
+      ownFileFields: [], getAllFiles: () => [],
+    } as unknown as UnifiedDetailAdapter;
+  }
+  const ROW = { _id: "no663-row-1", "02상호명": "합성 회사", "15사업자번호": "1234567890" };
+  async function mount(adapter: UnifiedDetailAdapter, isNew: boolean) {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root: Root = createRoot(container);
+    await act(async () => { root.render(createElement(UnifiedDetailView, { row: ROW as never, adapter, isNew, onClose: () => {} })); });
+    await settle();
+    await settle();
+    return { container, unmount: async () => { await act(async () => { root.unmount(); }); container.remove(); } };
+  }
+  /** 「기본정보 변경 내역」 제목 글자를 가진 요소 */
+  function logTitle(container: HTMLElement): Element {
+    const el = [...container.querySelectorAll("span")].find((s) => s.textContent === "기본정보 변경 내역");
+    expect(el, "기본정보 변경 내역 제목").toBeDefined();
+    return el as Element;
+  }
+
+  it("(가) 어댑터가 BasicInfoExtra 를 주면 열린 행을 받아 「기본정보 변경 내역」 바로 위에 그린다", async () => {
+    const view = await mount(makeExtraAdapter(true), false);
+    try {
+      const found = view.container.querySelectorAll(`[data-basic-extra="${ROW._id}"]`);
+      expect(found.length).toBe(1);
+      // 제목이 found 를 뒤따른다 = found 가 제목보다 문서 순서상 앞
+      expect(found[0].compareDocumentPosition(logTitle(view.container)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    } finally { await view.unmount(); }
+  });
+
+  it("(나) BasicInfoExtra 를 안 주면 아무것도 안 그리고 오류 없이 렌더된다", async () => {
+    const view = await mount(makeExtraAdapter(false), false);
+    try {
+      expect(view.container.querySelectorAll("[data-basic-extra]").length).toBe(0);
+      expect(logTitle(view.container)).toBeDefined(); // 기본정보 탭은 정상으로 그려졌다
+    } finally { await view.unmount(); }
+  });
+
+  it("(다) 새 업체 등록(isNew)이면 BasicInfoExtra 를 줘도 안 그린다", async () => {
+    const view = await mount(makeExtraAdapter(true), true);
+    try {
+      expect(view.container.textContent).toContain("새 업체 등록"); // 신규 등록 화면이 실제로 그려졌다
+      expect(logTitle(view.container)).toBeDefined();
+      expect(view.container.querySelectorAll("[data-basic-extra]").length).toBe(0);
+    } finally { await view.unmount(); }
+  });
+});

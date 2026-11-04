@@ -1920,6 +1920,9 @@ function BasicInfoPanel({
         </div>
       </div>
 
+      {/* 앱이 주입한 기본정보 추가 부품(하이브 NO.663 담당 팀장 변경 기록) — 미제공·신규 등록이면 안 그림 */}
+      {!isNew && adapter.components.BasicInfoExtra && <adapter.components.BasicInfoExtra row={row} />}
+
       {/* 기본정보 변경 내역 — 공용 보관함에 기록된 칸 변경(누가·어느 앱·이전→새값) */}
       <div className="rounded-xl border border-wedly-bd/60 bg-white overflow-hidden">
         <button
