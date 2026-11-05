@@ -304,6 +304,9 @@ export const TIER_FEE_STAMP_PREFIX = "_fs_";
 export const TIER_FEE_REASON_PREFIX = "_fsr_";
 export const TIER_FEE_BASIS_PREFIX = "_fsb_";
 
+/** conditionValues 에 이 키를 true 로 넣으면 정확히 하나 방식이 저장된 계산 기록을 무시하고 다시 계산한다(서버 전용). */
+export const FEE_LIVE_KEY = "__fsLive";
+
 export interface StoredFeeResult { computedAt?: string; reason?: string; basis?: string }
 
 /** 차수에 저장된 계산 기록. 없으면 빈 객체. */
@@ -833,6 +836,16 @@ export function evalFormulaForTierDetailed(
   if (cond && cond.match === "exactlyOne" && Array.isArray(cond.rules)) {
     const basis = (reason: string, ruleIdx: number[] = []): FormulaEvalDetail =>
       ({ value: null, blocked: { kind: "basis", from: field.key, reason }, ruleIdx });
+    // 0) 서버가 저장 때 남긴 계산 기록이 있으면 앱은 그대로 읽는다(집계·화면이 같은 값을 보게). 서버만 conditionValues[FEE_LIVE_KEY]=true 로 다시 계산한다.
+    if (conditionValues?.[FEE_LIVE_KEY] !== true) {
+      const stored = readStoredFeeResult(tier, field.key);
+      if (stored.computedAt) {
+        if (stored.reason) return basis(stored.reason);
+        const raw = tier[field.key];
+        const n = raw === null || raw === undefined || raw === "" ? null : Number(raw);
+        return { value: n !== null && Number.isFinite(n) ? n : null };
+      }
+    }
     // 1) 서버가 앞서 정한 막힘(컨설턴트 확인 등)
     for (const k of cond.guardKeys ?? []) {
       const g = conditionValues?.[k];

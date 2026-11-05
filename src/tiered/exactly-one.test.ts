@@ -3,6 +3,7 @@
 // 시험 자료는 전부 가짜(업체명·금액 모두 임의)다.
 import { describe, it, expect } from "vitest";
 import {
+  FEE_LIVE_KEY,
   evalFormulaForTierDetailed,
   formulaBlockMessage,
   parseTiers,
@@ -329,6 +330,27 @@ describe("옛 정의 회귀 — 새 칸을 모르는 정의는 이전과 똑같�
   it("match=all 도 그대로 — 결과가 다르면 충돌", () => {
     const all: FieldDef = { ...f, conditional: { ...f.conditional!, match: "all" } };
     expect(evalFormulaForTierDetailed(all, tier({}), [all], undefined, { 분류: "하이브" }).blocked?.kind).toBe("conflict");
+  });
+});
+
+describe("저장된 계산 기록 우선", () => {
+  const cv = { 영업담당: "하이브", DB분류: "기존고객", 사업장지역: "그 외" };
+  it("기록이 있으면 앱은 저장값을 그대로 읽고, 서버(FEE_LIVE_KEY)만 다시 계산한다", () => {
+    const t = tier({ 컨설팅담당: "일루아", 착수일: "2026-07-10", 계약금: 2_000_000, 컨설턴트수수료: 111, _fs_컨설턴트수수료: "2026-11-05T00:00:00Z" });
+    expect(calc(consultant, t, cv).value).toBe(111);
+    expect(calc(consultant, t, { ...cv, [FEE_LIVE_KEY]: true }).value).toBe(600_000);
+  });
+  it("기록에 비운 이유가 있으면 그 이유로 막힌다 — 값이 남아 있어도 보이지 않는다", () => {
+    const t = tier({ 컨설턴트수수료: 5, _fs_컨설턴트수수료: "t", _fsr_컨설턴트수수료: "날짜 확인 필요" });
+    expect(calc(consultant, t, cv)).toMatchObject({ value: null, blocked: { kind: "basis", reason: "날짜 확인 필요" } });
+  });
+  it("기록이 없는 칸은 지금처럼 계산한다", () => {
+    const t = tier({ 컨설팅담당: "일루아", 착수일: "2026-07-10", 계약금: 2_000_000 });
+    expect(calc(consultant, t, cv).value).toBe(600_000);
+  });
+  it("사람이 고친 값(_ovr_)은 기록보다 먼저다", () => {
+    const t = tier({ 컨설턴트수수료: 111, _fs_컨설턴트수수료: "t", _ovr_컨설턴트수수료: 9 });
+    expect(calc(consultant, t, cv).value).toBe(9);
   });
 });
 
