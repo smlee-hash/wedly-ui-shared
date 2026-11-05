@@ -710,6 +710,18 @@ export function evalFormulaForTierDetailed(
   if (manual !== null) return { value: manual };
   const managed = getManagedTierValue(tier, field.key);
   if (managed !== undefined) return { value: managed };
+  // 서버가 저장 때 남긴 계산 기록(_fs_<칸>)이 있으면 앱은 그대로 읽는다 — 집계·화면이 같은 값을 보게(수동값 다음 순위).
+  // 정확히 하나 방식 칸과 그 칸을 이어 받는 나머지(위들리) 칸이 같은 기록을 쓴다. 옛 정의 차수에는 이 기록이 없어 동작이 그대로다.
+  // 서버만 conditionValues[FEE_LIVE_KEY]=true 로 기록을 무시하고 다시 계산한다.
+  if (conditionValues?.[FEE_LIVE_KEY] !== true) {
+    const stored = readStoredFeeResult(tier, field.key);
+    if (stored.computedAt) {
+      if (stored.reason) return { value: null, blocked: { kind: "basis", from: field.key, reason: stored.reason }, ruleIdx: [] };
+      const raw = tier[field.key];
+      const n = raw === null || raw === undefined || raw === "" ? null : Number(raw);
+      return { value: n !== null && Number.isFinite(n) ? n : null };
+    }
+  }
   if (seen.has(field.key)) return { value: null }; // 순환 참조 차단 (조건 평가에서 자기 칸 참조 대비 먼저)
   const nextSeen = new Set(seen);
   nextSeen.add(field.key);
@@ -836,16 +848,6 @@ export function evalFormulaForTierDetailed(
   if (cond && cond.match === "exactlyOne" && Array.isArray(cond.rules)) {
     const basis = (reason: string, ruleIdx: number[] = []): FormulaEvalDetail =>
       ({ value: null, blocked: { kind: "basis", from: field.key, reason }, ruleIdx });
-    // 0) 서버가 저장 때 남긴 계산 기록이 있으면 앱은 그대로 읽는다(집계·화면이 같은 값을 보게). 서버만 conditionValues[FEE_LIVE_KEY]=true 로 다시 계산한다.
-    if (conditionValues?.[FEE_LIVE_KEY] !== true) {
-      const stored = readStoredFeeResult(tier, field.key);
-      if (stored.computedAt) {
-        if (stored.reason) return basis(stored.reason);
-        const raw = tier[field.key];
-        const n = raw === null || raw === undefined || raw === "" ? null : Number(raw);
-        return { value: n !== null && Number.isFinite(n) ? n : null };
-      }
-    }
     // 1) 서버가 앞서 정한 막힘(컨설턴트 확인 등)
     for (const k of cond.guardKeys ?? []) {
       const g = conditionValues?.[k];

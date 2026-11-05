@@ -352,6 +352,19 @@ describe("저장된 계산 기록 우선", () => {
     const t = tier({ 컨설턴트수수료: 111, _fs_컨설턴트수수료: "t", _ovr_컨설턴트수수료: 9 });
     expect(calc(consultant, t, cv).value).toBe(9);
   });
+  it("나머지(위들리) 칸도 같은 기록을 읽는다 — 앱은 저장값, 서버만 다시 계산", () => {
+    const t = tier({ 컨설팅담당: "일루아", 착수일: "2026-07-10", 계약금: 2_000_000, 위들리수수료: 123, _fs_위들리수수료: "t" });
+    expect(calc(widly, t, cv).value).toBe(123);
+    expect(calc(widly, t, { ...cv, [FEE_LIVE_KEY]: true }).value).toBe(350_000);
+  });
+  it("나머지(위들리) 칸에 비운 이유가 있으면 값이 남아 있어도 그 이유로 막힌다", () => {
+    const t = tier({ 계약금: 2_000_000, 위들리수수료: 5, _fs_위들리수수료: "t", _fsr_위들리수수료: "계약금 확인 필요" });
+    expect(calc(widly, t, cv)).toMatchObject({ value: null, blocked: { kind: "basis", reason: "계약금 확인 필요" } });
+  });
+  it("위들리 자신의 기록이 없으면 저장된 컨설턴트·하이브 값을 이어 받아 나머지를 구한다", () => {
+    const t = tier({ 계약금: 2_000_000, 컨설턴트수수료: 111, _fs_컨설턴트수수료: "t", 하이브수수료: 222, _fs_하이브수수료: "t" });
+    expect(calc(widly, t, cv).value).toBe(2_000_000 - 111 - 222);
+  });
 });
 
 describe("저장된 계산 결과 읽기·보존", () => {
