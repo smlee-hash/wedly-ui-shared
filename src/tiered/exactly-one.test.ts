@@ -186,7 +186,33 @@ describe("정확히 하나 — 정부지원금 계약금 예시", () => {
     const cv = { 영업담당: "하이브", DB분류: "기존고객", 사업장지역: "그 외" };
     const d = calc(consultant, t, cv);
     expect(d.value).toBeNull();
-    expect(d.blocked).toMatchObject({ kind: "missing", keys: ["계약금"] });
+    expect(d.blocked).toMatchObject({ kind: "basis", reason: "계약금 확인 필요" });
+  });
+
+  it("성공보수: 요율 칸이 비면 「성공보수 수수료율 확인 필요」 — 있는 값만으로 계산하지 않는다", () => {
+    const rate: FieldDef = { key: "성공보수_수수료율", label: "성공보수 수수료율", type: "percent" };
+    const total: FieldDef = { key: "총액", label: "총액", type: "number" };
+    const success: FieldDef = {
+      key: "성공보수_컨설턴트", label: "[컨설턴트] 성공보수 수수료", type: "formula",
+      conditional: {
+        match: "exactlyOne", emptyReasons: EMPTY_REASONS,
+        rules: [{
+          basisRow: 13, gid: "row13",
+          clauses: [eq("영업담당", "하이브")],
+          formula: [
+            { op: "+", unit: "column", columnKey: "총액" }, { op: "*", unit: "column", columnKey: "성공보수_수수료율" },
+            { op: "*", unit: "number", value: 7 }, { op: "/", unit: "number", value: 10 }, { op: "floor", unit: "number", value: 1 },
+          ],
+        }],
+      },
+    };
+    const fs = [total, rate, success];
+    const cv = { 영업담당: "하이브" };
+    const noRate = evalFormulaForTierDetailed(success, tier({ 총액: 10_000_000 }), fs, undefined, cv);
+    expect(noRate.value).toBeNull();
+    expect(noRate.blocked).toMatchObject({ kind: "basis", reason: "성공보수 수수료율 확인 필요" });
+    const ok = evalFormulaForTierDetailed(success, tier({ 총액: 10_000_000, 성공보수_수수료율: 20 }), fs, undefined, cv);
+    expect(ok).toMatchObject({ value: 1_400_000, basisRow: 13 });
   });
 
   it("사람이 고친 값(_ovr_)은 계산보다 먼저다", () => {
@@ -267,6 +293,16 @@ describe("정확히 하나 — 경정청구 예시", () => {
   it("2,696,637: 내림한 몫을 뺀 나머지가 위들리", () => {
     const after = { 영업담당: "하이브", DB분류: "위들리", "19계약서작성일": "2026-10-05" };
     expect([seo, hv, wd].map((f) => run(f, 2_696_637, after).value)).toEqual([898_879, 988_766, 808_992]);
+  });
+
+  it("2,696,637 하이브/하이브(3번 줄) → 서월 898,879 · 하이브 1,707,870 · 위들리 89,888", () => {
+    const cv = { 영업담당: "하이브", DB분류: "하이브" };
+    expect([seo, hv, wd].map((f) => run(f, 2_696_637, cv).value)).toEqual([898_879, 1_707_870, 89_888]);
+  });
+
+  it("3,000,000 위들리/위들리(4번 줄) → 서월 1,200,000 · 하이브 0 · 위들리 1,800,000", () => {
+    const cv = { 영업담당: "위들리", DB분류: "위들리" };
+    expect([seo, hv, wd].map((f) => run(f, 3_000_000, cv).value)).toEqual([1_200_000, 0, 1_800_000]);
   });
 
   it("날짜가 없으면 날짜 조건이 있는 줄만 모름 — 3번·4번 줄은 날짜 없이도 계산", () => {

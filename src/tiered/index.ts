@@ -892,8 +892,12 @@ export function evalFormulaForTierDetailed(
     if (outcome.kind === "none") return basis(REASON_NO_MATCH);
     const picked = cond.rules[outcome.idx];
     const done = evalTerms(picked.formula, true);
-    const detail: FormulaEvalDetail = done.blocked
-      ? { value: null, blocked: done.blocked, ruleIdx: [outcome.idx] }
+    // 식에 쓰는 칸이 비어 못 구하면 「○○ 확인 필요」 — 다른 값으로 대신하지 않는다.
+    const blocked: FormulaBlock | undefined = done.blocked && done.blocked.kind === "missing" && done.blocked.from === field.key
+      ? { kind: "basis", from: field.key, reason: `${done.blocked.keys.map((k) => byKey.get(k)?.label?.trim() || k).join("·")} 확인 필요` }
+      : done.blocked;
+    const detail: FormulaEvalDetail = blocked
+      ? { value: null, blocked, ruleIdx: [outcome.idx] }
       : { value: done.value, ruleIdx: [outcome.idx] };
     if (typeof picked.basisRow === "number") detail.basisRow = picked.basisRow;
     return detail;
