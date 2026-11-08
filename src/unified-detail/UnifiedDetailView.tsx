@@ -28,6 +28,7 @@ import { FieldOptionsProvider } from "./field-options-context";
 import SectionHistoryPanel from "./SectionHistoryPanel";
 import { EditableFieldRow, BasicScopeBadge, type FieldEditCapture } from "./editors";
 import BasicFilesField from "./BasicFilesField";
+import ReportRegenerateControl, { isReportRegenerateColumn } from "./ReportRegenerateControl";
 import NewEntryReportUpload, { type DraftFile } from "./NewEntryReportUpload";
 import { CommonFieldsLauncher } from "./CommonFieldsLauncher";
 import { UNIFIED_TYPE_OPTIONS } from "./lib/column-type-options";
@@ -2859,11 +2860,23 @@ function BasicInfoPanel({
                       <div className={stacked ? "w-full min-w-0" : "flex-1 min-w-0"}>
                         <BasicFilesField
                           row={r}
+                          detail={detail}
                           adapter={adapter}
                           entryId={String(r["_id"] ?? "")}
                           saveOwnField={async (...args) => { await saveOwnField(...args); }}
                           onSaved={onSaved}
                         />
+                        {/* NO.611: 「리포트」 칸 아래의 「리포트 최신 버전으로 재생성」 — 어댑터가 통로를 줄 때만(신규 등록은 위에서 이미 제외). */}
+                        {adapter.reportRegenerate && isReportRegenerateColumn(col) && (
+                          <div className="mt-2">
+                            <ReportRegenerateControl
+                              key={String(r["_id"] ?? "")}
+                              row={r}
+                              adapter={adapter.reportRegenerate}
+                              onSaved={onSaved}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -3632,11 +3645,13 @@ function WideGroupHistory({
 
 function WideFilesPane({
   row,
+  detail,
   entryId,
   adapter,
   onSaved,
 }: {
   row: RowData;
+  detail: CustomerDetailLite | null;
   entryId: string;
   adapter: UnifiedDetailAdapter;
   onSaved?: () => void;
@@ -3661,6 +3676,8 @@ function WideFilesPane({
         defaultCategoryKey={adapter.ownFileFields[0]?.key ?? "첨부파일"}
         readOnly={false}
         includeSharedFiles
+        // NO.611 §5 — 기본정보 파일 칸과 같은 회사 전체 목록(같은 업체의 모든 줄 합산).
+        allFiles={adapter.getAllFiles(row, detail)}
       />
     </div>
   );
@@ -4702,7 +4719,7 @@ export default function UnifiedDetailView({
                   );
                 })()
               ) : (
-                <WideFilesPane row={row} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
+                <WideFilesPane row={row} detail={detail} entryId={entryId} adapter={adapter} onSaved={handleSaved} />
               )}
                 </>
               )}

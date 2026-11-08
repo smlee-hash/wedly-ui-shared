@@ -9,23 +9,27 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { UnifiedDetailAdapter } from "./adapter-types";
+import type { CustomerDetailLite } from "./lib/customer-detail";
 import { selfHostedFileUrl } from "../lib/self-hosted-file-url";
 
 export default function BasicFilesField({
   row,
+  detail,
   adapter,
   entryId,
   saveOwnField,
   onSaved,
 }: {
   row: Record<string, unknown>;
+  // 같은 업체의 모든 줄(있을 때) — 앱이 모든 줄의 파일을 합쳐 세 앱이 같은 목록을 보인다(NO.611 §5).
+  detail?: CustomerDetailLite | null;
   adapter: UnifiedDetailAdapter;
   entryId: string;
   saveOwnField: (entryId: string, key: string, value: string | number | boolean | null) => Promise<void>;
   onSaved?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const files = adapter.getAllFiles(row); // 매 렌더 재계산 (캐시 금지)
+  const files = adapter.getAllFiles(row, detail ?? null); // 매 렌더 재계산 (캐시 금지)
   const ErpFilesPanel = adapter.components.ErpFilesPanel;
   // 미리보기 앞 2개는 "가장 최근 첨부"가 항상 바로 보이도록 첨부 시각(at) 최신순으로 고른다.
   // (새 업로드는 파일 배열 맨 뒤에 붙어, 순서 그대로면 방금 올린 파일이 "외 N개 더 보기" 뒤로 숨어
@@ -83,7 +87,7 @@ export default function BasicFilesField({
   // 팝업에서 막 업로드/삭제한 결과를 헤더 "전체 N개" 카운트에 즉시 반영(행 갱신 전까지의 시차 제거).
   // 패널이 현재 표시 중인 파일 수를 올려주고, 행(row)이 새 데이터로 바뀌면(저장 후 행 갱신) 리셋해 행 기준으로 돌아간다.
   const [liveCount, setLiveCount] = useState<number | null>(null);
-  useEffect(() => { setLiveCount(null); }, [row]);
+  useEffect(() => { setLiveCount(null); }, [row, detail]);
   const shownCount = liveCount ?? files.length;
 
   const closePopup = () => {
@@ -184,6 +188,7 @@ export default function BasicFilesField({
                   onPatchField={(key: string, jsonValue: string) => saveOwnField(entryId, key, jsonValue)}
                   defaultCategoryKey={adapter.ownFileFields[0]?.key ?? "첨부파일"}
                   readOnly={false}
+                  allFiles={files}
                   onFilesCountChange={setLiveCount}
                 />
               </div>

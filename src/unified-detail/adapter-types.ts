@@ -7,6 +7,7 @@ import type { CustomerDetailLite, DomainRowLite } from "./lib/customer-detail";
 import type { ColumnDef } from "../types/columns";
 import type { UnifiedComment } from "../unified/history-core";
 import type { SelectDropdownColorFamily } from "@wedly/detail-modal-shared";
+import type { ReportRegenStatus } from "./ReportRegenerateControl";
 
 // ── FileFieldDef — 파일 탭 칸 정의 (erp-files-adapter.ts 에서 원본 가져와 로컬 정의) ──
 // 원본: src/app/(erp)/_shared/erp-files-adapter.ts
@@ -391,8 +392,10 @@ export interface UnifiedDetailAdapter {
   /**
    * 회사 전체 파일을 모아 반환 — 기본정보 "파일" 칸(2개 미리보기 + 더보기 팝업)이 사용.
    * 앱별 저장 방식 흡수: 하이브·일루아 = row["_files"] 묶음, ERP = ownFileFields 칸별 파일 합치기.
+   * detail(같은 업체의 모든 줄)은 선택 인자 — 주면 앱이 모든 줄의 파일을 합쳐 세 앱이 같은 목록을 보인다(NO.611 §5).
+   * 인자 적은 옛 구현도 호환된다.
    */
-  getAllFiles: (row: Record<string, unknown>) => FileMetaLite[];
+  getAllFiles: (row: Record<string, unknown>, detail?: CustomerDetailLite | null) => FileMetaLite[];
 
   /**
    * NO.104 재작업: 기본정보 파일 칸 인라인 다운로드 통로 (선택 — 미주입 시 버튼 없음).
@@ -404,6 +407,18 @@ export interface UnifiedDetailAdapter {
     apiPath: string;
     allApiPath: string;
     zipLabel?: (row: Record<string, unknown>) => string;
+  };
+
+  /**
+   * NO.611: 기본정보 「리포트」 칸 아래의 「리포트 최신 버전으로 재생성」 통로 (선택 — 미주입 시 단추 없음).
+   * load   오늘 남은 횟수·진행 중 여부·최근 기록을 읽는다(처음 그릴 때와 진행 중 5초마다).
+   * start  재생성을 시작한다. 실패는 throw 대신 { ok: false, message } 로 돌려준다(status 가 있으면 함께).
+   */
+  reportRegenerate?: {
+    load: (row: Record<string, unknown>) => Promise<ReportRegenStatus>;
+    start: (
+      row: Record<string, unknown>,
+    ) => Promise<{ ok: true; status: ReportRegenStatus } | { ok: false; message: string; status?: ReportRegenStatus }>;
   };
 }
 
