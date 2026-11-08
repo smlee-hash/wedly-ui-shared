@@ -11,10 +11,13 @@ import {
   centerPaneClass,
   modalBoxClass,
   narrowPaneTabs,
+  noteScroll,
+  restoreScrolls,
   sidePaneClass,
   threePaneSlots,
   type BigTabKey,
   type PaneName,
+  type ScrollMemo,
 } from "./three-pane-layout";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
@@ -592,6 +595,127 @@ describe("bigTabBarClass / bigTabClass — 계약 문자열", () => {
       expect(cls).not.toMatch(/\b(?:bg|text|border|ring)-(?:blue|gray|slate|red|green|indigo|zinc|neutral)-\d/);
       expect(cls).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
     }
+  });
+});
+
+// 감춘 큰 탭(display:none)은 브라우저가 안쪽 스크롤 위치를 0 으로 되돌리므로, 적어 두고 되돌리는 순수 함수 둘을 잰다.
+describe("큰 탭 스크롤 기억", () => {
+  type FakeScroller = { scrollTop: number; scrollHeight: number; clientHeight: number; isConnected: boolean };
+  // 레이아웃이 없는 환경이라 스크롤 수치만 가진 가짜 칸을 쓴다(높이 1000, 보이는 높이 200 → 맨 아래 scrollTop 은 800).
+  const fake = (init: Partial<FakeScroller> = {}): FakeScroller => ({
+    scrollTop: 0,
+    scrollHeight: 1000,
+    clientHeight: 200,
+    isConnected: true,
+    ...init,
+  });
+  const asEl = (f: FakeScroller) => f as unknown as Element;
+  const newMemos = () => new Map<Element, ScrollMemo>();
+
+  describe("noteScroll", () => {
+    it("중간쯤이면 위치와 함께 atBottom:false 로 적는다", () => {
+      const memos = newMemos();
+      const el = fake({ scrollTop: 300 });
+      noteScroll(memos, asEl(el));
+      expect(memos.size).toBe(1);
+      expect(memos.get(asEl(el))).toEqual({ top: 300, atBottom: false });
+    });
+
+    it("맨 아래에서 2px 안이면 atBottom:true, 3px 떨어지면 false", () => {
+      const memos = newMemos();
+      const exact = fake({ scrollTop: 800 });
+      const twoPx = fake({ scrollTop: 798 });
+      const fraction = fake({ scrollTop: 799.5 });
+      const threePx = fake({ scrollTop: 797 });
+      for (const el of [exact, twoPx, fraction, threePx]) noteScroll(memos, asEl(el));
+      expect(memos.get(asEl(exact))).toEqual({ top: 800, atBottom: true });
+      expect(memos.get(asEl(twoPx))).toEqual({ top: 798, atBottom: true });
+      expect(memos.get(asEl(fraction))).toEqual({ top: 799.5, atBottom: true });
+      expect(memos.get(asEl(threePx))).toEqual({ top: 797, atBottom: false });
+    });
+
+    it("같은 칸을 다시 적으면 새 위치로 바뀌고, 칸마다 따로 적는다", () => {
+      const memos = newMemos();
+      const a = fake({ scrollTop: 100 });
+      const b = fake({ scrollTop: 800 });
+      noteScroll(memos, asEl(a));
+      noteScroll(memos, asEl(b));
+      a.scrollTop = 450;
+      noteScroll(memos, asEl(a));
+      expect(memos.size).toBe(2);
+      expect(memos.get(asEl(a))).toEqual({ top: 450, atBottom: false });
+      expect(memos.get(asEl(b))).toEqual({ top: 800, atBottom: true });
+    });
+
+    it("맨 위(0)로 돌아온 칸은 지운다", () => {
+      const memos = newMemos();
+      const el = fake({ scrollTop: 300 });
+      noteScroll(memos, asEl(el));
+      expect(memos.has(asEl(el))).toBe(true);
+      el.scrollTop = 0;
+      noteScroll(memos, asEl(el));
+      expect(memos.has(asEl(el))).toBe(false);
+      expect(memos.size).toBe(0);
+    });
+
+    it("적은 적 없는 칸이 0 이면 아무것도 만들지 않는다", () => {
+      const memos = newMemos();
+      noteScroll(memos, asEl(fake({ scrollTop: 0 })));
+      expect(memos.size).toBe(0);
+    });
+  });
+
+  describe("restoreScrolls", () => {
+    it("적어 둔 위치로 scrollTop 을 돌린다", () => {
+      const memos = newMemos();
+      const el = fake({ scrollTop: 300 });
+      noteScroll(memos, asEl(el));
+      el.scrollTop = 0; // display:none 에서 브라우저가 하는 일
+      restoreScrolls(memos);
+      expect(el.scrollTop).toBe(300);
+      // 되돌려도 적어 둔 것은 남는다 — 탭을 또 오가도 쓴다.
+      expect(memos.get(asEl(el))).toEqual({ top: 300, atBottom: false });
+    });
+
+    it("맨 아래였던 칸은 내용이 늘어도 새 맨 아래(scrollHeight)로 간다", () => {
+      const memos = newMemos();
+      const el = fake({ scrollTop: 800 });
+      noteScroll(memos, asEl(el));
+      el.scrollTop = 0;
+      el.scrollHeight = 1200; // 감춰 둔 사이 기록이 더 쌓였다
+      restoreScrolls(memos);
+      expect(el.scrollTop).toBe(1200);
+    });
+
+    it("맨 아래가 아니었던 칸은 내용이 늘어도 적어 둔 위치 그대로다", () => {
+      const memos = newMemos();
+      const el = fake({ scrollTop: 300 });
+      noteScroll(memos, asEl(el));
+      el.scrollTop = 0;
+      el.scrollHeight = 1200;
+      restoreScrolls(memos);
+      expect(el.scrollTop).toBe(300);
+    });
+
+    it("화면에서 빠진 칸은 건드리지 않고 목록에서 지우며, 남은 칸은 계속 돌린다", () => {
+      const memos = newMemos();
+      const gone = fake({ scrollTop: 300 });
+      const kept = fake({ scrollTop: 500 });
+      noteScroll(memos, asEl(gone));
+      noteScroll(memos, asEl(kept));
+      gone.scrollTop = 7;
+      gone.isConnected = false;
+      kept.scrollTop = 0;
+      restoreScrolls(memos);
+      expect(gone.scrollTop).toBe(7);
+      expect(memos.has(asEl(gone))).toBe(false);
+      expect(kept.scrollTop).toBe(500);
+      expect(memos.has(asEl(kept))).toBe(true);
+    });
+
+    it("적어 둔 것이 없으면 아무 일도 없다", () => {
+      expect(() => restoreScrolls(newMemos())).not.toThrow();
+    });
   });
 });
 

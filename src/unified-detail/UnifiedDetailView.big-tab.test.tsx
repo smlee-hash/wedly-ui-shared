@@ -371,6 +371,97 @@ describe("큰 탭 — 넓은 화면", () => {
     expect(await press(tabs()[0], "a")).toBe(true);
     expect(selectedFlags()).toEqual(["true", "false", "false"]);
   });
+
+  // ── 스크롤 위치 기억 ──
+  // 감춘 패널(hidden = display:none)은 브라우저가 안쪽 스크롤 위치를 0 으로 되돌린다. jsdom 에는 레이아웃이 없으니
+  // 칸 하나(인스턴스)에만 스크롤 수치를 달아 주고, 「감춰지면 0 이 된다」는 것은 시험이 직접 흉내 낸다.
+  const giveScrollMetrics = (el: HTMLElement, metrics: { scrollHeight: number; clientHeight: number }) => {
+    let top = 0;
+    Object.defineProperty(el, "scrollTop", {
+      configurable: true,
+      get: () => top,
+      set: (v: number) => {
+        top = v;
+      },
+    });
+    Object.defineProperty(el, "scrollHeight", { configurable: true, get: () => metrics.scrollHeight });
+    Object.defineProperty(el, "clientHeight", { configurable: true, get: () => metrics.clientHeight });
+  };
+
+  /** 사용자가 칸을 끌어 top 으로 옮긴 것 — scroll 이벤트는 브라우저처럼 거품 없이 칸에서 떠난다. */
+  const scrollTo = async (el: HTMLElement, top: number) => {
+    el.scrollTop = top;
+    await act(async () => {
+      el.dispatchEvent(new Event("scroll"));
+    });
+  };
+
+  /** DB 정보 패널 안의 칸 하나(분야 탭 줄 — 탭을 오가도 같은 노드로 남는다)를 스크롤되는 목록처럼 꾸민다. */
+  const dbScroller = (metrics: { scrollHeight: number; clientHeight: number }) => {
+    const el = panels()[0].firstElementChild as HTMLElement | null;
+    expect(el).not.toBeNull();
+    giveScrollMetrics(el!, metrics);
+    return el!;
+  };
+
+  it("DB 정보 — 목록을 중간까지 올려 읽다가 컨설팅 업무 현황에 갔다 오면 그 자리로 돌아온다", async () => {
+    await mountWide(railAdapter(["track", "recommend"]), true);
+    const list = dbScroller({ scrollHeight: 1000, clientHeight: 200 });
+    await scrollTo(list, 300);
+
+    await click(tabs()[1]);
+    expect(panels()[0].className).toBe("hidden");
+    list.scrollTop = 0; // display:none 에서 브라우저가 하는 일
+
+    await click(tabs()[0]);
+    expect(panels()[0].className).not.toBe("hidden");
+    expect(list.scrollTop).toBe(300);
+  });
+
+  it("DB 정보 — 맨 아래에 있던 목록은 감춰 둔 사이 내용이 늘어도 새 맨 아래로 돌아온다", async () => {
+    await mountWide(railAdapter(["track", "recommend"]), true);
+    const metrics = { scrollHeight: 1000, clientHeight: 200 };
+    const list = dbScroller(metrics);
+    await scrollTo(list, 800); // 1000 - 800 - 200 = 0 → 맨 아래
+
+    await click(tabs()[1]);
+    list.scrollTop = 0;
+    metrics.scrollHeight = 1200; // 감춰 둔 사이 기록이 더 쌓였다
+
+    await click(tabs()[0]);
+    expect(list.scrollTop).toBe(1200);
+  });
+
+  it("업무 현황 패널 — 컨설팅 업무 현황과 추천 정책이 각자 위치를 기억하고, DB 정보를 다녀와도 돌려 놓는다", async () => {
+    await mountWide(railAdapter(["track", "recommend"]), true);
+    await click(tabs()[1]);
+    // 업무 현황·추천 정책이 같이 쓰는 패널이 스스로 스크롤되는 칸이다.
+    const workPanel = panels()[1];
+    giveScrollMetrics(workPanel, { scrollHeight: 1000, clientHeight: 200 });
+    await scrollTo(workPanel, 300);
+
+    // 추천 정책으로 — 패널은 그대로 보이고 새 내용이 다른 자리에서 읽힌다.
+    await click(tabs()[2]);
+    expect(workPanel.className).not.toBe("hidden");
+    await scrollTo(workPanel, 500);
+
+    await click(tabs()[1]);
+    expect(workPanel.scrollTop).toBe(300);
+    await click(tabs()[2]);
+    expect(workPanel.scrollTop).toBe(500);
+
+    // DB 정보를 다녀오면 패널이 감춰져 0 이 되지만 각 탭 자리가 돌아온다.
+    await click(tabs()[0]);
+    expect(workPanel.className).toBe("hidden");
+    workPanel.scrollTop = 0;
+    await click(tabs()[2]);
+    expect(workPanel.scrollTop).toBe(500);
+
+    await click(tabs()[0]);
+    workPanel.scrollTop = 0;
+    await click(tabs()[1]);
+    expect(workPanel.scrollTop).toBe(300);
+  });
 });
 
 describe("큰 탭 — 휴대폰 폭", () => {

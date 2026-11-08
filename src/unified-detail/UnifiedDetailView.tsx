@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo, useId, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useId, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, refreshCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
 import { type ColumnDef } from "../types/columns";
@@ -37,7 +37,7 @@ import { applyTabConfig } from "./lib/unified-tab-config";
 import type { BasicRecord } from "./adapter-types";
 import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
-import { bigTabBarClass, bigTabClass, bigTabList, modalBoxClass, narrowPaneTabs, type BigTabKey } from "./three-pane-layout";
+import { bigTabBarClass, bigTabClass, bigTabList, modalBoxClass, narrowPaneTabs, noteScroll, restoreScrolls, type BigTabKey, type ScrollMemo } from "./three-pane-layout";
 import {
   OWN_DOMAIN_SUB_TABS,
   SECTION_SUB_TABS,
@@ -2815,6 +2815,19 @@ export default function UnifiedDetailView({
   // 업무 현황·추천 정책은 한 조각을 같이 쓰므로 패널 id 도 하나다.
   const panelId = (key: BigTabKey) => `${bigTabBaseId}-panel-${key === "recommend" ? "track" : key}`;
   const bigTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  // 큰 탭마다 안쪽 칸들의 스크롤 위치 — 감춘 패널(display:none)은 브라우저가 위치를 0 으로 되돌리므로 적어 뒀다가 되돌린다.
+  const bigTabScrolls = useRef(new Map<BigTabKey, Map<Element, ScrollMemo>>());
+  const noteBigTabScroll = (key: BigTabKey, target: EventTarget) => {
+    if (!(target instanceof Element)) return;
+    let memos = bigTabScrolls.current.get(key);
+    if (!memos) { memos = new Map(); bigTabScrolls.current.set(key, memos); }
+    noteScroll(memos, target);
+  };
+  // 탭이 바뀌어 다시 보이게 된 패널을 그리기 전에 되돌린다. 처음 보는 탭은 적어 둔 것이 없어 그대로 둔다.
+  useLayoutEffect(() => {
+    const memos = bigTabScrolls.current.get(shownBigTab);
+    if (memos) restoreScrolls(memos);
+  }, [shownBigTab]);
   const onBigTabKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const n = bigTabs.length;
     const cur = bigTabs.findIndex(([k]) => k === shownBigTab);
@@ -2831,6 +2844,8 @@ export default function UnifiedDetailView({
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
+  // 다른 회사로 바뀌면 적어 둔 위치를 버린다.
+  useEffect(() => { bigTabScrolls.current.clear(); }, [entryId]);
   const [nameValue, setNameValue] = useState(() => String(row["02상호명"] ?? ""));
   // ── 신규 등록 모드 상태 (isNew 일 때만 사용) ──
   // NO.56: 신규 등록은 어떤 칸도 자동 선택값을 넣지 않는다(영업담당 "하이브" 하드코딩 제거 — 안 골라도 저장되던 버그).
@@ -3813,11 +3828,13 @@ export default function UnifiedDetailView({
                 {/* 불러오기 오류는 어느 탭에서나 보이게 두 패널 위에 둔다. */}
                 {errorBlock}
                 {/* DB 정보 — 기본정보 밴드·분야 탭·분야 본문·히스토리·파일(sideContent)이 산다. 숨겨도 붙여 둬 입력 중인 칸이 안 사라진다. */}
+                {/* 감추는 패널은 hidden(display:none) 이라 안쪽 스크롤 위치가 0 이 된다 — onScrollCapture 로 적어 두고 탭을 다시 열 때 되돌린다. */}
                 <div
                   role="tabpanel"
                   id={panelId("db")}
                   aria-labelledby={tabId("db")}
                   className={shownBigTab === "db" ? "flex flex-1 min-h-0 flex-col" : "hidden"}
+                  onScrollCapture={(e) => noteBigTabScroll("db", e.target)}
                 >
                   {sideContent}
                 </div>
@@ -3829,6 +3846,7 @@ export default function UnifiedDetailView({
                     id={panelId("track")}
                     aria-labelledby={tabId(shownBigTab === "recommend" ? "recommend" : "track")}
                     className={shownBigTab !== "db" ? "flex-1 min-w-0 min-h-0 overflow-y-auto" : "hidden"}
+                    onScrollCapture={(e) => noteBigTabScroll(shownBigTab, e.target)}
                   >
                     <div className="flex flex-col h-full">
                       <WideCenterPanel

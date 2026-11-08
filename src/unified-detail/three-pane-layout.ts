@@ -158,3 +158,20 @@ export function bigTabClass(narrowSwitch: boolean, selected: boolean): string {
     ? `flex-1 inline-flex items-center justify-center gap-[5px] rounded-xl px-1 py-2 text-[13px] font-bold whitespace-normal break-keep text-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wedly-accent focus-visible:ring-offset-2 ${tone}`
     : `inline-flex items-center gap-[7px] rounded-[10px] px-3.5 py-2 text-[14px] font-bold whitespace-nowrap transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wedly-accent focus-visible:ring-offset-2 ${tone}`;
 }
+
+/** 큰 탭을 오갈 때 되돌릴 스크롤 위치 하나. atBottom 은 맨 아래(2px 안)에 붙어 있었는지 — 기록 목록처럼 새 글이 아래에 쌓이는 곳. */
+export type ScrollMemo = { top: number; atBottom: boolean };
+
+/** 스크롤이 일어날 때마다 그 칸의 위치를 적어 둔다. 맨 위(0)로 돌아온 칸은 지운다. */
+export function noteScroll(memos: Map<Element, ScrollMemo>, el: Element): void {
+  if (el.scrollTop > 0) memos.set(el, { top: el.scrollTop, atBottom: el.scrollHeight - el.scrollTop - el.clientHeight <= 2 });
+  else memos.delete(el);
+}
+
+/** 다시 보이는 탭의 칸들을 적어 둔 자리로 돌린다. 맨 아래였던 칸은 폭이 바뀌어도 맨 아래로. 화면에서 빠진 칸은 지운다. */
+export function restoreScrolls(memos: Map<Element, ScrollMemo>): void {
+  for (const [el, m] of memos) {
+    if (!el.isConnected) { memos.delete(el); continue; }
+    el.scrollTop = m.atBottom ? el.scrollHeight : m.top;
+  }
+}
