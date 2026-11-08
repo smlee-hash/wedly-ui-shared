@@ -393,7 +393,14 @@ export function parseTiers(raw: unknown, fields: FieldDef[]): TierData[] {
     for (const key of Object.keys(item)) {
       if (!key.startsWith(TIER_FEE_STAMP_PREFIX) && !key.startsWith(TIER_FEE_REASON_PREFIX) && !key.startsWith(TIER_FEE_BASIS_PREFIX)) continue;
       const v = item[key];
-      if (typeof v === "string" && v) tier[key] = v;
+      if (typeof v !== "string" || !v) continue;
+      tier[key] = v;
+      // 계산한 때(_fs_) 기록이 있는 칸은 정의가 아직 없어도 금액을 함께 지킨다 — 기록만 남고 금액이 빠진 채 저장되면
+      // 그 칸은 서버가 다시 계산할 때까지 빈칸으로 읽힌다(_cf_ 와 같은 이유). 정의가 있는 칸은 위 칸 루프가 이미 옮겼다.
+      if (!key.startsWith(TIER_FEE_STAMP_PREFIX)) continue;
+      const fieldKey = key.slice(TIER_FEE_STAMP_PREFIX.length);
+      if (!managedFieldKey(fieldKey) || fields.some(f => f.key === fieldKey)) continue;
+      tier[fieldKey] = managedNumber(item[fieldKey]);
     }
     // Also preserve values while definitions are loading. A missing projected
     // partner amount remains null; it must never fall back to the legacy formula.
@@ -717,9 +724,7 @@ export function evalFormulaForTierDetailed(
     const stored = readStoredFeeResult(tier, field.key);
     if (stored.computedAt) {
       if (stored.reason) return { value: null, blocked: { kind: "basis", from: field.key, reason: stored.reason }, ruleIdx: [] };
-      const raw = tier[field.key];
-      const n = raw === null || raw === undefined || raw === "" ? null : Number(raw);
-      return { value: n !== null && Number.isFinite(n) ? n : null };
+      return { value: managedNumber(tier[field.key]) }; // 공백 글자는 0원이 아니라 빈칸
     }
   }
   if (seen.has(field.key)) return { value: null }; // 순환 참조 차단 (조건 평가에서 자기 칸 참조 대비 먼저)
