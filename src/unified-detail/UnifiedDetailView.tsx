@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo, type DragEvent, type ReactNode } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, useId, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { type RowData, type UnifiedComment, SectionAdminMenu, DEFAULT_COLUMN_TYPE_OPTIONS, EditableTitle, DraggableFieldsSection, fetchCommonFieldsOverride, refreshCommonFieldsOverride, getCachedCommonOverride, resolveCommonFieldId, type CommonFieldOverride, fetchHiddenBasicColumns, isBasicColumnHidden, subscribeHiddenBasicColumns } from "../index";
 import { type ColumnDef } from "../types/columns";
@@ -37,7 +37,7 @@ import { applyTabConfig } from "./lib/unified-tab-config";
 import type { BasicRecord } from "./adapter-types";
 import { saveFailureKindOf } from "./adapter-types";
 import type { UnifiedDetailAdapter } from "./adapter-types";
-import { modalBoxClass, narrowPaneTabs } from "./three-pane-layout";
+import { bigTabBarClass, bigTabClass, bigTabList, modalBoxClass, narrowPaneTabs, type BigTabKey } from "./three-pane-layout";
 import {
   OWN_DOMAIN_SUB_TABS,
   SECTION_SUB_TABS,
@@ -121,6 +121,29 @@ function WideEmptyNote({ text }: { text: string }) {
     <div className="flex flex-1 items-center justify-center px-3 text-center text-[12px] text-wedly-muted">
       {text}
     </div>
+  );
+}
+
+// 상세창 큰 탭 앞 아이콘(2026-11-09 사장님 승인 시안 「상세창 큰 탭」) — 좁은 화면에서는 그리지 않는다.
+function BigTabIcon({ tab }: { tab: BigTabKey }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="flex-shrink-0">
+      {tab === "db" && (
+        <>
+          <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="M6 17c.6-1.6 1.8-2.4 3-2.4s2.4.8 3 2.4M14 10h4M14 14h4" />
+        </>
+      )}
+      {tab === "track" && (
+        <>
+          <rect x="8" y="2" width="8" height="4" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="m9 14 2 2 4-4" />
+        </>
+      )}
+      {tab === "recommend" && (
+        <>
+          <path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z" /><path d="M19 3v4M17 5h4" />
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -2737,8 +2760,6 @@ export default function UnifiedDetailView({
   const [topCustom, setTopCustom] = useState<Array<{ id: string; label: string }>>([]);
   const [topTabEditMode, setTopTabEditMode] = useState(false);
   const [wideSide, setWideSide] = useState<"info" | "history" | "files">("history");
-  // 오른쪽 「업무 현황」 레일 — 항상 접힌 채로 시작한다(사장님 결정 2026-08-27 「기억하지 않음」). 저장·복원 없음.
-  const [trackRailOpen, setTrackRailOpen] = useState(false);
   const [basicToolsSlot, setBasicToolsSlot] = useState<HTMLElement | null>(null);
   const [wideViewport, setWideViewport] = useState(() => {
     if (layout !== "wide") return false;
@@ -2766,23 +2787,47 @@ export default function UnifiedDetailView({
   const narrowSwitch = layout === "wide" && !isNew && !wideViewport;
   // 3분할 내용을 쓰는 상태(넓은 화면 나란히 / 좁은 화면 전환) — 선언 순서를 위해 여기서 계산.
   const threePane = layout === "wide" && !isNew;
-  // 2분할: 넓은 화면 + 업무 현황 레일이 있으면 기본정보를 가운데 탭줄에 합친다.
-  // 레일 없는 앱·좁은 화면(포커스 모드)·compact 는 그대로.
-  const mergeBasic = threePane && !narrowSwitch && Boolean(adapter.components.wideCenterPanel);
+  // 업무 현황 조각(wideCenterPanel)이 있는 앱은 넓은 화면·좁은 화면 모두 기본정보를 분야 탭줄에 합친다
+  // (기본정보 알약 + 분야 표식 + 분야 탭이 한 줄, 넘치면 가로 스크롤). 휴대폰 3단추가 사라졌으니 좁은 화면도 같은 밴드를 쓴다.
+  // 2026-11-09 사장님 승인 시안 「상세창 큰 탭」. 조각 없는 앱·compact 는 그대로.
+  const mergeBasic = threePane && Boolean(adapter.components.wideCenterPanel);
   const [narrowPane, setNarrowPane] = useState<"basic" | "center" | "side">("basic");
-  // 지금 업무 현황이 눈에 보이는가(넓은 화면=펼침 / 좁은 화면=그 탭 선택).
-  const trackVisible = narrowSwitch ? narrowPane === "side" : trackRailOpen;
-  // 한 번이라도 보인 뒤에는 계속 붙여 둔다 — 다시 펼칠 때 목록을 다시 부르지 않기 위해.
+  // 큰 탭(2026-11-09 사장님 승인 시안 「상세창 큰 탭」) — DB 정보 · 컨설팅 업무 현황 · (선언한 앱만) 추천 정책. 처음엔 DB 정보.
+  const [bigTab, setBigTab] = useState<BigTabKey>("db");
+  const bigTabs = bigTabList(adapter.components.wideCenterViews);
+  // 어댑터가 보기 목록을 바꿔 고른 탭이 사라지면 DB 정보로 되돌려 읽는다.
+  const shownBigTab: BigTabKey = bigTabs.some(([k]) => k === bigTab) ? bigTab : "db";
+  // 지금 업무 현황 조각이 눈에 보이는가(DB 정보가 아닌 큰 탭).
+  const trackVisible = shownBigTab !== "db";
+  // 한 번이라도 보인 뒤에는 계속 붙여 둔다 — 탭을 오가도 목록을 다시 부르지 않기 위해.
   const [trackEverShown, setTrackEverShown] = useState(false);
   useEffect(() => {
     if (trackVisible && !trackEverShown) setTrackEverShown(true);
   }, [trackVisible, trackEverShown]);
-  // 좁은 화면에서 「업무 현황」을 보다가 창이 넓어지면 그 칸이 사라지지 않게 레일을 연다.
-  useEffect(() => {
-    if (!narrowSwitch && narrowPane === "side") setTrackRailOpen(true);
-    // narrowPane 은 일부러 의존 목록에서 뺀다 — 넓은 화면에서 값이 남아 있다고 다시 열면 안 된다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [narrowSwitch]);
+  // 클릭과 같은 렌더에서 조각을 붙인다 — 한 프레임 빈 칸이 안 보이게.
+  const selectBigTab = useCallback((key: BigTabKey) => {
+    setBigTab(key);
+    if (key !== "db") setTrackEverShown(true);
+  }, []);
+  // 탭 ↔ 탭패널 연결용 id, 방향키 이동 때 포커스를 줄 단추 참조.
+  const bigTabBaseId = useId();
+  const tabId = (key: BigTabKey) => `${bigTabBaseId}-tab-${key}`;
+  // 업무 현황·추천 정책은 한 조각을 같이 쓰므로 패널 id 도 하나다.
+  const panelId = (key: BigTabKey) => `${bigTabBaseId}-panel-${key === "recommend" ? "track" : key}`;
+  const bigTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const onBigTabKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const n = bigTabs.length;
+    const cur = bigTabs.findIndex(([k]) => k === shownBigTab);
+    let next: number;
+    if (e.key === "ArrowRight") next = (cur + 1) % n;
+    else if (e.key === "ArrowLeft") next = (cur - 1 + n) % n;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = n - 1;
+    else return;
+    e.preventDefault();
+    selectBigTab(bigTabs[next][0]);
+    bigTabRefs.current[next]?.focus();
+  };
 
   // 상호명(회사 이름) 인라인 수정 — 사용자가 헤더 제목을 눌러 바로 고친다(보이면 수정 가능). 저장은 상세 항목(_id)에 반영.
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
@@ -3018,6 +3063,8 @@ export default function UnifiedDetailView({
       setActiveTab(target);
       setSubTab("history");
       setNarrowPane(threePane && adapter.components.wideCenterPanel ? "center" : "side");
+      // 분야 본문·히스토리는 DB 정보 탭에 산다(2026-11-09 사장님 승인 시안 「상세창 큰 탭」).
+      setBigTab("db");
       didInitHistoryRef.current = true;
     }
   }, [openOnHistory, detail, visibleGroups, historyPreferredGroup, historyForcePreferred, threePane, adapter]);
@@ -3092,6 +3139,8 @@ export default function UnifiedDetailView({
     setActiveTab(groupKey);
     // 분야 본문(sideContent)이 사는 칸으로 — 레일이 있으면 가운데, 없으면 오른쪽(2981줄과 같은 규칙).
     setNarrowPane(adapter.components.wideCenterPanel ? "center" : "side");
+    // 분야 본문은 DB 정보 탭에 있다 — 업무 현황을 보다가 「탭 열기」를 눌러도 거기로 돌아온다.
+    setBigTab("db");
   }, [adapter]);
 
   // 현재 그룹 탭에 해당하는 도메인 행들
@@ -3696,7 +3745,7 @@ export default function UnifiedDetailView({
       >
         <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
         <div
-          className={`relative bg-white shadow-2xl w-full h-full flex flex-col rounded-none overflow-hidden animate-modal-in ${modalBoxClass(narrowSwitch, mergeBasic, trackRailOpen)}`}
+          className={`relative bg-white shadow-2xl w-full h-full flex flex-col rounded-none overflow-hidden animate-modal-in ${modalBoxClass(narrowSwitch, mergeBasic, shownBigTab !== "db")}`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="border-b border-wedly-bd/60 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 gap-2">
@@ -3736,91 +3785,103 @@ export default function UnifiedDetailView({
             </button>
           </div>
 
-          {/* 좁은 화면(휴대폰) — 위쪽 단추로 세 칸 전환(PC 와 같은 짜임: 위=고르기, 아래=내용). */}
-          {narrowSwitch && (
-            <div className="flex items-stretch gap-1 border-b border-wedly-bd/60 bg-white px-2 py-2 flex-shrink-0">
-              {narrowPaneTabs(hasTrackRail).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setNarrowPane(key)}
-                  className={`flex-1 rounded-xl px-2 py-2 text-[13px] font-semibold break-keep ${
-                    narrowPane === key
-                      ? "bg-wedly-bg-blue text-wedly-accent-ink"
-                      : "text-wedly-t2 hover:bg-wedly-bg-gray"
-                  }`}
+          {mergeBasic ? (
+            <>
+              {/* 큰 탭 — 2026-11-09 사장님 승인 시안 「상세창 큰 탭」. 헤더 바로 아래 한 줄(넓은·좁은 화면 공통).
+                  세로 손잡이·레일 안 작은 탭·휴대폰 3단추는 이 줄로 대체됐다. */}
+              <div role="tablist" aria-label="상세창 탭" className={bigTabBarClass(narrowSwitch)} onKeyDown={onBigTabKeyDown}>
+                {bigTabs.map(([key, label], i) => (
+                  <button
+                    key={key}
+                    ref={(el) => { bigTabRefs.current[i] = el; }}
+                    type="button"
+                    role="tab"
+                    id={tabId(key)}
+                    aria-selected={shownBigTab === key}
+                    aria-controls={panelId(key)}
+                    tabIndex={shownBigTab === key ? 0 : -1}
+                    onClick={() => selectBigTab(key)}
+                    className={bigTabClass(narrowSwitch, shownBigTab === key)}
+                  >
+                    {!narrowSwitch && <BigTabIcon tab={key} />}
+                    {label}
+                    {key === "track" && TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} selected={shownBigTab === "track"} />}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-1 min-h-0 flex-col">
+                {/* 불러오기 오류는 어느 탭에서나 보이게 두 패널 위에 둔다. */}
+                {errorBlock}
+                {/* DB 정보 — 기본정보 밴드·분야 탭·분야 본문·히스토리·파일(sideContent)이 산다. 숨겨도 붙여 둬 입력 중인 칸이 안 사라진다. */}
+                <div
+                  role="tabpanel"
+                  id={panelId("db")}
+                  aria-labelledby={tabId("db")}
+                  className={shownBigTab === "db" ? "flex flex-1 min-h-0 flex-col" : "hidden"}
                 >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          <ThreePaneShell
-            narrowSwitch={narrowSwitch}
-            narrowPane={narrowPane}
-            hasTrackRail={hasTrackRail}
-            railOpen={trackRailOpen}
-            mergeBasic={mergeBasic}
-            basicPane={basicInfoPanel}
-            detailPane={hasTrackRail ? <>{errorBlock}{sideContent}</> : sideContent}
-            plainCenterPane={centerContent}
-            // 첫 펼침 때 붙이고, 그 뒤엔 hidden 으로만 감춘다 — 접힌 채로 미리 마운트하면 헛통신·폭 0 측정이 난다.
-            // (JSX 속성 자리에 {/* */} 주석을 두면 펼침 연산자로 해석돼 문법 오류가 난다 — 2026-08-27 ERP 빌드가 잡음)
-            trackPane={
-              !error && WideCenterPanel && trackEverShown && (
-                <div className={trackVisible ? (mergeBasic ? "flex-1 min-w-0 min-h-0 overflow-y-auto" : "flex-1 min-h-0 overflow-y-auto") : "hidden"}>
-                  <div className="flex flex-col h-full">
-                    <WideCenterPanel
-                      key="wide-center"
-                      rows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : []}
-                      primaryRow={row as Record<string, unknown>}
-                      isAdmin={isAdmin}
-                      onSaved={handleSaved}
-                      adapter={adapter}
-                    />
-                  </div>
+                  {sideContent}
                 </div>
-              )
-            }
-            railHandle={
-              // 좁은 화면은 위 3버튼이 이미 전환이라 손잡이를 그리지 않는다.
-              // 접힘/펼침을 같은 <button> 루트로 그린다 — 루트가 바뀌면 전환 때 포커스가 사라진다(코덱스 2026-09-02).
-              hasTrackRail && !narrowSwitch ? (
-                    // 같은 렌더에서 붙여야 넓어진 빈 칸이 한 프레임 안 보인다
+                {/* 컨설팅 업무 현황·추천 정책 — 한 조각(key 고정)을 같이 쓰고 view 만 바꾼다. 첫 선택 때 붙이고 그 뒤엔 hidden 으로만 감춘다
+                    (접힌 채 미리 마운트하면 헛통신이 난다). */}
+                {!error && WideCenterPanel && trackEverShown && (
+                  <div
+                    role="tabpanel"
+                    id={panelId("track")}
+                    aria-labelledby={tabId(shownBigTab === "recommend" ? "recommend" : "track")}
+                    className={shownBigTab !== "db" ? "flex-1 min-w-0 min-h-0 overflow-y-auto" : "hidden"}
+                  >
+                    <div className="flex flex-col h-full">
+                      <WideCenterPanel
+                        key="wide-center"
+                        rows={detail && Array.isArray(detail.domainRows) ? detail.domainRows : []}
+                        primaryRow={row as Record<string, unknown>}
+                        isAdmin={isAdmin}
+                        onSaved={handleSaved}
+                        adapter={adapter}
+                        view={shownBigTab === "recommend" ? "recommend" : "track"}
+                        onViewChange={selectBigTab}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* 좁은 화면(휴대폰) — 위쪽 단추로 세 칸 전환(PC 와 같은 짜임: 위=고르기, 아래=내용). 업무 현황 조각이 없는 앱만. */}
+              {narrowSwitch && (
+                <div className="flex items-stretch gap-1 border-b border-wedly-bd/60 bg-white px-2 py-2 flex-shrink-0">
+                  {narrowPaneTabs(hasTrackRail).map(([key, label]) => (
                     <button
+                      key={key}
                       type="button"
-                      onClick={() => { setTrackRailOpen((v) => !v); setTrackEverShown(true); }}
-                      aria-expanded={trackRailOpen}
-                      aria-label={trackRailOpen ? "컨설팅 업무 현황 접기" : undefined}
-                      title={trackRailOpen ? "컨설팅 업무 현황 접기" : "컨설팅 업무 현황 펼치기"}
-                      className={trackRailOpen
-                        ? "order-last w-11 flex-shrink-0 flex flex-col items-center bg-white border-l border-wedly-bd/60 pt-3 focus:outline-none group"
-                        : "flex-1 w-full flex flex-col items-center bg-white pt-3 focus:outline-none group"}
+                      onClick={() => setNarrowPane(key)}
+                      className={`flex-1 rounded-xl px-2 py-2 text-[13px] font-semibold break-keep ${
+                        narrowPane === key
+                          ? "bg-wedly-bg-blue text-wedly-accent-ink"
+                          : "text-wedly-t2 hover:bg-wedly-bg-gray"
+                      }`}
                     >
-                      {trackRailOpen ? (
-                      <div className="flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out group-hover:bg-wedly-accent-ink group-hover:translate-x-[3px] group-focus-visible:ring-[3px] group-focus-visible:ring-wedly-accent/40">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                          <path d="M10 4l-4 4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <span className="text-[12px] font-bold tracking-wide" style={{ writingMode: "vertical-rl" }}>접기</span>
-                      </div>
-                      ) : (
-                      <>
-                        <span className="sr-only">펼치기</span>
-                        {/* A안(2026-09-02 사장님 승인): 흰 띠 + 진한 파랑 세로 탭 — 검수자 지적 「접힘 표시가 눈에 안 띔」. */}
-                        <div className="motion-safe:animate-[wedly-nudge_1.2s_ease-in-out_3] flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out group-hover:bg-wedly-accent-ink group-hover:-translate-x-[3px] group-focus-visible:ring-[3px] group-focus-visible:ring-wedly-accent/40">
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                          <span className="text-[12px] font-bold tracking-wide" style={{ writingMode: "vertical-rl" }}>컨설팅 업무 현황</span>
-                          {TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}
-                        </div>
-                      </>
-                      )}
+                      {label}
                     </button>
-              ) : null
-            }
-          />
+                  ))}
+                </div>
+              )}
+              {/* 레일(업무 현황) 없는 앱 — 옛 배치 그대로. 레일이 없으니 접힘·손잡이·업무 현황 칸은 쓰지 않는다. */}
+              <ThreePaneShell
+                narrowSwitch={narrowSwitch}
+                narrowPane={narrowPane}
+                hasTrackRail={hasTrackRail}
+                railOpen={false}
+                mergeBasic={mergeBasic}
+                basicPane={basicInfoPanel}
+                detailPane={hasTrackRail ? <>{errorBlock}{sideContent}</> : sideContent}
+                plainCenterPane={centerContent}
+                trackPane={null}
+                railHandle={null}
+              />
+            </>
+          )}
         </div>
       </div>
       </FieldOptionsProvider>

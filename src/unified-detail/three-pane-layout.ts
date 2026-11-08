@@ -119,3 +119,42 @@ export function modalBoxClass(narrowSwitch: boolean, mergeBasic: boolean, railOp
   }
   return "sm:w-[96vw] sm:h-[94vh] sm:max-w-[1680px] sm:max-h-[94vh] sm:rounded-2xl";
 }
+
+// ── 상세창 큰 탭 (2026-11-09 사장님 승인 시안 「상세창 큰 탭」) ──
+// 헤더 바로 아래 한 줄: DB 정보 · 컨설팅 업무 현황 · (앱이 선언하면) 추천 정책.
+
+export type BigTabKey = "db" | "track" | "recommend";
+
+const BIG_TAB_LABELS: Record<BigTabKey, string> = {
+  db: "DB 정보",
+  track: "컨설팅 업무 현황",
+  recommend: "추천 정책",
+};
+
+/** 큰 탭 목록 — 항상 DB 정보가 먼저, 그 뒤에 views 순서(중복·모르는 값은 버림, 남는 것이 없으면 ["track"]). */
+export function bigTabList(views?: ReadonlyArray<string>): Array<[BigTabKey, string]> {
+  const work: BigTabKey[] = [];
+  for (const v of views ?? []) {
+    if ((v === "track" || v === "recommend") && !work.includes(v)) work.push(v);
+  }
+  if (work.length === 0) work.push("track");
+  return [["db", BIG_TAB_LABELS.db], ...work.map((k): [BigTabKey, string] => [k, BIG_TAB_LABELS[k]])];
+}
+
+/** 큰 탭 줄 className — 좁은 화면은 한 줄을 꽉 채우는 칸 나누기. */
+export function bigTabBarClass(narrowSwitch: boolean): string {
+  return narrowSwitch
+    ? "flex gap-1 p-2 border-b border-wedly-bd/60 bg-white flex-shrink-0"
+    : "flex gap-1.5 px-5 py-2 border-b border-wedly-bd/60 bg-white flex-shrink-0";
+}
+
+const BIG_TAB_SELECTED = "bg-wedly-accent text-white";
+const BIG_TAB_UNSELECTED = "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1";
+
+/** 큰 탭 하나의 className — 좁은 화면은 줄바꿈 허용(break-keep), 넓은 화면은 한 줄 고정(whitespace-nowrap). */
+export function bigTabClass(narrowSwitch: boolean, selected: boolean): string {
+  const tone = selected ? BIG_TAB_SELECTED : BIG_TAB_UNSELECTED;
+  return narrowSwitch
+    ? `flex-1 inline-flex items-center justify-center gap-[5px] rounded-xl px-1 py-2 text-[13px] font-bold whitespace-normal break-keep text-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wedly-accent focus-visible:ring-offset-2 ${tone}`
+    : `inline-flex items-center gap-[7px] rounded-[10px] px-3.5 py-2 text-[14px] font-bold whitespace-nowrap transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wedly-accent focus-visible:ring-offset-2 ${tone}`;
+}

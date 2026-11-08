@@ -2,13 +2,18 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
+import type { WideCenterView } from "./adapter-types";
 import {
   basicPaneClass,
+  bigTabBarClass,
+  bigTabClass,
+  bigTabList,
   centerPaneClass,
   modalBoxClass,
   narrowPaneTabs,
   sidePaneClass,
   threePaneSlots,
+  type BigTabKey,
   type PaneName,
 } from "./three-pane-layout";
 
@@ -194,11 +199,14 @@ describe("threePaneSlots — 배치 규칙", () => {
     expect(src).toMatch(/<aside className=\{basicPaneClass\([^)]*merge\)\}>\{merge \? null : basicPane\}<\/aside>/);
   });
 
-  it("레일 안쪽은 오류가 없고 한 번 보인 뒤에만 붙인다", () => {
+  it("업무 현황 조각은 오류가 없고 한 번 보인 뒤에만 붙이고, DB 정보 탭에서는 hidden 으로만 감춘다", () => {
     const src = readFileSync(join(DIR, "UnifiedDetailView.tsx"), "utf8");
     expect(src).toContain("!error && WideCenterPanel && trackEverShown");
-    expect(src).toContain('trackVisible ? (mergeBasic ? "flex-1 min-w-0 min-h-0 overflow-y-auto" : "flex-1 min-h-0 overflow-y-auto") : "hidden"');
-    expect(src).toContain('if (!narrowSwitch && narrowPane === "side") setTrackRailOpen(true)');
+    expect(src).toContain('shownBigTab !== "db" ? "flex-1 min-w-0 min-h-0 overflow-y-auto" : "hidden"');
+    expect(src).toContain('const trackVisible = shownBigTab !== "db";');
+    expect(src).toContain("if (trackVisible && !trackEverShown) setTrackEverShown(true)");
+    // 좁은 화면 → 넓은 화면 때 레일을 여는 옛 효과는 레일과 함께 없어졌다.
+    expect(src).not.toContain('if (!narrowSwitch && narrowPane === "side") setTrackRailOpen(true)');
   });
 
   it("package.json subpath 가 ThreePaneShell 을 가리킨다", () => {
@@ -240,72 +248,169 @@ describe("좁은 화면 — 레일 폭 클래스를 붙이지 않는다", () => 
   });
 });
 
-describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
+// 2026-11-09 사장님 승인 시안 「상세창 큰 탭」: 세로 손잡이·레일 안 작은 탭·휴대폰 3단추가 헤더 아래 큰 탭 한 줄로 바뀌었다.
+describe("큰 탭 — 세로 손잡이 대신 헤더 아래 한 줄 탭", () => {
   const src = readFileSync(join(DIR, "UnifiedDetailView.tsx"), "utf8");
-  const handleStart = src.indexOf("aria-expanded={trackRailOpen}");
-  const handleEnd = src.indexOf("</button>", handleStart);
-  const handle = src.slice(handleStart, handleEnd);
-  const collapsedStart = src.indexOf('<span className="sr-only">펼치기</span>');
-  const collapsedEnd = src.indexOf("</button>", collapsedStart);
-  const collapsed = collapsedStart >= 0 ? src.slice(collapsedStart, collapsedEnd) : "";
+  // 레일 앱 갈래(큰 탭 + 두 패널)와 레일 없는 앱 갈래(옛 3칸 배치)를 소스에서 잘라 본다.
+  const railStart = src.indexOf('role="tablist"');
+  const noRailStart = src.indexOf("{/* 좁은 화면(휴대폰)", railStart);
+  const noRailEnd = src.indexOf("// ── 렌더 ──", noRailStart);
+  const railBranch = src.slice(railStart, noRailStart);
+  const noRailBranch = src.slice(noRailStart, noRailEnd);
 
-  it("펼침이면 ‹ (M10) 이고, 접힘 탭은 › (M6) 이다 — 사장님 2026-09-02", () => {
-    expect(handle).toContain('d="M10 4l-4 4 4 4"');
-    expect(collapsed).toContain('d="M6 4l4 4-4 4"');
-    expect(collapsed).not.toContain('d="M10 4l-4 4 4 4"');
+  it("두 갈래를 제대로 잘라 왔다", () => {
+    expect(railStart).toBeGreaterThan(-1);
+    expect(noRailStart).toBeGreaterThan(railStart);
+    expect(noRailEnd).toBeGreaterThan(noRailStart);
   });
 
-  it("접힌 손잡이는 흰 띠 안에 진한 파랑 세로 탭이다", () => {
-    expect(src).toContain("flex-1 w-full flex flex-col items-center bg-white pt-3 focus:outline-none group");
-    expect(collapsed).toContain("bg-wedly-accent");
-    expect(collapsed).toContain("group-hover:bg-wedly-accent-ink");
-    expect(collapsed).toContain("group-hover:-translate-x-[3px]");
-    expect(collapsed).toContain("group-focus-visible:ring-[3px]");
-    expect(collapsed).toContain("group-focus-visible:ring-wedly-accent/40");
-    expect(collapsed).toContain("motion-safe:animate-[wedly-nudge_1.2s_ease-in-out_3]");
-    expect(collapsed).toContain('strokeWidth="2"');
-    expect(collapsed).toContain("컨설팅 업무 현황");
-    // 「눌러서 펼치기」 안내 글자는 사장님 지시로 뺐다(2026-09-02). 접힘 화살표는 오른쪽(›).
-    expect(src).not.toContain("눌러서 펼치기");
-    expect(collapsed).toContain('d="M6 4l4 4-4 4"');
-    expect(src).not.toMatch(/bg-blue-\d/);
-    // 옛 접힘 바탕(옅은 파란 띠 단추 하나)은 접힘 갈래에서 빠진다.
-    expect(src).not.toContain(
-      "flex-1 w-full flex flex-col items-center justify-center gap-2 py-3 bg-wedly-bg-blue text-wedly-accent-ink hover:bg-wedly-bg-blue/70 transition-colors",
-    );
-    const css = readFileSync(join(DIR, "../styles.css"), "utf8");
-    expect(css).toContain("/* 접힌 「컨설팅 업무 현황」 손잡이가 처음 세 번 살짝 흔들려 「눌러서 펼친다」를 알린다(2026-09-02) */");
-    expect(css).toContain("@keyframes wedly-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }");
+  it("탭 줄은 tablist·tab·aria-selected 를 갖고 이름은 「상세창 탭」이다", () => {
+    expect(src).toContain('role="tablist"');
+    expect(src).toContain('aria-label="상세창 탭"');
+    expect(src).toContain("className={bigTabBarClass(narrowSwitch)}");
+    expect(src).toContain("onKeyDown={onBigTabKeyDown}");
+    expect(src).toContain('role="tab"');
+    expect(src).toContain("aria-selected={shownBigTab === key}");
+    expect(src).toContain("aria-controls={panelId(key)}");
+    expect(src).toContain("tabIndex={shownBigTab === key ? 0 : -1}");
+    expect(src).toContain("className={bigTabClass(narrowSwitch, shownBigTab === key)}");
+    expect(src).toContain("onClick={() => selectBigTab(key)}");
   });
 
-  it("펼친 손잡이는 오른쪽 가장자리 세로 파란 탭이다(접힌 손잡이와 같은 모양, ‹ + 접기)", () => {
-    expect(handle).toContain(
-      "order-last w-11 flex-shrink-0 flex flex-col items-center bg-white border-l border-wedly-bd/60 pt-3 focus:outline-none group",
-    );
-    expect(handle).toContain(
-      "flex w-9 flex-col items-center gap-2 rounded-l-xl rounded-r-md bg-wedly-accent px-2 py-3 text-white shadow-[0_2px_8px_rgba(0,106,255,0.35)] transition-all duration-150 ease-out group-hover:bg-wedly-accent-ink group-hover:translate-x-[3px] group-focus-visible:ring-[3px] group-focus-visible:ring-wedly-accent/40",
-    );
-    expect(handle).toContain('d="M10 4l-4 4 4 4"');
-    expect(handle).toContain('strokeWidth="2"');
-    expect(handle).toContain('style={{ writingMode: "vertical-rl" }}>접기</span>');
-    expect(src).not.toContain(
-      "absolute left-0 top-0 z-20 h-12 w-8 flex items-center justify-center border-b border-r border-wedly-bd/60 bg-wedly-bg-gray text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1 transition-colors",
-    );
-    // 겹쳐 두려면 담는 칸에 기준(relative)이 있어야 한다 — 짝을 못 박는다.
-    expect(sidePaneClass(false, "side", { rail: true, railOpen: true })).toContain("relative");
+  it("처음 탭은 DB 정보이고, 어댑터가 보기 목록을 바꿔 사라진 탭은 DB 정보로 읽는다", () => {
+    expect(src).toContain('const [bigTab, setBigTab] = useState<BigTabKey>("db");');
+    expect(src).toContain("const bigTabs = bigTabList(adapter.components.wideCenterViews);");
+    expect(src).toContain('const shownBigTab: BigTabKey = bigTabs.some(([k]) => k === bigTab) ? bigTab : "db";');
   });
 
-  it("접힘 탭은 펼치기 레이블·배지 연결을 갖고, 펼침은 오른쪽 세로 탭이다", () => {
-    expect(src).not.toContain('aria-label="컨설팅 업무 현황 펼치기"');
-    expect(src).toContain('<span className="sr-only">펼치기</span>');
-    expect(src).toContain('aria-label={trackRailOpen ? "컨설팅 업무 현황 접기" : undefined}');
-    expect(src).toContain("aria-expanded={trackRailOpen}");
+  it("탭을 고르는 같은 렌더에서 업무 현황 조각을 붙인다(DB 정보가 아닐 때만)", () => {
+    expect(src).toContain("const selectBigTab = useCallback((key: BigTabKey) => {");
+    expect(src).toContain('if (key !== "db") setTrackEverShown(true);');
+  });
+
+  it("방향키·Home·End 로 옮기고 이 네 키에만 preventDefault 를 건다", () => {
+    expect(src).toContain('if (e.key === "ArrowRight") next = (cur + 1) % n;');
+    expect(src).toContain('else if (e.key === "ArrowLeft") next = (cur - 1 + n) % n;');
+    expect(src).toContain('else if (e.key === "Home") next = 0;');
+    expect(src).toContain('else if (e.key === "End") next = n - 1;');
+    const handlerStart = src.indexOf("const onBigTabKeyDown");
+    const handler = src.slice(handlerStart, src.indexOf("\n  };", handlerStart));
+    // 네 키가 아니면 preventDefault 앞에서 빠진다.
+    expect(handler.indexOf("else return;")).toBeGreaterThan(-1);
+    expect(handler.indexOf("else return;")).toBeLessThan(handler.indexOf("e.preventDefault()"));
+    expect(handler.match(/preventDefault/g)).toHaveLength(1);
+    expect(handler).toContain("bigTabRefs.current[next]?.focus();");
+  });
+
+  it("업무 현황·추천 정책은 한 패널 id 를 같이 쓴다", () => {
+    expect(src).toContain('const panelId = (key: BigTabKey) => `${bigTabBaseId}-panel-${key === "recommend" ? "track" : key}`;');
+    expect(src).toContain("const bigTabBaseId = useId();");
+    expect(src).toContain("aria-labelledby={tabId(shownBigTab === \"recommend\" ? \"recommend\" : \"track\")}");
+  });
+
+  it("모달 상자는 DB 정보면 좁게, 업무 현황·추천 정책이면 96vw 로 간다", () => {
+    expect(src).toContain('modalBoxClass(narrowSwitch, mergeBasic, shownBigTab !== "db")');
+    expect(modalBoxClass(false, true, false)).toContain("sm:max-w-[716px]");
+    expect(modalBoxClass(false, true, true)).toContain("sm:w-[96vw]");
+    expect(modalBoxClass(false, true, true)).toContain("sm:max-w-[1680px]");
+  });
+
+  it("합치기는 좁은 화면에서도 켠다 — mergeBasic 에서 !narrowSwitch 를 뺐다", () => {
+    expect(src).toContain("const mergeBasic = threePane && Boolean(adapter.components.wideCenterPanel);");
+    expect(src).not.toContain("const mergeBasic = threePane && !narrowSwitch");
+  });
+
+  it("업무 현황 조각은 key 고정 한 벌이고 view 와 onViewChange 를 받는다", () => {
+    expect(railBranch).toContain("!error && WideCenterPanel && trackEverShown");
+    expect(railBranch).toContain('key="wide-center"');
+    expect(railBranch).toContain('view={shownBigTab === "recommend" ? "recommend" : "track"}');
+    expect(railBranch).toContain("onViewChange={selectBigTab}");
+    // 조각은 이 갈래에 한 번만 그린다(탭을 옮겨도 같은 자리라 다시 마운트되지 않는다).
+    expect(railBranch.split("<WideCenterPanel").length - 1).toBe(1);
+  });
+
+  it("배지는 「컨설팅 업무 현황」 탭 안에만 붙고 선택 여부를 받는다", () => {
     expect(src).toContain("const TrackRailBadge = adapter.components.trackRailBadge");
-    expect(src).toContain("{TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}");
-    expect(handle).toContain("order-last w-11 flex-shrink-0");
+    expect(src).toContain('{key === "track" && TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} selected={shownBigTab === "track"} />}');
+    expect(src).toContain("selected={shownBigTab === \"track\"}");
+    expect(src).not.toContain("{TrackRailBadge && <TrackRailBadge primaryRow={row as Record<string, unknown>} />}");
   });
 
-  it("세 칸 머리 줄 높이가 h-12 로 같다 — 왼쪽(3분할)·가운데 분야 탭·레일 손잡이", () => {
+  it("불러오기 오류 블록은 두 패널 위에 있어 어느 탭에서나 보인다", () => {
+    expect(railBranch.indexOf("{errorBlock}")).toBeGreaterThan(-1);
+    expect(railBranch.indexOf("{errorBlock}")).toBeLessThan(railBranch.indexOf('id={panelId("db")}'));
+    expect(railBranch.indexOf("{errorBlock}")).toBeLessThan(railBranch.indexOf('id={panelId("track")}'));
+  });
+
+  it("DB 정보 패널은 sideContent 를 그대로 담고(복사 금지), 다른 탭이면 hidden 으로 감춘다", () => {
+    expect(railBranch).toContain('className={shownBigTab === "db" ? "flex flex-1 min-h-0 flex-col" : "hidden"}');
+    expect(railBranch).toContain("{sideContent}");
+    expect(railBranch.split("<GroupDomainPanel")).toHaveLength(1);
+  });
+
+  it("분야 본문으로 돌아오는 두 길(탭 열기·히스토리로 열기)은 DB 정보 탭으로 되돌린다", () => {
+    const openStart = src.indexOf("const openGroupTab = useCallback(");
+    const openEnd = src.indexOf("}, [adapter]);", openStart);
+    const openGroupTab = src.slice(openStart, openEnd);
+    expect(openStart).toBeGreaterThan(-1);
+    expect(openGroupTab).toContain("setActiveTab(groupKey);");
+    expect(openGroupTab).toContain('setNarrowPane(adapter.components.wideCenterPanel ? "center" : "side");');
+    expect(openGroupTab).toContain('setBigTab("db")');
+
+    const effStart = src.indexOf("if (!openOnHistory || didInitHistoryRef.current || !detail) return;");
+    const effEnd = src.indexOf("didInitHistoryRef.current = true;", effStart);
+    const effect = src.slice(effStart, effEnd);
+    expect(effStart).toBeGreaterThan(-1);
+    expect(effEnd).toBeGreaterThan(effStart);
+    expect(effect).toContain('setSubTab("history");');
+    expect(effect).toContain('setBigTab("db")');
+  });
+
+  it("옛 손잡이·레일 열림 상태는 소스에 없다", () => {
+    expect(src).not.toContain("aria-expanded={trackRailOpen}");
+    expect(src).not.toContain("setTrackRailOpen");
+    expect(src).not.toContain("trackRailOpen");
+    expect(src).not.toContain("wedly-nudge");
+    expect(src).not.toContain("눌러서 펼치기");
+    expect(src).not.toContain('<span className="sr-only">펼치기</span>');
+  });
+
+  it("레일 앱 갈래에는 3칸 껍데기·손잡이·휴대폰 3단추가 없다", () => {
+    expect(railBranch).not.toContain("<ThreePaneShell");
+    expect(railBranch).not.toContain("railHandle");
+    expect(railBranch).not.toContain("narrowPaneTabs");
+  });
+
+  it("레일 없는 앱 갈래는 옛 배치 그대로다 — 휴대폰 3단추와 3칸 껍데기", () => {
+    expect(noRailBranch).toContain("{narrowSwitch && (");
+    expect(noRailBranch).toContain("narrowPaneTabs(hasTrackRail)");
+    expect(noRailBranch).toContain("onClick={() => setNarrowPane(key)}");
+    expect(noRailBranch).toContain("<ThreePaneShell");
+    expect(noRailBranch).toContain("hasTrackRail={hasTrackRail}");
+    expect(noRailBranch).toContain("mergeBasic={mergeBasic}");
+    expect(noRailBranch).toContain("plainCenterPane={centerContent}");
+    // 레일이 없으니 접힘 값·업무 현황 칸·손잡이는 비워 넘긴다.
+    expect(noRailBranch).toContain("railOpen={false}");
+    expect(noRailBranch).toContain("trackPane={null}");
+    expect(noRailBranch).toContain("railHandle={null}");
+  });
+
+  it("큰 탭 앞 아이콘은 인라인 SVG 이고 WEDLY 토큰 클래스만 쓴다", () => {
+    expect(src).toContain("function BigTabIcon({ tab }: { tab: BigTabKey }) {");
+    expect(src).toContain('{!narrowSwitch && <BigTabIcon tab={key} />}');
+    expect(src).toContain(
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="flex-shrink-0">',
+    );
+    expect(src).toContain('<path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z" /><path d="M19 3v4M17 5h4" />');
+    expect(src).toContain('<path d="m9 14 2 2 4-4" />');
+    expect(src).not.toMatch(/bg-blue-\d/);
+    expect(src).not.toContain("from \"lucide-react\"");
+    const iconStart = src.indexOf("function BigTabIcon(");
+    const icon = src.slice(iconStart, src.indexOf("function StatusDot(", iconStart));
+    expect(icon).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+
+  it("세 칸 머리 줄 높이가 h-12 로 같다 — 왼쪽(3분할)·가운데 분야 탭 줄(DB 정보 탭 안)", () => {
     const view = src;
     // 가운데 분야 탭 줄 — 2분할도 한 줄 고정(h-12). 줄바꿈(min-h-12/flex-wrap)은 쓰지 않는다(2026-09-02 사장님).
     expect(view).toContain('bg-wedly-bg-gray border-b border-wedly-bd/60 flex-shrink-0 ${mergeBasic ? "px-4 h-12" : "px-3 sm:px-6 h-12"}');
@@ -318,15 +423,14 @@ describe("접이식 손잡이 — 화살표 방향과 접힘 시인성", () => {
     expect(view).toContain('-mx-4 -mt-4 rounded-none border-x-0 border-t-0');
   });
 
-  it("손잡이 클릭에서 펼침과 한 번 보임을 같은 렌더에서 같이 켠다", () => {
-    expect(src).toContain(
-      "onClick={() => { setTrackRailOpen((v) => !v); setTrackEverShown(true); }}",
-    );
+  it("탭 클릭에서 선택과 한 번 보임을 같은 렌더에서 같이 켠다", () => {
+    expect(src).toContain("onClick={() => selectBigTab(key)}");
+    expect(src).toContain('if (key !== "db") setTrackEverShown(true);');
     expect(src).toContain("if (trackVisible && !trackEverShown) setTrackEverShown(true)");
   });
 });
 
-describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합친 2분할", () => {
+describe("mergeBasic — 업무 현황 조각이 있는 앱에서 기본정보를 탭줄에 합친 밴드", () => {
   it("왼쪽 칸은 hidden, 좁은 화면·기본값은 지금과 같다", () => {
     expect(basicPaneClass(false, "basic", true)).toBe("hidden");
     expect(basicPaneClass(false, "basic")).toBe(basicPaneClass(false, "basic", false));
@@ -356,7 +460,7 @@ describe("mergeBasic — ERP 넓은 화면에서 기본정보를 탭줄에 합�
     );
   });
 
-  it("mergeBasic 펼침이면 기본정보 머리띠를 숨기고 도구를 탭줄 오른쪽에 붙인다", () => {
+  it("mergeBasic 이면(좁은 화면 포함) 기본정보 머리띠를 숨기고 도구를 탭줄 오른쪽에 붙인다", () => {
     const view = readFileSync(join(DIR, "UnifiedDetailView.tsx"), "utf8");
     expect(view).toContain("const [basicToolsSlot, setBasicToolsSlot] = useState<HTMLElement | null>(null);");
     expect(view).toContain('import { createPortal } from "react-dom"');
@@ -392,5 +496,121 @@ describe("CommonFieldsLauncher — compact 아이콘 단추", () => {
     );
     expect(src).toContain('title="공통 칸 관리 (관리자 전용)"');
     expect(src).toContain('aria-label="공통 칸 관리"');
+  });
+});
+
+// ── 상세창 큰 탭 (2026-11-09 사장님 승인 시안) ──
+
+const BIG_DB: [BigTabKey, string] = ["db", "DB 정보"];
+const BIG_TRACK: [BigTabKey, string] = ["track", "컨설팅 업무 현황"];
+const BIG_RECOMMEND: [BigTabKey, string] = ["recommend", "추천 정책"];
+
+const BAR_WIDE = "flex gap-1.5 px-5 py-2 border-b border-wedly-bd/60 bg-white flex-shrink-0";
+const BAR_NARROW = "flex gap-1 p-2 border-b border-wedly-bd/60 bg-white flex-shrink-0";
+const TAB_SEL = "bg-wedly-accent text-white";
+const TAB_UNSEL = "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t1";
+const TAB_WIDE =
+  "inline-flex items-center gap-[7px] rounded-[10px] px-3.5 py-2 text-[14px] font-bold whitespace-nowrap transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wedly-accent focus-visible:ring-offset-2 ";
+const TAB_NARROW =
+  "flex-1 inline-flex items-center justify-center gap-[5px] rounded-xl px-1 py-2 text-[13px] font-bold whitespace-normal break-keep text-center transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-wedly-accent focus-visible:ring-offset-2 ";
+
+describe("bigTabList — DB 정보가 먼저, 그 뒤에 앱이 선언한 보기", () => {
+  it("안 주면 DB 정보 · 컨설팅 업무 현황 두 개", () => {
+    expect(bigTabList()).toEqual([BIG_DB, BIG_TRACK]);
+    expect(bigTabList(undefined)).toEqual([BIG_DB, BIG_TRACK]);
+  });
+
+  it("track · recommend 를 주면 세 개가 그 순서대로", () => {
+    expect(bigTabList(["track", "recommend"])).toEqual([BIG_DB, BIG_TRACK, BIG_RECOMMEND]);
+  });
+
+  it("recommend 만 주면 DB 정보 · 추천 정책", () => {
+    expect(bigTabList(["recommend"])).toEqual([BIG_DB, BIG_RECOMMEND]);
+  });
+
+  it("주어진 순서를 따른다(recommend 가 먼저면 추천 정책이 앞)", () => {
+    expect(bigTabList(["recommend", "track"])).toEqual([BIG_DB, BIG_RECOMMEND, BIG_TRACK]);
+  });
+
+  it("중복과 모르는 값(db 포함)은 버린다", () => {
+    expect(bigTabList(["track", "track", "recommend", "recommend"])).toEqual([BIG_DB, BIG_TRACK, BIG_RECOMMEND]);
+    expect(bigTabList(["foo", "track", "bar"])).toEqual([BIG_DB, BIG_TRACK]);
+    expect(bigTabList(["db", "recommend"])).toEqual([BIG_DB, BIG_RECOMMEND]);
+  });
+
+  it("빈 목록이나 모르는 값뿐이면 업무 현황 하나로 되돌린다", () => {
+    expect(bigTabList([])).toEqual([BIG_DB, BIG_TRACK]);
+    expect(bigTabList(["foo", "db"])).toEqual([BIG_DB, BIG_TRACK]);
+  });
+
+  it("어댑터 선언 타입(WideCenterView)을 그대로 받는다", () => {
+    const views: ReadonlyArray<WideCenterView> = ["track", "recommend"];
+    expect(bigTabList(views).map(([k]) => k)).toEqual(["db", "track", "recommend"]);
+  });
+
+  it("DB 정보는 항상 맨 앞이다", () => {
+    for (const views of [undefined, [], ["track"], ["recommend"], ["recommend", "track"]]) {
+      expect(bigTabList(views)[0]).toEqual(BIG_DB);
+    }
+  });
+});
+
+describe("bigTabBarClass / bigTabClass — 계약 문자열", () => {
+  it("탭 줄 className 두 가지", () => {
+    expect(bigTabBarClass(false)).toBe(BAR_WIDE);
+    expect(bigTabBarClass(true)).toBe(BAR_NARROW);
+  });
+
+  it("넓은 화면 탭 — 고른 것·안 고른 것", () => {
+    expect(bigTabClass(false, true)).toBe(TAB_WIDE + TAB_SEL);
+    expect(bigTabClass(false, false)).toBe(TAB_WIDE + TAB_UNSEL);
+  });
+
+  it("좁은 화면 탭 — 고른 것·안 고른 것", () => {
+    expect(bigTabClass(true, true)).toBe(TAB_NARROW + TAB_SEL);
+    expect(bigTabClass(true, false)).toBe(TAB_NARROW + TAB_UNSEL);
+  });
+
+  it("좁은 화면 탭은 줄바꿈을 허용하고(whitespace-nowrap 없음), 넓은 화면 탭은 한 줄 고정이다", () => {
+    for (const selected of [true, false]) {
+      expect(bigTabClass(true, selected)).not.toContain("whitespace-nowrap");
+      expect(bigTabClass(true, selected)).toContain("whitespace-normal break-keep");
+      expect(bigTabClass(false, selected)).toContain("whitespace-nowrap");
+    }
+  });
+
+  it("고른 탭은 파랑 바탕 흰 글씨이고, 안 고른 탭에는 그 바탕이 없다", () => {
+    for (const narrow of [true, false]) {
+      expect(bigTabClass(narrow, true)).toContain(TAB_SEL);
+      expect(bigTabClass(narrow, false)).not.toContain("bg-wedly-accent");
+      expect(bigTabClass(narrow, false)).toContain("hover:bg-wedly-bg-gray");
+    }
+  });
+
+  it("WEDLY 토큰만 쓴다 — 원색 눈금(bg-blue-500 등)이나 16진수가 없다", () => {
+    for (const cls of [bigTabBarClass(true), bigTabBarClass(false), bigTabClass(true, true), bigTabClass(false, false)]) {
+      expect(cls).not.toMatch(/\b(?:bg|text|border|ring)-(?:blue|gray|slate|red|green|indigo|zinc|neutral)-\d/);
+      expect(cls).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    }
+  });
+});
+
+describe("adapter-types — 큰 탭 선언", () => {
+  const src = readFileSync(join(DIR, "adapter-types.ts"), "utf8");
+
+  it("WideCenterView 를 내보내고 wideCenterViews 로 받는다", () => {
+    expect(src).toContain('export type WideCenterView = "track" | "recommend";');
+    expect(src).toContain("wideCenterViews?: ReadonlyArray<WideCenterView>;");
+  });
+
+  it("trackRailBadge 가 selected 를 받는다", () => {
+    expect(src).toContain(
+      "trackRailBadge?: React.ComponentType<{ primaryRow: Record<string, unknown>; selected?: boolean }>;",
+    );
+  });
+
+  it("SectionPanelProps 에 view 와 onViewChange 가 선택 항목으로 붙는다(옛 구현은 그대로 컴파일)", () => {
+    expect(src).toContain("view?: WideCenterView;");
+    expect(src).toContain("onViewChange?: (view: WideCenterView) => void;");
   });
 });

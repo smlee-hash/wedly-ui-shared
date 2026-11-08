@@ -240,8 +240,10 @@ export interface UnifiedDetailAdapter {
     /** wide(3분할) 가운데 고정 조각 — 어느 분야 탭을 골라도 가운데엔 이것만 그린다(업무 현황).
      *  지정하면 모든 분야에서 본 패널이 오른쪽 「정보」 칸으로 간다. 미지정이면 기존 동작. */
     wideCenterPanel?: React.ComponentType<SectionPanelProps>;
-    /** 접힌 업무 현황 손잡이에 붙는 작은 배지(예: 진행 중 업무 수). 앱이 자료를 알므로 앱이 준다. 미지정이면 배지 없음. */
-    trackRailBadge?: React.ComponentType<{ primaryRow: Record<string, unknown> }>;
+    /** 큰 탭에 보일 가운데 조각의 보기 목록. 없으면 ["track"]. 「추천 정책」을 가진 앱만 ["track", "recommend"]. */
+    wideCenterViews?: ReadonlyArray<WideCenterView>;
+    /** 큰 탭 「컨설팅 업무 현황」 옆 숫자 배지(예: 진행 중 업무 수). 앱이 자료를 알므로 앱이 준다. selected 는 그 탭이 골라졌을 때. 미지정이면 배지 없음. */
+    trackRailBadge?: React.ComponentType<{ primaryRow: Record<string, unknown>; selected?: boolean }>;
     /** wide(3분할) 전용 — 그 그룹의 본 패널(차수 카드 등)을 오른쪽 「정보」 칸으로 옮긴다.
      *  값이 "right" 인 그룹은 가운데에 머리 조각(진행 업무)만 남는다. 미지정 그룹·compact 불변. */
     widePanelPlacement?: Record<string, "right">;
@@ -285,6 +287,9 @@ export interface UnifiedDetailAdapter {
   };
 }
 
+/** 큰 탭 「컨설팅 업무 현황」·「추천 정책」이 가운데 조각(wideCenterPanel)에서 고르는 보기. */
+export type WideCenterView = "track" | "recommend";
+
 /** 어댑터가 분야 그룹별로 주입하는 커스텀 편집기 패널의 props (components.sectionPanels 값). */
 export type SectionPanelProps = {
   /** 이 그룹에 속한 분야 행들(정책·정부·무상 등). 각 행에 domain·entryId·row 가 있다. */
@@ -302,4 +307,8 @@ export type SectionPanelProps = {
   subTab?: string;
   /** 하위 탭 변경 알림. 바깥 탭 줄과 패널 안 상태를 맞출 때. 미전달이면 불변. */
   onSubTabChange?: (t: string) => void;
+  /** 큰 탭이 고른 보기. 주면 조각은 자기 안쪽 탭 줄을 그리지 않고 이 값을 따른다. */
+  view?: WideCenterView;
+  /** 조각 안에서 다른 보기로 옮길 때(예: 추천 카드의 「기업상태표 열기」). */
+  onViewChange?: (view: WideCenterView) => void;
 };
