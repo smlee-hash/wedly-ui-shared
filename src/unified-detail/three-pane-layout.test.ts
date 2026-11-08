@@ -10,9 +10,12 @@ import {
   centerPaneClass,
   modalBoxClass,
   narrowPaneTabs,
+  noteScroll,
+  restoreScrolls,
   sidePaneClass,
   threePaneSlots,
   type PaneName,
+  type ScrollMemo,
 } from "./three-pane-layout";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
@@ -515,6 +518,101 @@ describe("bigTabBarClass · bigTabClass — 큰 탭 줄 문자열", () => {
     // 앞이 글자·하이픈이 아닐 때만 — wedly-bg-gray 안의 bg-gray 를 색 눈금으로 잘못 잡지 않게.
     expect(all).not.toMatch(/(?<![\w-])(?:bg|text|border|ring)-(?:blue|gray|slate|zinc|red|green|amber|indigo)-\d{2,3}\b/);
     expect(all).not.toMatch(/#[0-9a-fA-F]{3,8}/);
+  });
+});
+
+describe("큰 탭 스크롤 기억", () => {
+  // 배치(layout)가 없는 시험 환경이라 진짜 칸은 scrollHeight 등이 0 이다 — 숫자만 가진 가짜 칸을 쓴다.
+  type FakeBox = { scrollTop: number; scrollHeight: number; clientHeight: number; isConnected: boolean };
+  const box = (o: Partial<FakeBox> = {}): FakeBox => ({ scrollTop: 0, scrollHeight: 1000, clientHeight: 200, isConnected: true, ...o });
+  const asEl = (b: FakeBox) => b as unknown as Element;
+
+  it("noteScroll: 중간쯤이면 { top, atBottom:false } 로 적는다", () => {
+    const memos = new Map<Element, ScrollMemo>();
+    const el = asEl(box({ scrollTop: 300 }));
+    noteScroll(memos, el);
+    expect(memos.get(el)).toEqual({ top: 300, atBottom: false });
+    expect(memos.size).toBe(1);
+  });
+
+  it("noteScroll: 맨 아래에서 2px 안이면 atBottom:true, 3px 떨어지면 false", () => {
+    const memos = new Map<Element, ScrollMemo>();
+    const exact = asEl(box({ scrollTop: 800 }));
+    const near = asEl(box({ scrollTop: 798 }));
+    const off = asEl(box({ scrollTop: 797 }));
+    noteScroll(memos, exact);
+    noteScroll(memos, near);
+    noteScroll(memos, off);
+    expect(memos.get(exact)).toEqual({ top: 800, atBottom: true });
+    expect(memos.get(near)).toEqual({ top: 798, atBottom: true });
+    expect(memos.get(off)).toEqual({ top: 797, atBottom: false });
+  });
+
+  it("noteScroll: 맨 위(0)로 돌아온 칸은 지우고, 적은 적 없는 칸이어도 탈이 없다", () => {
+    const memos = new Map<Element, ScrollMemo>();
+    const b = box({ scrollTop: 300 });
+    const el = asEl(b);
+    noteScroll(memos, el);
+    expect(memos.has(el)).toBe(true);
+    b.scrollTop = 0;
+    noteScroll(memos, el);
+    expect(memos.has(el)).toBe(false);
+    expect(() => noteScroll(memos, asEl(box()))).not.toThrow();
+    expect(memos.size).toBe(0);
+  });
+
+  it("noteScroll: 칸마다 따로 적고, 같은 칸을 다시 적으면 새 위치로 덮어쓴다", () => {
+    const memos = new Map<Element, ScrollMemo>();
+    const a = box({ scrollTop: 100 });
+    const b = box({ scrollTop: 500 });
+    noteScroll(memos, asEl(a));
+    noteScroll(memos, asEl(b));
+    a.scrollTop = 250;
+    noteScroll(memos, asEl(a));
+    expect(memos.size).toBe(2);
+    expect(memos.get(asEl(a))).toEqual({ top: 250, atBottom: false });
+    expect(memos.get(asEl(b))).toEqual({ top: 500, atBottom: false });
+  });
+
+  it("restoreScrolls: 적어 둔 top 으로 되돌린다", () => {
+    const memos = new Map<Element, ScrollMemo>();
+    const b = box({ scrollTop: 300 });
+    noteScroll(memos, asEl(b));
+    b.scrollTop = 0; // display:none 이 되면 브라우저가 하는 일
+    restoreScrolls(memos);
+    expect(b.scrollTop).toBe(300);
+    expect(memos.size).toBe(1);
+  });
+
+  it("restoreScrolls: 맨 아래였던 칸은 그 사이 scrollHeight 가 커졌어도 맨 아래(scrollHeight)로 간다", () => {
+    const memos = new Map<Element, ScrollMemo>();
+    const b = box({ scrollTop: 800 });
+    noteScroll(memos, asEl(b));
+    expect(memos.get(asEl(b))?.atBottom).toBe(true);
+    b.scrollTop = 0;
+    b.scrollHeight = 1200;
+    restoreScrolls(memos);
+    expect(b.scrollTop).toBe(1200);
+  });
+
+  it("restoreScrolls: 화면에서 빠진 칸은 건드리지 않고 목록에서 지우며, 남은 칸은 되돌린다", () => {
+    const memos = new Map<Element, ScrollMemo>();
+    const gone = box({ scrollTop: 50 });
+    const kept = box({ scrollTop: 400 });
+    noteScroll(memos, asEl(gone));
+    noteScroll(memos, asEl(kept));
+    gone.isConnected = false;
+    gone.scrollTop = 123;
+    kept.scrollTop = 0;
+    restoreScrolls(memos);
+    expect(memos.has(asEl(gone))).toBe(false);
+    expect(gone.scrollTop).toBe(123);
+    expect(memos.has(asEl(kept))).toBe(true);
+    expect(kept.scrollTop).toBe(400);
+  });
+
+  it("restoreScrolls: 적어 둔 것이 없으면 아무 일도 없다", () => {
+    expect(() => restoreScrolls(new Map<Element, ScrollMemo>())).not.toThrow();
   });
 });
 

@@ -454,6 +454,77 @@ describe("상세창 큰 탭 — 업무 현황 조각이 있는 앱", () => {
     expect(badges()).toHaveLength(1);
     expect(badges()[0].getAttribute("data-badge")).toBe("false");
   });
+
+  // ── 큰 탭을 오가도 스크롤 위치가 남는다 (독립 검토 지적 P3) ──
+  // jsdom 에는 배치가 없어 scrollTop 이 늘 0 이다. 그래서 칸 하나(인스턴스)에만 숫자를 가진 척하는 접근자를 달고,
+  // 브라우저가 display:none 에서 하는 일(위치를 0 으로)은 시험이 직접 한다. 칸은 마운트 해제와 함께 사라지므로 따로 되돌릴 것이 없다.
+  const fakeScroller = (el: HTMLElement) => {
+    const m = { scrollTop: 0, scrollHeight: 1000, clientHeight: 200 };
+    Object.defineProperty(el, "scrollTop", { configurable: true, get: () => m.scrollTop, set: (v: number) => { m.scrollTop = v; } });
+    Object.defineProperty(el, "scrollHeight", { configurable: true, get: () => m.scrollHeight });
+    Object.defineProperty(el, "clientHeight", { configurable: true, get: () => m.clientHeight });
+    return m;
+  };
+  const scrolled = async (el: HTMLElement) => {
+    await act(async () => {
+      el.dispatchEvent(new Event("scroll"));
+    });
+  };
+  const tabPanels = () => Array.from(document.querySelectorAll<HTMLElement>('[role="tabpanel"]'));
+
+  it("DB 정보 → 컨설팅 업무 현황 → DB 정보: 안쪽 칸이 보던 자리(중간·맨 아래)로 돌아온다", async () => {
+    await mountView({ views: ["track", "recommend"] });
+    const dbPanel = tabPanels()[0];
+    const list = dbPanel.firstElementChild as HTMLElement | null;
+    if (!list) throw new Error("DB 정보 패널이 비어 있다");
+    const m = fakeScroller(list);
+
+    // 중간쯤에서 떠난다.
+    m.scrollTop = 300;
+    await scrolled(list);
+    await click(tabByLabel("컨설팅 업무 현황"));
+    expect(dbPanel.className).toBe("hidden");
+    m.scrollTop = 0;
+    await click(tabByLabel("DB 정보"));
+    expect(dbPanel.contains(list)).toBe(true);
+    expect(m.scrollTop).toBe(300);
+
+    // 맨 아래(새 글이 쌓이는 곳)에서 떠나면, 감춰진 사이 길이가 늘어도 맨 아래로 돌아온다.
+    m.scrollTop = 800;
+    await scrolled(list);
+    await click(tabByLabel("컨설팅 업무 현황"));
+    m.scrollTop = 0;
+    m.scrollHeight = 1200;
+    await click(tabByLabel("DB 정보"));
+    expect(m.scrollTop).toBe(1200);
+  });
+
+  it("업무 현황 칸은 컨설팅 업무 현황과 추천 정책의 자리를 따로 기억하고, DB 정보를 다녀와도 돌려 놓는다", async () => {
+    await mountView({ views: ["track", "recommend"] });
+    await click(tabByLabel("컨설팅 업무 현황"));
+    const work = tabPanels()[1];
+    const m = fakeScroller(work);
+
+    m.scrollTop = 300;
+    await scrolled(work);
+    // 같은 칸에 view 만 바꾼다 — hidden 이 아니라 위치는 그대로 남아 있고, 추천 정책에서 새로 읽던 자리를 따로 적는다.
+    await click(tabByLabel("추천 정책"));
+    expect(work.className).not.toContain("hidden");
+    m.scrollTop = 600;
+    await scrolled(work);
+
+    await click(tabByLabel("컨설팅 업무 현황"));
+    expect(m.scrollTop).toBe(300);
+    await click(tabByLabel("추천 정책"));
+    expect(m.scrollTop).toBe(600);
+
+    // DB 정보를 다녀오면 칸이 hidden 이 돼 위치가 0 이 되지만, 보던 보기의 자리로 돌아온다.
+    await click(tabByLabel("DB 정보"));
+    expect(work.className).toBe("hidden");
+    m.scrollTop = 0;
+    await click(tabByLabel("추천 정책"));
+    expect(m.scrollTop).toBe(600);
+  });
 });
 
 describe("상세창 큰 탭 — 업무 현황 조각이 없는 앱은 지금 모습 그대로", () => {
