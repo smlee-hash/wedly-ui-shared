@@ -126,3 +126,28 @@ describe("parseTiers 가 계산 기록을 지킨다", () => {
     expect([TIER_FEE_STAMP_PREFIX, TIER_FEE_REASON_PREFIX, TIER_FEE_BASIS_PREFIX, FEE_LIVE_KEY]).toEqual(["_fs_", "_fsr_", "_fsb_", "__fsLive"]);
   });
 });
+
+describe("정의 없이 읽어도 계산해 둔 금액이 남는다", () => {
+  it("_fs_ 기록이 있는 칸은 칸 정의가 없어도 금액을 함께 지킨다", () => {
+    const raw = [{ id: "a", label: "1차", 컨설턴트수수료: 600_000, _fs_컨설턴트수수료: "2026-11-05", 하이브수수료: "350000", _fs_하이브수수료: "2026-11-05", 위들리수수료: 9, _fsb_위들리수수료: "정부지원금 13번 행" }];
+    const [noDefs] = parseTiers(raw, []);
+    expect(noDefs.컨설턴트수수료).toBe(600_000);
+    expect(noDefs.하이브수수료).toBe(350_000);
+    expect(noDefs.위들리수수료).toBeUndefined(); // 계산한 때 기록이 없는 칸은 종전처럼 정의 없이는 옮기지 않는다
+    expect(calc(consultant, noDefs)).toBe(600_000);
+  });
+  it("투영으로 지워진 금액은 정의가 없어도 빈칸으로 남는다 — 옛 식으로 돌아가지 않는다", () => {
+    const [t] = parseTiers([{ id: "a", label: "1차", _fs_컨설턴트수수료: "t" }], []);
+    expect(t.컨설턴트수수료).toBeNull();
+    expect(calc(consultant, { ...t, 계약금: 1_000_000 } as TierData)).toBeNull();
+  });
+  it("_ 로 시작하거나 예약된 칸 이름은 금액을 옮기지 않는다", () => {
+    const [t] = parseTiers([{ id: "a", label: "1차", _x: 5, _fs__x: "t", _fs_label: "t", _fs_id: "t" }], []);
+    expect(t._x).toBeUndefined();
+    expect(t.label).toBe("1차");
+    expect(t.id).toBe("a");
+  });
+  it("기록이 있는 칸의 저장값이 공백 글자면 0원이 아니라 빈칸이다", () => {
+    expect(calc(consultant, tier({ 계약금: 1_000_000, 컨설턴트수수료: " ", _fs_컨설턴트수수료: "t" }))).toBeNull();
+  });
+});
