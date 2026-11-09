@@ -275,6 +275,33 @@ export function getManagedTierValue(tier: TierData, fieldKey: string): number | 
   return managedNumber(value);
 }
 
+// ── 정산 기준표 계산 기록(ERP 서버가 남김) ──
+// 서버가 저장 때 칸마다 남기는 결과 기록. 하이브·일루아는 다시 계산하지 않고 그대로 읽는다(ERP 갈래와 같은 이름·뜻).
+//   _fs_<칸키>  = 계산한 때(글자)   _fsr_<칸키> = 비운 이유(글자)   _fsb_<칸키> = 적용한 기준표 줄(글자, 예: "정부지원금 13번 행")
+// 이 갈래는 「정확히 하나」 계산기를 갖지 않는다 — 기록이 없는 차수는 지금 방식 그대로 계산한다.
+export const TIER_FEE_STAMP_PREFIX = "_fs_";
+export const TIER_FEE_REASON_PREFIX = "_fsr_";
+export const TIER_FEE_BASIS_PREFIX = "_fsb_";
+
+/** conditionValues 에 이 키를 true 로 넣으면 저장된 계산 기록을 무시하고 다시 계산한다(서버 전용). */
+export const FEE_LIVE_KEY = "__fsLive";
+
+export interface StoredFeeResult { computedAt?: string; reason?: string; basis?: string }
+
+/** 차수에 저장된 계산 기록. 없으면 빈 객체. */
+export function readStoredFeeResult(tier: TierData, fieldKey: string): StoredFeeResult {
+  const pick = (prefix: string): string | undefined => {
+    const v = tier[prefix + fieldKey];
+    return typeof v === "string" && v ? v : undefined;
+  };
+  const out: StoredFeeResult = {};
+  const computedAt = pick(TIER_FEE_STAMP_PREFIX), reason = pick(TIER_FEE_REASON_PREFIX), basis = pick(TIER_FEE_BASIS_PREFIX);
+  if (computedAt) out.computedAt = computedAt;
+  if (reason) out.reason = reason;
+  if (basis) out.basis = basis;
+  return out;
+}
+
 export function overrideKeyOf(fieldKey: string): string {
   return TIER_OVERRIDE_PREFIX + fieldKey;
 }
@@ -341,6 +368,19 @@ export function parseTiers(raw: unknown, fields: FieldDef[]): TierData[] {
         const num = typeof ov === "number" ? ov : typeof ov === "string" && ov !== "" ? Number(ov) : NaN;
         if (Number.isFinite(num)) tier[k] = num;
       }
+    // 정산 기준표 계산 기록(_fs_*·_fsr_*·_fsb_*) 보존 — 글자 값만. 정의가 아직 안 와도 접두사로 지킨다(_ovr_ 와 같은 이유).
+    for (const key of Object.keys(item)) {
+      if (!key.startsWith(TIER_FEE_STAMP_PREFIX) && !key.startsWith(TIER_FEE_REASON_PREFIX) && !key.startsWith(TIER_FEE_BASIS_PREFIX)) continue;
+      const v = item[key];
+      if (typeof v !== "string" || !v) continue;
+      tier[key] = v;
+      // 계산한 때(_fs_) 기록이 있는 칸은 정의가 아직 없어도 금액을 함께 지킨다 — 기록만 남고 금액이 빠진 채 저장되면
+      // 그 칸은 서버가 다시 계산할 때까지 빈칸으로 읽힌다(_cf_ 와 같은 이유). 정의가 있는 칸은 위 칸 루프가 이미 옮겼다.
+      if (!key.startsWith(TIER_FEE_STAMP_PREFIX)) continue;
+      const fieldKey = key.slice(TIER_FEE_STAMP_PREFIX.length);
+      if (!managedFieldKey(fieldKey) || fields.some(f => f.key === fieldKey)) continue;
+      tier[fieldKey] = managedNumber(item[fieldKey]);
+    }
     // Also preserve values while definitions are loading. A missing projected
     // partner amount remains null; it must never fall back to the legacy formula.
     for (const key of Object.keys(item)) {
@@ -604,6 +644,16 @@ export function evalFormulaForTier(
   if (manual !== null) return manual;
   const managed = getManagedTierValue(tier, field.key);
   if (managed !== undefined) return managed;
+  // ERP 서버가 저장 때 남긴 계산 기록(_fs_<칸>)이 있으면 그대로 읽는다 — ERP·집계와 같은 값을 보게(수동값·관리값 다음 순위).
+  // 이 칸을 식에서 이어 받는 다른 칸도 여기를 거쳐 같은 값을 쓴다. 기록이 없는 옛 차수는 아래 계산 그대로다.
+  // 비운 이유(_fsr_)가 있으면 값 없음. 서버만 conditionValues[FEE_LIVE_KEY]=true 로 기록을 무시하고 다시 계산한다.
+  if (conditionValues?.[FEE_LIVE_KEY] !== true) {
+    const stored = readStoredFeeResult(tier, field.key);
+    if (stored.computedAt) {
+      if (stored.reason) return null;
+      return managedNumber(tier[field.key]); // 공백 글자는 0원이 아니라 빈칸
+    }
+  }
   if (seen.has(field.key)) return null; // 순환 참조 차단 (조건 평가에서 자기 칸 참조 대비 먼저)
   const nextSeen = new Set(seen);
   nextSeen.add(field.key);
