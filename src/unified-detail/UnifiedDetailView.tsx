@@ -433,6 +433,42 @@ function TaxAmendmentPanel({
   const [localRow, setLocalRow] = useState<Record<string, unknown>>(() => ({ ...domainRow.row }));
   const entryId = domainRow.entryId;
 
+  // 저장 뒤 조용히 다시 읽은 행(서버가 다시 계산한 배분 등)을 화면 값에 맞춘다 — 전에는 처음 받은 행만 복사해
+  // 새로고침해야 배분이 바뀌었다(2026-11-11 정산 요청 2 QA). 이전 서버 행 → 새 서버 행에서 실제 달라진 칸만 반영한다.
+  // 저장 중이거나 잠깐 실패로 보관 중인 칸(heldKeys)은 입력을 지키고, 그동안 서버가 바꾼 칸(skippedKeys)은
+  // 풀린 뒤 다음 서버 행에서 반드시 받는다.
+  const serverRowRef = useRef({ entryId, row: domainRow.row });
+  const heldKeysRef = useRef(new Map<string, number>());
+  const skippedKeysRef = useRef(new Set<string>());
+  useEffect(() => {
+    const seen = serverRowRef.current;
+    const incoming = domainRow.row;
+    if (seen.row === incoming && seen.entryId === domainRow.entryId) return;
+    serverRowRef.current = { entryId: domainRow.entryId, row: incoming };
+    if (seen.entryId !== domainRow.entryId) {
+      heldKeysRef.current = new Map();
+      skippedKeysRef.current = new Set();
+      setLocalRow({ ...incoming });
+      return;
+    }
+    const held = new Set(heldKeysRef.current.keys());
+    const skipped = skippedKeysRef.current;
+    const force: string[] = [];
+    for (const key of skipped) if (!held.has(key)) force.push(key);
+    for (const key of force) skipped.delete(key);
+    for (const key of held) if (!sameFieldValue(seen.row[key], incoming[key])) skipped.add(key);
+    setLocalRow((current) => {
+      let next = mergeIncomingRow(current, seen.row, incoming, held);
+      for (const key of force) {
+        if (sameFieldValue(next[key], incoming[key])) continue;
+        if (next === current) next = { ...current };
+        if (Object.prototype.hasOwnProperty.call(incoming, key)) next[key] = incoming[key];
+        else delete next[key];
+      }
+      return next;
+    });
+  }, [domainRow.entryId, domainRow.row]);
+
   // 세부 섹션(차수 나눠 관리) 목록 — 어댑터 loadColumnConfig 경유로 불러온다.
   const [subSections, setSubSections] = useState<Record<string, Array<{ id: string; label: string }>>>({});
   useEffect(() => {
@@ -466,8 +502,28 @@ function TaxAmendmentPanel({
     async (key: string, newVal: string | number | boolean | null) => {
       const prev = localRow[key];
       setLocalRow((r) => ({ ...r, [key]: newVal }));
+      // 이 저장이 끝나거나 되돌릴 때까지 다시 읽은 서버 행이 이 칸을 덮지 않게 지킨다(한 번만 푼다).
+      const held = heldKeysRef.current;
+      held.set(key, (held.get(key) ?? 0) + 1);
+      let holding = true;
+      const letGo = () => {
+        if (!holding) return;
+        holding = false;
+        const n = (held.get(key) ?? 0) - 1;
+        if (n > 0) held.set(key, n);
+        else held.delete(key);
+      };
+      // 되돌리기 — 지키는 동안 서버가 이 칸을 바꿨으면 입력 전 값 대신 그 최신 서버 값을 보인다.
+      const revert = () => {
+        letGo();
+        if (held !== heldKeysRef.current) return; // 다른 항목으로 바뀐 뒤의 늦은 되돌리기
+        const latest = !held.has(key) && skippedKeysRef.current.delete(key);
+        const server = serverRowRef.current.row;
+        setLocalRow((r) => ({ ...r, [key]: latest ? server[key] : prev }));
+      };
       try {
         await saveOwnField(entryId, key, newVal);
+        letGo();
         adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, key));
         onSaved?.();
       } catch (e) {
@@ -483,13 +539,20 @@ function TaxAmendmentPanel({
             rowLabel: String((localRow as Record<string, unknown>)["02상호명"] ?? "") || "이 항목",
             fieldLabel: key, value: newVal,
             error: m || `'${key}' 저장에 실패했습니다.`, kind,
-            retry: async () => { try { await saveOwnField(entryId, key, newVal); return true; } catch { return false; } },
-            revert: () => setLocalRow((r) => ({ ...r, [key]: prev })),
+            // 다시 저장이 성공하면 서버가 다시 계산한 값(배분 등)을 받도록 다시 읽는다.
+            retry: async () => {
+              try { await saveOwnField(entryId, key, newVal); } catch { return false; }
+              letGo();
+              onSaved?.();
+              return true;
+            },
+            revert,
+            onCleanup: letGo,
           });
           return;
         }
         // 규칙상 저장할 수 없는 값은 다시 시도해도 소용없다 → 되돌리고 사유를 알린다.
-        setLocalRow((r) => ({ ...r, [key]: prev }));
+        revert();
         alert(m || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
       }
     },
