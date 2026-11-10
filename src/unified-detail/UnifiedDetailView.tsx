@@ -280,6 +280,9 @@ function runBasicFieldSequence<T>(
   return rowDone;
 }
 
+// 경정청구 패널이 지키는 칸 하나 — 끝나지 않은 저장(입력 순서)과 첫 저장 직전 값(성공한 저장이 있으면 그 값).
+type FieldHold = { pending: Array<{ value: unknown }>; base: unknown };
+
 // 행 값은 JSON 이라 글자·숫자·불리언·null·배열·일반 객체만 구조로 비교한다(그 밖의 객체는 같은 참조일 때만 같다고 본다).
 function sameFieldValue(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
@@ -433,6 +436,44 @@ function TaxAmendmentPanel({
   const [localRow, setLocalRow] = useState<Record<string, unknown>>(() => ({ ...domainRow.row }));
   const entryId = domainRow.entryId;
 
+  // 저장 뒤 조용히 다시 읽은 행(서버가 다시 계산한 배분 등)을 화면 값에 맞춘다 — 전에는 처음 받은 행만 복사해
+  // 새로고침해야 배분이 바뀌었다(2026-11-11 정산 요청 2 QA). 이전 서버 행 → 새 서버 행에서 실제 달라진 칸만 반영한다.
+  // 저장 중이거나 잠깐 실패로 보관 중인 칸(heldKeys)은 입력을 지키고, 그동안 서버가 바꾼 칸(skippedKeys)은
+  // 풀린 뒤 다음 서버 행에서 반드시 받는다.
+  const serverRowRef = useRef({ entryId, row: domainRow.row });
+  // 칸마다 아직 끝나지 않은 저장(입력 순서)과 첫 저장 직전 화면 값(base). 같은 칸 저장이 겹쳤다가 모두 거절되면
+  // base 로 돌아간다 — 마지막 저장의 "입력 전 값"은 저장 안 된 앞 입력일 수 있다(2026-11-11 독립 리뷰 P3).
+  const heldKeysRef = useRef(new Map<string, FieldHold>());
+  const skippedKeysRef = useRef(new Set<string>());
+  useEffect(() => {
+    const seen = serverRowRef.current;
+    const incoming = domainRow.row;
+    if (seen.row === incoming && seen.entryId === domainRow.entryId) return;
+    serverRowRef.current = { entryId: domainRow.entryId, row: incoming };
+    if (seen.entryId !== domainRow.entryId) {
+      heldKeysRef.current = new Map();
+      skippedKeysRef.current = new Set();
+      setLocalRow({ ...incoming });
+      return;
+    }
+    const held = new Set(heldKeysRef.current.keys());
+    const skipped = skippedKeysRef.current;
+    const force: string[] = [];
+    for (const key of skipped) if (!held.has(key)) force.push(key);
+    for (const key of force) skipped.delete(key);
+    for (const key of held) if (!sameFieldValue(seen.row[key], incoming[key])) skipped.add(key);
+    setLocalRow((current) => {
+      let next = mergeIncomingRow(current, seen.row, incoming, held);
+      for (const key of force) {
+        if (sameFieldValue(next[key], incoming[key])) continue;
+        if (next === current) next = { ...current };
+        if (Object.prototype.hasOwnProperty.call(incoming, key)) next[key] = incoming[key];
+        else delete next[key];
+      }
+      return next;
+    });
+  }, [domainRow.entryId, domainRow.row]);
+
   // 세부 섹션(차수 나눠 관리) 목록 — 어댑터 loadColumnConfig 경유로 불러온다.
   const [subSections, setSubSections] = useState<Record<string, Array<{ id: string; label: string }>>>({});
   useEffect(() => {
@@ -464,10 +505,44 @@ function TaxAmendmentPanel({
 
   const handleUpdate = useCallback(
     async (key: string, newVal: string | number | boolean | null) => {
-      const prev = localRow[key];
       setLocalRow((r) => ({ ...r, [key]: newVal }));
+      // 이 저장이 끝나거나 되돌릴 때까지 다시 읽은 서버 행이 이 칸을 덮지 않게 지킨다(한 번만 푼다).
+      const held = heldKeysRef.current;
+      const hold = held.get(key) ?? { pending: [], base: localRow[key] };
+      const mine = { value: newVal as unknown };
+      hold.pending.push(mine);
+      held.set(key, hold);
+      let holding = true;
+      const letGo = () => {
+        if (!holding) return;
+        holding = false;
+        const at = hold.pending.indexOf(mine);
+        if (at >= 0) hold.pending.splice(at, 1);
+        if (hold.pending.length === 0 && held.get(key) === hold) held.delete(key);
+      };
+      // 저장이 서버에 들어갔다 — 겹친 다른 저장이 뒤에 거절되면 이 값으로 돌아간다.
+      const settled = () => {
+        hold.base = newVal;
+        letGo();
+      };
+      // 되돌리기 — 같은 칸의 다른 저장이 남았으면 그중 가장 나중 입력을, 다 풀렸으면 지키는 동안 서버가 바꾼
+      // 최신 서버 값이나 첫 저장 직전 값을 보인다.
+      const revert = () => {
+        letGo();
+        if (held !== heldKeysRef.current) return; // 다른 항목으로 바뀐 뒤의 늦은 되돌리기
+        const rest = held.get(key)?.pending ?? [];
+        if (rest.length > 0) {
+          const newest = rest[rest.length - 1].value;
+          setLocalRow((r) => ({ ...r, [key]: newest }));
+          return;
+        }
+        const latest = skippedKeysRef.current.delete(key);
+        const server = serverRowRef.current.row;
+        setLocalRow((r) => ({ ...r, [key]: latest ? server[key] : hold.base }));
+      };
       try {
         await saveOwnField(entryId, key, newVal);
+        settled();
         adapter.unsaved?.resolve(adapter.unsaved.makeId(adapter.unsaved.scope, entryId, key));
         onSaved?.();
       } catch (e) {
@@ -483,13 +558,20 @@ function TaxAmendmentPanel({
             rowLabel: String((localRow as Record<string, unknown>)["02상호명"] ?? "") || "이 항목",
             fieldLabel: key, value: newVal,
             error: m || `'${key}' 저장에 실패했습니다.`, kind,
-            retry: async () => { try { await saveOwnField(entryId, key, newVal); return true; } catch { return false; } },
-            revert: () => setLocalRow((r) => ({ ...r, [key]: prev })),
+            // 다시 저장이 성공하면 서버가 다시 계산한 값(배분 등)을 받도록 다시 읽는다.
+            retry: async () => {
+              try { await saveOwnField(entryId, key, newVal); } catch { return false; }
+              settled();
+              onSaved?.();
+              return true;
+            },
+            revert,
+            onCleanup: letGo,
           });
           return;
         }
         // 규칙상 저장할 수 없는 값은 다시 시도해도 소용없다 → 되돌리고 사유를 알린다.
-        setLocalRow((r) => ({ ...r, [key]: prev }));
+        revert();
         alert(m || `'${key}' 저장에 실패했습니다. 다시 시도해 주세요.`);
       }
     },
