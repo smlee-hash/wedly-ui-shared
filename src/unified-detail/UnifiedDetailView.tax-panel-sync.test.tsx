@@ -419,4 +419,124 @@ describe.each(HOSTS)("경정청구 패널 — 다시 읽은 서버 행 반영 ($
     await h.saveMeetings();
     expect(h.raw()).toBe("A|서버 재계산");
   });
+
+  // 같은 칸 저장이 겹치는 경로(독립 리뷰 P3, 2026-11-11): 차수 카드는 칸 하나(JSON)라 카드 안 두 칸을 잇달아 고치면
+  // 같은 칸 저장 두 개가 함께 떠 있게 된다. 다시 읽기는 저장이 끝날 때만 보낸다.
+  function overlapRig(applyOnCall: boolean) {
+    const server: Server = { [CONTRACT]: "A" };
+    const loads: Array<ReturnType<typeof deferred<CustomerDetailLite | null>>> = [];
+    let holdLoads = false;
+    const loadDomainRows = vi.fn(() => {
+      if (!holdLoads) return Promise.resolve(detailOf(server));
+      const load = deferred<CustomerDetailLite | null>();
+      loads.push(load);
+      return load.promise;
+    });
+    const saves: Array<ReturnType<typeof deferred<void>>> = [];
+    const saveOwnField = vi.fn((_id: string, key: string, value: unknown) => {
+      const done = deferred<void>();
+      saves.push(done);
+      // applyOnCall: 서버가 받은 순서대로 넣고 응답만 늦는다. 아니면 응답이 오는 순간 넣는다.
+      if (applyOnCall) server[key] = `${String(value)}|배분`;
+      return done.promise.then(() => { if (!applyOnCall) server[key] = `${String(value)}|배분`; });
+    });
+    return { server, loads, saves, loadDomainRows, saveOwnField, startHolding: () => { holdLoads = true; } };
+  }
+
+  it("같은 칸 저장 둘이 겹쳐 둘 다 거절되면, 저장 안 된 첫 입력이 아니라 처음 값으로 돌아간다", async () => {
+    const rig = overlapRig(false);
+    const alertSpy = vi.fn();
+    vi.stubGlobal("alert", alertSpy);
+    const h = await mount(host, buildAdapter({ loadDomainRows: rig.loadDomainRows, saveOwnField: rig.saveOwnField }));
+    rig.startHolding();
+
+    await h.saveContract("B");
+    await h.saveContract("C");
+    expect(h.raw()).toBe("C");
+
+    // 앞 저장이 먼저 거절돼도 뒤 저장이 아직 떠 있다 — 그 입력(C)을 그대로 둔다.
+    await act(async () => { rig.saves[0].reject(new Error("규칙상 저장할 수 없는 값")); });
+    await settle();
+    expect(h.raw()).toBe("C");
+
+    await act(async () => { rig.saves[1].reject(new Error("규칙상 저장할 수 없는 값")); });
+    await settle();
+    expect(alertSpy).toHaveBeenCalledTimes(2);
+    expect(h.raw()).toBe("A");
+    expect(rig.loads).toHaveLength(0);
+  });
+
+  it("같은 칸 저장 둘이 겹쳐 뒤 저장만 거절되면, 아직 떠 있는 앞 저장의 입력을 보이고 그 저장이 끝나면 서버 값으로 맞춘다", async () => {
+    const rig = overlapRig(false);
+    vi.stubGlobal("alert", vi.fn());
+    const h = await mount(host, buildAdapter({ loadDomainRows: rig.loadDomainRows, saveOwnField: rig.saveOwnField }));
+    rig.startHolding();
+
+    await h.saveContract("B");
+    await h.saveContract("C");
+    await act(async () => { rig.saves[1].reject(new Error("규칙상 저장할 수 없는 값")); });
+    await settle();
+    expect(h.raw()).toBe("B");
+
+    await act(async () => { rig.saves[0].resolve(); });
+    await settle();
+    expect(rig.loads).toHaveLength(1);
+    await act(async () => { rig.loads[0].resolve(detailOf(rig.server)); });
+    await settle();
+    expect(h.raw()).toBe("B|배분");
+  });
+
+  it("같은 칸 저장 둘이 겹쳐 앞 저장은 들어가고 뒤 저장이 거절되면, 다시 읽기가 오기 전에도 들어간 값으로 돌아간다", async () => {
+    const rig = overlapRig(false);
+    vi.stubGlobal("alert", vi.fn());
+    const h = await mount(host, buildAdapter({ loadDomainRows: rig.loadDomainRows, saveOwnField: rig.saveOwnField }));
+    rig.startHolding();
+
+    await h.saveContract("B");
+    await h.saveContract("C");
+    await act(async () => { rig.saves[0].resolve(); });
+    await settle();
+    expect(rig.loads).toHaveLength(1);
+    await act(async () => { rig.saves[1].reject(new Error("규칙상 저장할 수 없는 값")); });
+    await settle();
+    // 서버에는 B 가 들어갔다 — 처음 값(A)으로 돌아가면 저장된 입력이 사라진 것처럼 보인다.
+    expect(h.raw()).toBe("B");
+
+    await act(async () => { rig.loads[0].resolve(detailOf(rig.server)); });
+    await settle();
+    expect(h.raw()).toBe("B|배분");
+  });
+
+  it("같은 칸 저장 둘이 겹치면 두 저장이 다 끝날 때까지 입력을 지키고, 마지막 다시 읽기에서 서버 값을 받는다", async () => {
+    for (const lateFirst of [false, true]) {
+      const rig = overlapRig(lateFirst);
+      const h = await mount(host, buildAdapter({ loadDomainRows: rig.loadDomainRows, saveOwnField: rig.saveOwnField }));
+      rig.startHolding();
+
+      await h.saveContract("B");
+      await h.saveContract("C");
+      // lateFirst: 뒤 저장(C)이 먼저 끝나고 앞 저장(B)의 응답이 늦게 온다. 아니면 앞 저장부터 끝난다.
+      const [early, late] = lateFirst ? [rig.saves[1], rig.saves[0]] : [rig.saves[0], rig.saves[1]];
+      await act(async () => { early.resolve(); });
+      await settle();
+      expect(rig.loads).toHaveLength(1);
+      await act(async () => { rig.loads[0].resolve(detailOf(rig.server)); });
+      await settle();
+      // 한 저장이 아직 떠 있다 — 먼저 끝난 저장의 다시 읽기가 지금 입력(C)을 덮으면 안 된다.
+      expect(h.raw()).toBe("C");
+
+      await act(async () => { late.resolve(); });
+      await settle();
+      expect(rig.loads).toHaveLength(2);
+      await act(async () => { rig.loads[1].resolve(detailOf(rig.server)); });
+      await settle();
+      expect(h.raw()).toBe(String(rig.server[CONTRACT]));
+      expect(h.raw()).toBe("C|배분");
+
+      for (const { root, container } of mounted.splice(0)) {
+        await act(async () => { root.unmount(); });
+        container.remove();
+      }
+    }
+  });
 });
