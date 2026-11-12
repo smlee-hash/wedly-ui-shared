@@ -11,6 +11,9 @@
     "wedly/no-double-cast": {
       "count": 3
     },
+    "wedly/require-disable-expiry": {
+      "count": 1
+    },
     "wedly/require-disable-reason": {
       "count": 1
     }
@@ -36,6 +39,9 @@
     }
   },
   "src/components/ColumnToggleModal.tsx": {
+    "wedly/require-disable-expiry": {
+      "count": 1
+    },
     "wedly/require-disable-reason": {
       "count": 1
     }
@@ -49,6 +55,9 @@
     "@next/next/no-img-element": {
       "count": 2
     },
+    "wedly/require-disable-expiry": {
+      "count": 3
+    },
     "wedly/require-disable-reason": {
       "count": 3
     }
@@ -61,6 +70,9 @@
   "src/layout/useSidebarCollapse.ts": {
     "no-empty": {
       "count": 2
+    },
+    "wedly/require-disable-expiry": {
+      "count": 1
     },
     "wedly/require-disable-reason": {
       "count": 1
@@ -103,11 +115,17 @@
     "@next/next/no-img-element": {
       "count": 1
     },
+    "wedly/require-disable-expiry": {
+      "count": 1
+    },
     "wedly/require-disable-reason": {
       "count": 1
     }
   },
   "src/unified-detail/HistoryPanel.tsx": {
+    "wedly/require-disable-expiry": {
+      "count": 1
+    },
     "wedly/require-disable-reason": {
       "count": 1
     }
@@ -139,11 +157,17 @@
     "react-hooks/exhaustive-deps": {
       "count": 1
     },
+    "wedly/require-disable-expiry": {
+      "count": 8
+    },
     "wedly/require-disable-reason": {
       "count": 8
     }
   },
   "src/unified-detail/adapter-types.ts": {
+    "wedly/require-disable-expiry": {
+      "count": 6
+    },
     "wedly/require-disable-reason": {
       "count": 6
     }
@@ -162,6 +186,9 @@
     }
   },
   "src/unified/CommonFieldsAdmin.tsx": {
+    "wedly/require-disable-expiry": {
+      "count": 1
+    },
     "wedly/require-disable-reason": {
       "count": 1
     }
