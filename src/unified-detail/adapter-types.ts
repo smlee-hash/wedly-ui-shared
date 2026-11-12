@@ -317,6 +317,24 @@ export function saveFailureKindOf(e: unknown): string {
   return typeof k === "string" ? k : "permanent";
 }
 
+/** 앱이 준 「추가 위쪽 탭」 내용이 받는 값. */
+export interface ExtraTopTabProps {
+  /** 상세창이 받은 row 그대로. */
+  primaryRow: Record<string, unknown>;
+  /** row._id 를 글자로(없으면 ""). */
+  entryId: string;
+  isAdmin: boolean;
+}
+
+/** 위쪽 탭 줄에 앱이 더하는 탭 하나. */
+export interface ExtraTopTab {
+  /** 영문·숫자·- 만 쓰는 고유 이름(활성 값 `__extra__:<key>` 에 들어간다). */
+  key: string;
+  /** 탭에 뜨는 글자. */
+  label: string;
+  Component: React.ComponentType<ExtraTopTabProps>;
+}
+
 export interface UnifiedDetailAdapter {
   appName: "ERP" | "HIVE" | "ILLUA";
   ownDomain: string;    // ERP: "tax-amendment"
@@ -381,6 +399,9 @@ export interface UnifiedDetailAdapter {
     /** ERP 전용: 기본정보 탭 "택스봇 자동 리포트" 칸 컨트롤. 제공 시 기본정보에 그 칸이 나타남(미제공이면 칸 없음 — 하이브·일루아 불변). props: { row, entryId, onSaved? }. */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     TaxbotReportControl?: React.ComponentType<any>;
+    /** 넓은 3칸 화면(layout="wide", 신규 아님)의 위쪽 탭 줄에만 붙는 앱별 탭 — 탭을 눌렀을 때만 내용을 그린다.
+     *  미지정이면 아무것도 안 바뀐다(하이브·일루아 불변). compact·신규 등록 화면에는 붙지 않는다. */
+    extraTopTabs?: ExtraTopTab[];
   };
 
   /** 자기 도메인(경정청구) 파일 탭 칸 정의 목록 */
