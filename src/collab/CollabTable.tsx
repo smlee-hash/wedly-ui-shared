@@ -89,6 +89,12 @@ export type CollabTableProps = {
    */
   searchExtraText?: (row: RowData) => string;
   /**
+   * 검색어가 바뀔 때(0.1초 디바운스 뒤, 소문자·앞뒤 공백 제거) 알린다. 표 밖에서 같은 검색으로 세야 하는 화면용
+   * (일루아 필터 바 지역 선택지 업체 수 — 노션 NO.724). 생략하면 종전과 같다.
+   * ⚠️ 안정된 함수를 넘긴다(useState 의 set 함수 등) — 함수가 바뀌어도 지금 검색어로 다시 알린다.
+   */
+  onSearchChange?: (query: string) => void;
+  /**
    * 줄 전체 색칠(조건부 서식). 그 줄의 데이터로 색 클래스(예: "bg-wedly-bg-red text-wedly-red-ink")를 돌려주면
    * 그 줄에 칠한다. 생략하거나 null을 돌려주면 색 없음 — 기존과 100% 동일(ERP 무영향).
    * 체크된 줄은 파란 강조가 이겨 이 색은 빠진다(하이브·일루아와 동일 규칙).
@@ -605,6 +611,7 @@ export function CollabTable({
   mobile,
   renderFieldValue,
   searchExtraText,
+  onSearchChange,
   getRowColorClass,
   getColAccent: getColAccentProp,
   tabs,
@@ -784,6 +791,9 @@ export function CollabTable({
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim().toLowerCase()), 100);
     return () => clearTimeout(t);
   }, [searchInput]);
+  useEffect(() => {
+    onSearchChange?.(debouncedSearch);
+  }, [debouncedSearch, onSearchChange]);
 
   const orderedColumns = useMemo(() => orderColumns(columns, colOrder), [columns, colOrder]);
   // 서버 모드(값 도착)면: 보일 컬럼 = 전체 − 숨김목록. 그 외(로딩중·기존 모드)면: 저장된 '보일 컬럼' 집합.

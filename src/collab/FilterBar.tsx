@@ -19,6 +19,16 @@ export type FilterBarProps = {
   onReset: () => void;
   getOptions: (fieldKey: string) => string[];
   getOptionColorClass?: (opt: string) => string;
+  /**
+   * 선택지 옆에 보일 개수(예: 그 값을 가진 업체 수). undefined 를 돌려주면 그 선택지는 개수를 그리지 않는다.
+   * 넘기지 않으면 지금처럼 개수 없이 그린다. '(미입력)' 선택지에도 같은 함수로 묻는다.
+   */
+  getOptionCount?: (fieldKey: string, option: string) => number | undefined;
+  /**
+   * 다중 선택 값 목록 맨 앞에 '(미입력)'을 넣을지. 기본 true(지금과 같음).
+   * 빈 값이 생길 수 없는 칸(예: 계산 칸이 '주소 없음' 같은 값을 직접 넣는 경우)은 false 로 유령 선택지를 없앤다.
+   */
+  includeEmptyOption?: (fieldKey: string) => boolean;
   isAdmin?: boolean;
   /** 관리자: 현재 필터들을 '기본 필터'로 서버 저장. 있으면 저장 버튼 노출. */
   onSaveAsDefault?: () => void;
@@ -33,7 +43,8 @@ const CHIP = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 t
 
 export function FilterBar({
   fields, items, onChange, visible, onToggleVisible, onReset,
-  getOptions, getOptionColorClass, isAdmin, onSaveAsDefault, onReleaseDefault, hasDefault, savingDefault,
+  getOptions, getOptionColorClass, getOptionCount, includeEmptyOption,
+  isAdmin, onSaveAsDefault, onReleaseDefault, hasDefault, savingDefault,
 }: FilterBarProps) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -132,6 +143,8 @@ export function FilterBar({
                     fields={fields}
                     getOptions={getOptions}
                     getOptionColorClass={getOptionColorClass}
+                    getOptionCount={getOptionCount}
+                    includeEmptyOption={includeEmptyOption}
                     onPatch={(n) => patch(it.id, n)}
                     onClose={() => setOpenId(null)}
                     onDelete={(!it.pinned || isAdmin) ? () => remove(it.id) : undefined}
@@ -197,10 +210,11 @@ function isComplete(it: FilterItem): boolean {
 
 
 function FilterPopover({
-  item, field, cat, fields, getOptions, getOptionColorClass, onPatch, onClose, onDelete,
+  item, field, cat, fields, getOptions, getOptionColorClass, getOptionCount, includeEmptyOption, onPatch, onClose, onDelete,
 }: {
   item: FilterItem; field: FilterField; cat: FilterCategory; fields: FilterField[];
   getOptions: (k: string) => string[]; getOptionColorClass?: (o: string) => string;
+  getOptionCount?: FilterBarProps["getOptionCount"]; includeEmptyOption?: FilterBarProps["includeEmptyOption"];
   onPatch: (n: Partial<FilterItem>) => void; onClose: () => void; onDelete?: () => void;
 }) {
   const ops = operatorsFor(cat);
@@ -236,6 +250,8 @@ function FilterPopover({
           field={field}
           getOptions={getOptions}
           getOptionColorClass={getOptionColorClass}
+          getOptionCount={getOptionCount}
+          includeEmptyOption={includeEmptyOption}
           onPatch={onPatch}
         />
 
@@ -257,10 +273,11 @@ function FilterPopover({
 }
 
 function ValueEditor({
-  item, field, getOptions, getOptionColorClass, onPatch,
+  item, field, getOptions, getOptionColorClass, getOptionCount, includeEmptyOption, onPatch,
 }: {
   item: FilterItem; field: FilterField;
   getOptions: (k: string) => string[]; getOptionColorClass?: (o: string) => string;
+  getOptionCount?: FilterBarProps["getOptionCount"]; includeEmptyOption?: FilterBarProps["includeEmptyOption"];
   onPatch: (n: Partial<FilterItem>) => void;
 }) {
   const op = item.operator;
@@ -268,27 +285,35 @@ function ValueEditor({
 
   if (op === "in" || op === "not_in") {
     // '(미입력)'을 맨 앞에 — 빈 값(미입력) 항목도 포함/제외로 고를 수 있게(탭 편집창과 동일).
+    // 빈 값이 생길 수 없는 칸은 includeEmptyOption 이 false 를 돌려줘 넣지 않는다.
     const base = getOptions(field.key);
-    const opts = base.includes(EMPTY_OPTION_VALUE) ? base : [EMPTY_OPTION_VALUE, ...base];
+    const withEmpty = includeEmptyOption?.(field.key) ?? true;
+    const opts = !withEmpty || base.includes(EMPTY_OPTION_VALUE) ? base : [EMPTY_OPTION_VALUE, ...base];
     const selected = new Set(Array.isArray(item.value) ? item.value : []);
     return (
       <div className="max-h-40 overflow-y-auto rounded-lg border border-wedly-bd p-1">
         {opts.length === 0 && <div className="px-2 py-1 text-[12px] text-wedly-muted">선택지 없음</div>}
-        {opts.map((o) => (
-          <label key={o} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[13px] hover:bg-wedly-bg-gray">
-            <input
-              type="checkbox"
-              className="shrink-0"
-              checked={selected.has(o)}
-              onChange={(e) => {
-                const next = new Set(selected);
-                if (e.target.checked) next.add(o); else next.delete(o);
-                onPatch({ value: [...next] });
-              }}
-            />
-            <span title={o} className={cn("min-w-0 truncate rounded px-1.5 py-0.5", getOptionColorClass?.(o))}>{o}</span>
-          </label>
-        ))}
+        {opts.map((o) => {
+          const count = getOptionCount?.(field.key, o);
+          return (
+            <label key={o} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[13px] hover:bg-wedly-bg-gray">
+              <input
+                type="checkbox"
+                className="shrink-0"
+                checked={selected.has(o)}
+                onChange={(e) => {
+                  const next = new Set(selected);
+                  if (e.target.checked) next.add(o); else next.delete(o);
+                  onPatch({ value: [...next] });
+                }}
+              />
+              <span data-option-label title={o} className={cn("min-w-0 truncate rounded px-1.5 py-0.5", getOptionColorClass?.(o))}>{o}</span>
+              {count !== undefined && (
+                <span data-option-count className="ml-auto shrink-0 pl-2 text-[12px] tabular-nums text-wedly-muted">{count.toLocaleString("ko-KR")}</span>
+              )}
+            </label>
+          );
+        })}
       </div>
     );
   }
