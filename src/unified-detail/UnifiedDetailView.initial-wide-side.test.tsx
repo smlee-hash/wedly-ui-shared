@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { StrictMode, act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RowData } from "../collab/collab-table-core";
@@ -125,24 +125,26 @@ async function settle() {
 
 type ViewProps = Partial<Parameters<typeof UnifiedDetailView>[0]>;
 
-async function mountView(infoPane: boolean, extra: ViewProps = {}) {
+// strict — 개발 모드처럼 StrictMode 로 감싼다(첫 효과가 두 번 돈다 — 적대적 리뷰 지적).
+async function mountView(infoPane: boolean, extra: ViewProps = {}, strict = false) {
   setViewport(true);
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   mounted.push({ root, container });
+  const view = (
+    <UnifiedDetailView
+      row={ROW}
+      onClose={() => {}}
+      adapter={buildAdapter(infoPane)}
+      layout="wide"
+      // 오른쪽 「정보」 배치는 그 분야 탭이 열려 있을 때만 — 정보 배치 경우는 정부지원금 탭으로 연다.
+      {...(infoPane ? { initialTab: "government-subsidy" } : {})}
+      {...extra}
+    />
+  );
   await act(async () => {
-    root.render(
-      <UnifiedDetailView
-        row={ROW}
-        onClose={() => {}}
-        adapter={buildAdapter(infoPane)}
-        layout="wide"
-        // 오른쪽 「정보」 배치는 그 분야 탭이 열려 있을 때만 — 정보 배치 경우는 정부지원금 탭으로 연다.
-        {...(infoPane ? { initialTab: "government-subsidy" } : {})}
-        {...extra}
-      />,
-    );
+    root.render(strict ? <StrictMode>{view}</StrictMode> : view);
   });
   await settle();
   return container;
@@ -214,6 +216,30 @@ describe("UnifiedDetailView — 처음 열 오른쪽 칸(initialWideSide, NO.732
   it("목록 말풍선(openOnHistory)이 함께 오면 히스토리가 앞선다", async () => {
     const c = await mountView(false, { initialWideSide: "files", openOnHistory: true });
     expect(wideFilesShown(c)).toBe(false);
+  });
+
+  it("StrictMode(개발 모드) — 오른쪽 「정보」 배치 분야에서 files 면 파일 칸을 지킨다", async () => {
+    const c = await mountView(true, { initialWideSide: "files" }, true);
+    expect(wideFilesShown(c)).toBe(true);
+    expect(activeSideButtons(c)).toEqual(["파일"]);
+  });
+
+  it("StrictMode(개발 모드) — 안 넘기면 지금처럼 정보 칸", async () => {
+    const c = await mountView(true, {}, true);
+    expect(wideFilesShown(c)).toBe(false);
+    expect(c.querySelectorAll("[data-probe-info-panel]").length).toBeGreaterThan(0);
+    expect(activeSideButtons(c)).toEqual([]);
+  });
+
+  it("StrictMode(개발 모드) — 처음 열린 뒤 「히스토리」 단추를 누르면 그대로 바뀐다", async () => {
+    const c = await mountView(true, { initialWideSide: "files" }, true);
+    const history = Array.from(c.querySelectorAll("button")).find((b) => b.textContent?.trim() === "히스토리");
+    await act(async () => {
+      history?.click();
+    });
+    await settle();
+    expect(wideFilesShown(c)).toBe(false);
+    expect(activeSideButtons(c)).toEqual(["히스토리"]);
   });
 
   it("처음 열린 뒤 「히스토리」 단추를 누르면 그대로 바뀐다(첫 값만 정한다)", async () => {

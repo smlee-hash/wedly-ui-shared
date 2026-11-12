@@ -4265,20 +4265,27 @@ export default function UnifiedDetailView({
   // 오른쪽 칸 세그먼트 보정 — 「정보」 배치가 없는 그룹에서 info 에 머물면 빈 칸이 된다.
   // 목록 말풍선(히스토리)으로 연 경우엔 첫 보정에서 히스토리 의도를 지킨다(적대적 리뷰 지적).
   // 첫 칸을 넘긴 경우(initialWideSide="files"·"history")도 같다 — 말풍선이 함께 오면 히스토리가 앞선다.
-  const sideIntentRef = useRef<"history" | "files" | null>(
-    openOnHistory ? "history" : initialWideSide === "files" || initialWideSide === "history" ? initialWideSide : null,
+  // 의도는 그 보정을 부른 조건(sig)이 바뀔 때 버린다 — 개발 모드(StrictMode)는 같은 조건으로 효과를 두 번 부르므로
+  // 첫 번에 지워 버리면 두 번째가 「정보」로 덮는다.
+  const sideIntentRef = useRef<{ side: "history" | "files"; usedSig?: string } | null>(
+    openOnHistory
+      ? { side: "history" }
+      : initialWideSide === "files" || initialWideSide === "history"
+        ? { side: initialWideSide }
+        : null,
   );
   useEffect(() => {
     if (!threePane) return;
+    const sig = `${threePane}|${infoOnRight}|${customOnRight}|${currentGroup?.key}`;
+    if (sideIntentRef.current?.usedSig !== undefined && sideIntentRef.current.usedSig !== sig) sideIntentRef.current = null;
     if (infoOnRight || customOnRight) {
       // 「정보」를 켜면서 세부 탭이 그 줄에 없는 값(history)으로 남으면 어느 단추도 안 켜진다.
       if (infoOnRight) {
         setSubTab((cur) => (rightSubTabs.some((t) => t.key === cur) ? cur : ("contract" as SubTab)));
       }
       if (sideIntentRef.current) {
-        const intent = sideIntentRef.current;
-        sideIntentRef.current = null;
-        setWideSide(intent);
+        sideIntentRef.current.usedSig = sig;
+        setWideSide(sideIntentRef.current.side);
       } else {
         setWideSide("info");
       }
