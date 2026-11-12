@@ -3785,6 +3785,7 @@ export default function UnifiedDetailView({
   historyPreferredGroup,
   layout = "compact",
   headerChipKeys,
+  initialWideSide,
 }: {
   row: RowData;
   onClose: () => void;
@@ -3817,6 +3818,9 @@ export default function UnifiedDetailView({
   layout?: "compact" | "wide";
   /** wide 헤더에 값 칩으로 보여줄 행 칸 키 목록. */
   headerChipKeys?: string[];
+  // wide 오른쪽 칸 첫 값(선택, NO.732 알림의 「상세창 파일 탭 열기」). 첫 값만 정하고 이후엔 단추대로 바뀐다.
+  // 미전달 시 기존과 동일하게 「히스토리」(정보 배치 분야는 「정보」) — 다른 앱 동작 불변(앞호환).
+  initialWideSide?: "info" | "history" | "files";
 }) {
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
   const customerKey = customerKeyFromTaxRow(row, adapter.ownDomain);
@@ -3849,7 +3853,10 @@ export default function UnifiedDetailView({
   // 관리자가 만든 "새 분야" 탭 목록(id + 처음 이름). 기존 분야와 합쳐 상단 탭으로 표시.
   const [topCustom, setTopCustom] = useState<Array<{ id: string; label: string }>>([]);
   const [topTabEditMode, setTopTabEditMode] = useState(false);
-  const [wideSide, setWideSide] = useState<"info" | "history" | "files">("history");
+  // 목록 말풍선(openOnHistory)이 함께 오면 히스토리가 앞선다.
+  const [wideSide, setWideSide] = useState<"info" | "history" | "files">(
+    openOnHistory ? "history" : (initialWideSide ?? "history"),
+  );
   // 오른쪽 「업무 현황」 레일 — 항상 접힌 채로 시작한다(요청서 「기본적으로는 접힌 상태로 표시」,
   // 사장님 결정 2026-08-27 「기억하지 않음」). 저장·복원 없음.
   const [trackRailOpen, setTrackRailOpen] = useState(false);
@@ -4257,7 +4264,10 @@ export default function UnifiedDetailView({
 
   // 오른쪽 칸 세그먼트 보정 — 「정보」 배치가 없는 그룹에서 info 에 머물면 빈 칸이 된다.
   // 목록 말풍선(히스토리)으로 연 경우엔 첫 보정에서 히스토리 의도를 지킨다(적대적 리뷰 지적).
-  const historyIntentRef = useRef(openOnHistory);
+  // 첫 칸을 넘긴 경우(initialWideSide="files"·"history")도 같다 — 말풍선이 함께 오면 히스토리가 앞선다.
+  const sideIntentRef = useRef<"history" | "files" | null>(
+    openOnHistory ? "history" : initialWideSide === "files" || initialWideSide === "history" ? initialWideSide : null,
+  );
   useEffect(() => {
     if (!threePane) return;
     if (infoOnRight || customOnRight) {
@@ -4265,9 +4275,10 @@ export default function UnifiedDetailView({
       if (infoOnRight) {
         setSubTab((cur) => (rightSubTabs.some((t) => t.key === cur) ? cur : ("contract" as SubTab)));
       }
-      if (historyIntentRef.current) {
-        historyIntentRef.current = false;
-        setWideSide("history");
+      if (sideIntentRef.current) {
+        const intent = sideIntentRef.current;
+        sideIntentRef.current = null;
+        setWideSide(intent);
       } else {
         setWideSide("info");
       }
