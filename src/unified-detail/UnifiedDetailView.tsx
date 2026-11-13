@@ -3795,6 +3795,7 @@ export default function UnifiedDetailView({
   layout = "compact",
   headerChipKeys,
   initialWideSide,
+  initialTrackRailOpen = false,
 }: {
   row: RowData;
   onClose: () => void;
@@ -3830,6 +3831,9 @@ export default function UnifiedDetailView({
   // wide 오른쪽 칸 첫 값(선택, NO.732 알림의 「상세창 파일 탭 열기」). 첫 값만 정하고 이후엔 단추대로 바뀐다.
   // 미전달 시 기존과 동일하게 「히스토리」(정보 배치 분야는 「정보」) — 다른 앱 동작 불변(앞호환).
   initialWideSide?: "info" | "history" | "files";
+  // true 면 「컨설팅 업무 현황」을 펼친 채로 연다(좁은 화면은 그 칸으로 시작, NO.543 정책별 고객사의 상호명 누름).
+  // 첫 값만 정하고 이후엔 단추대로 바뀐다. 미전달 시 기존과 동일하게 접힌 채 — 업무 현황 조각이 없는 앱(하이브·일루아)은 무시.
+  initialTrackRailOpen?: boolean;
 }) {
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
   const customerKey = customerKeyFromTaxRow(row, adapter.ownDomain);
@@ -3866,9 +3870,10 @@ export default function UnifiedDetailView({
   const [wideSide, setWideSide] = useState<"info" | "history" | "files">(
     openOnHistory ? "history" : (initialWideSide ?? "history"),
   );
-  // 오른쪽 「업무 현황」 레일 — 항상 접힌 채로 시작한다(요청서 「기본적으로는 접힌 상태로 표시」,
-  // 사장님 결정 2026-08-27 「기억하지 않음」). 저장·복원 없음.
-  const [trackRailOpen, setTrackRailOpen] = useState(false);
+  // 오른쪽 「업무 현황」 레일 — 접힌 채로 시작한다(요청서 「기본적으로는 접힌 상태로 표시」,
+  // 사장님 결정 2026-08-27 「기억하지 않음」). 저장·복원 없음. 여는 화면이 initialTrackRailOpen 을 넘길 때만 펼쳐 연다.
+  const openTrackFirst = initialTrackRailOpen && layout === "wide" && !isNew && Boolean(adapter.components.wideCenterPanel);
+  const [trackRailOpen, setTrackRailOpen] = useState(openTrackFirst);
   const [basicToolsSlot, setBasicToolsSlot] = useState<HTMLElement | null>(null);
   const [wideViewport, setWideViewport] = useState(() => {
     if (layout !== "wide") return false;
@@ -3904,13 +3909,17 @@ export default function UnifiedDetailView({
   const mergeBasic = threePane && !narrowSwitch && Boolean(adapter.components.wideCenterPanel);
   // 앱별 추가 위쪽 탭 — 넓은 3칸 화면에서만. 비어 있으면 아래 단추·내용 자리가 아무것도 그리지 않는다(다른 앱 화면 불변).
   const extraTopTabs = threePane ? (adapter.components.extraTopTabs ?? []) : [];
-  const [narrowPane, setNarrowPane] = useState<"basic" | "center" | "side">(
-    (initialTab ?? "__basic__") === "__basic__" ? "basic" : "center",
-  );
+  const [narrowPane, setNarrowPane] = useState<"basic" | "center" | "side">(() => {
+    // 펼쳐 열기는 좁은 화면에서만 「업무 현황」 칸으로 시작한다. 넓은 화면은 레일을 펼치는 것으로 충분하고,
+    // 여기에도 "side" 를 심으면 「접기」 뒤 창을 좁혔다 넓힐 때 아래 효과가 레일을 다시 연다.
+    if (openTrackFirst && !wideViewport) return "side";
+    return (initialTab ?? "__basic__") === "__basic__" ? "basic" : "center";
+  });
   // 지금 업무 현황이 눈에 보이는가(넓은 화면=펼침 / 좁은 화면=그 탭 선택).
   const trackVisible = narrowSwitch ? narrowPane === "side" : trackRailOpen;
   // 한 번이라도 보인 뒤에는 계속 붙여 둔다 — 다시 펼칠 때 목록을 다시 부르지 않기 위해.
-  const [trackEverShown, setTrackEverShown] = useState(false);
+  // 펼쳐 열면 첫 그림부터 붙인다 — 넓어진 빈 칸이 한 프레임 보이지 않게(손잡이 누름과 같은 규칙).
+  const [trackEverShown, setTrackEverShown] = useState(openTrackFirst);
   useEffect(() => {
     if (trackVisible && !trackEverShown) setTrackEverShown(true);
   }, [trackVisible, trackEverShown]);
@@ -4032,6 +4041,8 @@ export default function UnifiedDetailView({
         setRowsLoadFailed(true);
         if (!silent) {
           setError("정보를 불러오지 못했습니다. 다시 시도해 주세요.");
+          // 좁은 화면 「업무 현황」 칸은 오류 때 비어 있다 — 오류가 보이는 「정보 · 기록」 칸으로 옮긴다(실패한 그때 한 번).
+          if (adapter.components.wideCenterPanel) setNarrowPane((pane) => (pane === "side" ? "center" : pane));
         }
         setLoading(false);
       });
