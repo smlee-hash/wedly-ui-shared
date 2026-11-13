@@ -57,6 +57,15 @@ type SubTab = "history" | "contract" | "settlement" | "refund" | "meetings" | "f
 function isSubTabKey(v: string): v is SubTab {
   return v === "history" || v === "contract" || v === "settlement" || v === "refund" || v === "meetings" || v === "files";
 }
+// 앱이 더한 「추가 위쪽 탭」의 활성 값 — 분야 키·"__basic__" 과 겹치지 않게 접두를 붙인다(TopTab 이 string 이라 형식은 그대로).
+const EXTRA_TOP_TAB_PREFIX = "__extra__:";
+function extraTopTabValue(key: string): TopTab {
+  return `${EXTRA_TOP_TAB_PREFIX}${key}`;
+}
+/** 활성 값이 추가 위쪽 탭이면 그 탭의 key, 아니면 null. */
+function extraTopTabKeyOf(tab: TopTab): string | null {
+  return tab.startsWith(EXTRA_TOP_TAB_PREFIX) ? tab.slice(EXTRA_TOP_TAB_PREFIX.length) : null;
+}
 
 // saveOwnField 콜백 타입 — 내부 컴포넌트들이 공유
 type SaveOwnFieldFn = UnifiedDetailApi["saveOwnField"];
@@ -3893,6 +3902,8 @@ export default function UnifiedDetailView({
   // ERP 2분할(2026-09-02 사장님 승인): 넓은 화면 + 업무 현황 레일이 있으면 기본정보를 가운데 탭줄에 합친다.
   // 레일 없는 앱(하이브·일루아)·좁은 화면(포커스 모드)·compact 는 그대로.
   const mergeBasic = threePane && !narrowSwitch && Boolean(adapter.components.wideCenterPanel);
+  // 앱별 추가 위쪽 탭 — 넓은 3칸 화면에서만. 비어 있으면 아래 단추·내용 자리가 아무것도 그리지 않는다(다른 앱 화면 불변).
+  const extraTopTabs = threePane ? (adapter.components.extraTopTabs ?? []) : [];
   const [narrowPane, setNarrowPane] = useState<"basic" | "center" | "side">(
     (initialTab ?? "__basic__") === "__basic__" ? "basic" : "center",
   );
@@ -4160,6 +4171,13 @@ export default function UnifiedDetailView({
     const first = visibleGroups[0];
     if (first) setActiveTab(first.key);
   }, [threePane, activeTab, visibleGroups, mergeBasic]);
+
+  // 추가 탭이 켜진 채 그 탭이 사라지면(어댑터가 바뀌거나 넓은 3칸이 아니게 된 경우) 분야 탭처럼 다뤄져 빈 화면이 된다 — 기본정보/첫 분야로 되돌린다.
+  useEffect(() => {
+    const key = extraTopTabKeyOf(activeTab);
+    if (key === null || extraTopTabs.some((t) => t.key === key)) return;
+    setActiveTab(threePane && !mergeBasic ? (visibleGroups[0]?.key ?? "__basic__") : "__basic__");
+  }, [activeTab, extraTopTabs, threePane, mergeBasic, visibleGroups]);
 
   const headerChips = useMemo(() => {
     if (!headerChipKeys || headerChipKeys.length === 0) return [] as Array<{ key: string; text: string }>;
@@ -4458,6 +4476,22 @@ export default function UnifiedDetailView({
         {label}
       </button>
     );
+    // 추가 위쪽 탭 단추 — 「기본정보」 단추와 같은 모양(아이콘 없이 글자만). 탭이 없으면 빈 목록이라 아무것도 안 그린다.
+    const extraTopTabButtons = extraTopTabs.map((tab) => (
+      <button
+        key={`extra-${tab.key}`}
+        type="button"
+        // 히스토리로 열기 효과와 같은 규칙으로 narrowPane 을 맞춘다 — 좁은 화면 전환에서도 이 탭 줄이 있는 칸이 보이게.
+        onClick={() => { setActiveTab(extraTopTabValue(tab.key)); setNarrowPane(threePane && adapter.components.wideCenterPanel ? "center" : "side"); }}
+        className={`${mergeBasic ? "px-2.5" : "px-3"} py-1.5 rounded-full text-[14px] sm:text-[13px] font-semibold whitespace-nowrap transition-colors inline-flex items-center gap-1.5 flex-shrink-0 ${
+          activeTab === extraTopTabValue(tab.key) ? "bg-wedly-bg-blue text-wedly-accent-ink" : "text-wedly-t2 hover:bg-wedly-bg-gray hover:text-wedly-t2"
+        }`}
+      >
+        {tab.label}
+      </button>
+    ));
+    // 지금 켜진 추가 탭(없으면 undefined) — 켜졌을 때만 내용을 그려 누를 때만 자료를 부르게 한다.
+    const activeExtraTab = extraTopTabs.find((tab) => extraTopTabValue(tab.key) === activeTab);
     // ERP 만 가운데 고정 조각을 넣는다. 없으면 지금 3분할 그대로(하이브·일루아 한 픽셀도 안 바뀜).
     const hasTrackRail = Boolean(WideCenterPanel);
 
@@ -4617,12 +4651,14 @@ export default function UnifiedDetailView({
                         </svg>
                         기본정보
                       </button>
+                      {extraTopTabButtons}
                       {/* 기본정보와 분야 탭이 다른 묶음임을 보이는 구분 표식(사장님 2026-09-02) */}
                       <span aria-hidden="true" title="분야" className="inline-flex items-center gap-1 ml-1 mr-1 pl-2.5 h-6 border-l border-wedly-bd-blue flex-shrink-0">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="text-wedly-accent-ink"><path d="m12 3 9 5-9 5-9-5 9-5z" /><path d="m3 13 9 5 9-5" /></svg>
                       </span>
                     </>
                   )}
+                  {!mergeBasic && extraTopTabButtons}
                   {(isAdmin && topTabEditMode ? orderedGroups : visibleGroups).map((group, gi) => {
                     const rows = rowsOfGroup(detail, group);
                     const status = firstNonEmpty(rows, (r) => r.status ?? null);
@@ -4707,6 +4743,16 @@ export default function UnifiedDetailView({
               {mergeBasic && activeTab === "__basic__" ? (
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   {basicInfoPanel}
+                </div>
+              ) : activeExtraTab ? (
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  {/* key 에 업체(entryId)를 함께 — 다른 업체로 바뀌면 새로 그려 옛 업체 자료가 남지 않게. */}
+                  <activeExtraTab.Component
+                    key={`${activeExtraTab.key}:${entryId}`}
+                    primaryRow={row as Record<string, unknown>}
+                    entryId={entryId}
+                    isAdmin={isAdmin}
+                  />
                 </div>
               ) : (
                 <>

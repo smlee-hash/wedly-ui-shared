@@ -208,6 +208,8 @@ export type {
   FileFieldDef,
   FileMetaLite,
   UnsavedBridge,
+  ExtraTopTab,
+  ExtraTopTabProps,
 } from "./unified-detail/adapter-types";
 export { saveFailureKindOf } from "./unified-detail/adapter-types";
 export type { ReportRegenStatus } from "./unified-detail/ReportRegenerateControl";
