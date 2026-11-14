@@ -3796,6 +3796,7 @@ export default function UnifiedDetailView({
   headerChipKeys,
   initialWideSide,
   initialTrackRailOpen = false,
+  initialTrackTab,
 }: {
   row: RowData;
   onClose: () => void;
@@ -3834,6 +3835,8 @@ export default function UnifiedDetailView({
   // true 면 「컨설팅 업무 현황」을 펼친 채로 연다(좁은 화면은 그 칸으로 시작, NO.543 정책별 고객사의 상호명 누름).
   // 첫 값만 정하고 이후엔 단추대로 바뀐다. 미전달 시 기존과 동일하게 접힌 채 — 업무 현황 조각이 없는 앱(하이브·일루아)은 무시.
   initialTrackRailOpen?: boolean;
+  // 업무 현황 조각의 처음 탭 키(NO.732 「사업계획서 탭 열기」) — 조각에 그대로 넘긴다. 미전달 시 조각 기본 탭(불변).
+  initialTrackTab?: string;
 }) {
   const entryId = String((row as Record<string, unknown>)["_id"] ?? "");
   const customerKey = customerKeyFromTaxRow(row, adapter.ownDomain);
@@ -4562,6 +4565,7 @@ export default function UnifiedDetailView({
                       isAdmin={isAdmin}
                       onSaved={handleSaved}
                       adapter={adapter}
+                      initialTrackTab={initialTrackTab}
                     />
                   </div>
                 )}
@@ -4973,6 +4977,7 @@ export default function UnifiedDetailView({
                       isAdmin={isAdmin}
                       onSaved={handleSaved}
                       adapter={adapter}
+                      initialTrackTab={initialTrackTab}
                     />
                   </div>
                 </div>

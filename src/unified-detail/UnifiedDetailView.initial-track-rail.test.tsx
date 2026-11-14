@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RowData } from "../collab/collab-table-core";
-import type { FieldOptionsBundle, UnifiedDetailAdapter, UnifiedDetailApi } from "./adapter-types";
+import type { FieldOptionsBundle, SectionPanelProps, UnifiedDetailAdapter, UnifiedDetailApi } from "./adapter-types";
 import type { CustomerDetailLite } from "./lib/customer-detail";
 import UnifiedDetailView from "./UnifiedDetailView";
 
@@ -36,8 +36,8 @@ vi.mock("./CommonFieldsLauncher", () => ({ CommonFieldsLauncher: () => null }));
 
 const OWN_DOMAIN = "tax-amendment";
 
-function TrackStub() {
-  return <div data-track-stub="" />;
+function TrackStub({ initialTrackTab }: SectionPanelProps) {
+  return <div data-track-stub="" data-initial-track-tab={initialTrackTab ?? "(없음)"} />;
 }
 
 function detailOf(): CustomerDetailLite {
@@ -134,7 +134,7 @@ async function settle() {
   }
 }
 
-type MountOpts = { desktop?: boolean; trackRail?: boolean; initialTrackRailOpen?: boolean; loadFails?: boolean };
+type MountOpts = { desktop?: boolean; trackRail?: boolean; initialTrackRailOpen?: boolean; initialTrackTab?: string; loadFails?: boolean };
 
 async function mountView(opts: MountOpts = {}) {
   setViewport(opts.desktop ?? true);
@@ -150,6 +150,7 @@ async function mountView(opts: MountOpts = {}) {
         adapter={buildAdapter(opts.trackRail ?? true, opts.loadFails)}
         layout="wide"
         {...(opts.initialTrackRailOpen === undefined ? {} : { initialTrackRailOpen: opts.initialTrackRailOpen })}
+        {...(opts.initialTrackTab === undefined ? {} : { initialTrackTab: opts.initialTrackTab })}
       />,
     );
   });
@@ -253,5 +254,28 @@ describe("UnifiedDetailView — 「컨설팅 업무 현황」 펼친 채로 열�
     const c = await mountView({ desktop: false, trackRail: false, initialTrackRailOpen: true });
     expect(activeNarrowButtons(c)).toEqual(["기본정보"]);
     expect(railHandle(c)).toBeUndefined();
+  });
+});
+
+// NO.732 — 슬랙 DM 「상세창 사업계획서 탭 열기」: 업무 현황을 펼치면서 그 안의 처음 탭(사업계획서)을 정한다(initialTrackTab).
+// 껍데기는 탭을 모른다 — 받은 값을 업무 현황 조각에 그대로 넘기기만 한다. 안 넘기면 조각이 자기 첫 탭을 쓴다.
+describe("UnifiedDetailView — 업무 현황 처음 탭 넘기기(initialTrackTab, NO.732)", () => {
+  const tabOf = (c: HTMLElement) => c.querySelector("[data-track-stub]")?.getAttribute("data-initial-track-tab");
+
+  it("넘기면 넓은 화면의 업무 현황 조각이 그 값을 받는다", async () => {
+    const c = await mountView({ initialTrackRailOpen: true, initialTrackTab: "plan" });
+    expect(trackShown(c)).toBe(true);
+    expect(tabOf(c)).toBe("plan");
+  });
+
+  it("좁은 화면의 업무 현황 조각도 같은 값을 받는다", async () => {
+    const c = await mountView({ desktop: false, initialTrackRailOpen: true, initialTrackTab: "plan" });
+    expect(activeNarrowButtons(c)).toEqual(["업무 현황"]);
+    expect(tabOf(c)).toBe("plan");
+  });
+
+  it("안 넘기면 조각에 값이 가지 않는다", async () => {
+    const c = await mountView({ initialTrackRailOpen: true });
+    expect(tabOf(c)).toBe("(없음)");
   });
 });
