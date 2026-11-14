@@ -462,4 +462,6 @@ export type SectionPanelProps = {
   subTab?: string;
   /** 하위 탭 변경 알림. 바깥 탭 줄과 패널 안 상태를 맞출 때. 미전달이면 불변. */
   onSubTabChange?: (t: string) => void;
+  /** 업무 현황 조각의 처음 탭 키(NO.732 알림의 「사업계획서 탭 열기」). 첫 값만 정하고 이후엔 단추대로. 미전달이면 불변. */
+  initialTrackTab?: string;
 };
