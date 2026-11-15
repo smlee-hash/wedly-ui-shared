@@ -244,6 +244,13 @@ describe("UnifiedDetailView — 「컨설팅 업무 현황」 펼친 채로 열�
     expect(errorText?.closest(".hidden") ?? "보임").toBe("보임");
   });
 
+  it("넓은 화면에서 펼쳐 열다 불러오기가 실패하면 레일을 접어 빈 칸을 남기지 않는다", async () => {
+    const c = await mountView({ initialTrackRailOpen: true, loadFails: true });
+    expect(railHandle(c)?.getAttribute("aria-expanded")).toBe("false");
+    const errorText = Array.from(c.querySelectorAll("div")).find((d) => d.firstChild?.textContent === "정보를 불러오지 못했습니다. 다시 시도해 주세요.");
+    expect(errorText?.closest(".hidden") ?? "보임").toBe("보임");
+  });
+
   it("좁은 화면에서 안 넘기면 지금처럼 「기본정보」 칸으로 시작한다", async () => {
     const c = await mountView({ desktop: false });
     expect(activeNarrowButtons(c)).toEqual(["기본정보"]);

@@ -2900,8 +2900,12 @@ export default function UnifiedDetailView({
         setRowsLoadFailed(true);
         if (!silent) {
           setError("정보를 불러오지 못했습니다. 다시 시도해 주세요.");
-          // 좁은 화면 「업무 현황」 칸은 오류 때 비어 있다 — 오류가 보이는 「정보 · 기록」 칸으로 옮긴다(실패한 그때 한 번).
-          if (adapter.components.wideCenterPanel) setNarrowPane((pane) => (pane === "side" ? "center" : pane));
+          // 「업무 현황」은 오류 때 비어 있다 — 좁은 화면은 오류가 보이는 「정보 · 기록」 칸으로 옮기고,
+          // 넓은 화면은 레일을 접어 빈 칸을 남기지 않는다(실패한 그때 한 번).
+          if (adapter.components.wideCenterPanel) {
+            setNarrowPane((pane) => (pane === "side" ? "center" : pane));
+            setTrackRailOpen(false);
+          }
           setLoading(false);
         }
       });
