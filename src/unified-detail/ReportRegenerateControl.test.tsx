@@ -152,6 +152,14 @@ describe("ReportRegenerateControl — 남은 횟수와 잠금", () => {
     expect(view.button().disabled).toBe(true);
   });
 
+  it("막은 사유가 빈 글자여도 단추가 잠기면 횟수를 보이지 않는다 — 잠금과 같은 판정", async () => {
+    const load = vi.fn(async () => makeStatus({ disabledReason: "" }));
+    const view = await mount({ load, start: vi.fn() });
+
+    expect(view.button().disabled).toBe(true);
+    expect(view.text()).not.toContain("오늘 남은 횟수");
+  });
+
   it("상태를 읽지 못하면 붉은 안내를 보여 주고, 다시 읽기로 복구한다", async () => {
     const load = vi
       .fn<RegenAdapter["load"]>()
