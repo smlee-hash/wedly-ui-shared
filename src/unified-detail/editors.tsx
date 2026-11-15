@@ -233,6 +233,9 @@ function MultiSelectEditor({
   const [newColor, setNewColor] = useState(fo.OPTION_COLOR_PALETTE[0]);
   const [liveOptions, setLiveOptions] = useState(options);
   // 옵션 구조 편집(색상·삭제) — 단일선택(ErpSelectDropdownBody)과 동일 콜백·이벤트
+  // 색 고르기 판(OPTION_COLOR_FAMILIES)을 넘긴 앱만 색을 바꾼다 — 단일선택 canShowColorPicker 와 같은 조건.
+  //  판이 비면(색은 ERP 에서만 정하는 일루아) 색 단추·고르기 판·「새 옵션 추가」 색 점을 그리지 않고 새 선택지 색도 저장하지 않는다.
+  const canSetColor = fo.OPTION_COLOR_FAMILIES.length > 0;
   const [colorPickerOpt, setColorPickerOpt] = useState<string | null>(null);
   const [colorOverrides, setColorOverrides] = useState<Record<string, string>>({});
   const [, forceRerender] = useState(0);
@@ -275,7 +278,7 @@ function MultiSelectEditor({
     const name = newOpt.trim();
     if (!name || liveOptions.includes(name)) return;
     if (fieldKey) fo.addCustomOption(fieldKey, name);
-    fo.setOptionColor(name, { bg: newColor.bg, text: newColor.text });
+    if (canSetColor && newColor) fo.setOptionColor(name, { bg: newColor.bg, text: newColor.text });
     setLiveOptions((prev) => [...prev, name]);
     setNewOpt("");
     setAdding(false);
@@ -339,19 +342,21 @@ function MultiSelectEditor({
                 </div>
                 <span className={cn("inline-block px-2 py-0.5 rounded-md text-[11px] font-medium truncate", colorClass)}>{opt}</span>
               </button>
-              <button
-                type="button"
-                className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex-shrink-0"
-                title="색상 변경"
-                onClick={(e) => { e.stopPropagation(); setColorPickerOpt(isPickerOpen ? null : opt); }}
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
-                  <circle cx="5.5" cy="6.5" r="1" fill="currentColor" />
-                  <circle cx="10.5" cy="6.5" r="1" fill="currentColor" />
-                  <circle cx="8" cy="10.5" r="1" fill="currentColor" />
-                </svg>
-              </button>
+              {canSetColor && (
+                <button
+                  type="button"
+                  className="w-6 h-6 rounded-md inline-flex items-center justify-center text-wedly-t2 hover:bg-wedly-bg-blue/40 hover:text-wedly-accent-ink transition flex-shrink-0"
+                  title="색상 변경"
+                  onClick={(e) => { e.stopPropagation(); setColorPickerOpt(isPickerOpen ? null : opt); }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+                    <circle cx="5.5" cy="6.5" r="1" fill="currentColor" />
+                    <circle cx="10.5" cy="6.5" r="1" fill="currentColor" />
+                    <circle cx="8" cy="10.5" r="1" fill="currentColor" />
+                  </svg>
+                </button>
+              )}
               {canDelete && !!fieldKey && (
                 <button
                   type="button"
@@ -365,7 +370,7 @@ function MultiSelectEditor({
                 </button>
               )}
             </div>
-            {isPickerOpen && (
+            {isPickerOpen && canSetColor && (
               <div className="px-3 pb-2 pt-1.5 bg-wedly-bg-gray/50 border-t border-wedly-bd/40 space-y-1">
                 {fo.OPTION_COLOR_FAMILIES.map((family) => (
                   <div key={family.name} className="flex items-center gap-1.5">
@@ -403,20 +408,22 @@ function MultiSelectEditor({
               placeholder="새 옵션 이름"
               className="w-full px-2 py-1 text-[12px] border border-wedly-bd rounded-lg outline-none focus:border-wedly-accent"
             />
-            <div className="flex flex-wrap gap-1">
-              {fo.OPTION_COLOR_PALETTE.map((c) => (
-                <button
-                  key={c.name}
-                  onClick={() => setNewColor(c)}
-                  className={cn(
-                    "w-5 h-5 rounded-full border-2 transition-all",
-                    newColor.name === c.name ? "border-wedly-navy scale-110" : "border-transparent",
-                  )}
-                  style={{ backgroundColor: c.hex }}
-                  title={c.name}
-                />
-              ))}
-            </div>
+            {canSetColor && (
+              <div className="flex flex-wrap gap-1">
+                {fo.OPTION_COLOR_PALETTE.map((c) => (
+                  <button
+                    key={c.name}
+                    onClick={() => setNewColor(c)}
+                    className={cn(
+                      "w-5 h-5 rounded-full border-2 transition-all",
+                      newColor?.name === c.name ? "border-wedly-navy scale-110" : "border-transparent",
+                    )}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            )}
             <div className="flex gap-1">
               <button
                 onClick={handleAdd}
