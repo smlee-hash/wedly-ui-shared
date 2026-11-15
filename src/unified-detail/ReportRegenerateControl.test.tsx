@@ -143,6 +143,15 @@ describe("ReportRegenerateControl — 남은 횟수와 잠금", () => {
     expect(view.button().disabled).toBe(true);
   });
 
+  it("막은 사유가 있으면 「오늘 남은 횟수」를 함께 보이지 않는다 — 쓸 수 있는 것처럼 읽히지 않게(2026-11-15 화면 검토)", async () => {
+    const load = vi.fn(async () => makeStatus({ disabledReason: "사업자번호가 없어 리포트를 다시 만들 수 없습니다" }));
+    const view = await mount({ load, start: vi.fn() });
+
+    expect(view.text()).toContain("사업자번호가 없어 리포트를 다시 만들 수 없습니다");
+    expect(view.text()).not.toContain("오늘 남은 횟수");
+    expect(view.button().disabled).toBe(true);
+  });
+
   it("상태를 읽지 못하면 붉은 안내를 보여 주고, 다시 읽기로 복구한다", async () => {
     const load = vi
       .fn<RegenAdapter["load"]>()

@@ -187,8 +187,8 @@ export type CollabTableProps = {
   editConfig?: {
     /** 이 칸을 편집 허용할지(생략 시 종류 기준 기본 규칙). */
     isEditable?: (col: ColumnDef) => boolean;
-    /** 선택/상태 칸 선택지 목록 */
-    getOptions?: (columnKey: string) => string[];
+    /** 선택/상태 칸 선택지 목록. 표에서 칸을 바로 고칠 땐 그 줄(row)도 넘긴다 — 분야가 섞인 표에서 줄마다 다른 선택지를 줄 수 있다(줄을 안 받는 옛 함수도 그대로 돈다). */
+    getOptions?: (columnKey: string, row?: RowData) => string[];
     /** 선택/상태 배지 색 클래스 */
     getColorClass?: (columnKey: string, option: string) => string;
     /** 선택지 추가/삭제/색칠(선택) */
@@ -300,10 +300,12 @@ function loadJson<T>(key: string, fallback: T): T {
 }
 
 // 다중 선택(multi_select) 칸 인라인 편집기 — CellSelectEditor 와 동일한 포털·위치·바깥클릭 구조.
-function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg }: {
+function CellMultiSelectEditor({ value, options, columnKey, row, onSave, onClose, cfg }: {
   value: string;
   options: string[];
   columnKey: string;
+  /** 고치는 줄 — 선택지를 다시 물을 때 getOptions 에 함께 넘긴다. */
+  row?: RowData;
   onSave: (v: string) => void;
   onClose: () => void;
   cfg?: CollabTableProps["editConfig"];
@@ -410,7 +412,7 @@ function CellMultiSelectEditor({ value, options, columnKey, onSave, onClose, cfg
   };
 
   // 옵션 목록: cfg.getOptions 로 최신 상태 반영 + 방금 지운 옵션 제외
-  const liveOptions = (cfg?.getOptions?.(columnKey) ?? options).filter((o) => !removed.has(o));
+  const liveOptions = (cfg?.getOptions?.(columnKey, row) ?? options).filter((o) => !removed.has(o));
 
   return (
     <>
@@ -1284,7 +1286,7 @@ export function CollabTable({
                 ) : col.type === "select" || col.type === "status" ? (
                   <CellSelectEditor
                     value={String(v ?? "")}
-                    options={editConfig?.getOptions?.(col.key) ?? []}
+                    options={editConfig?.getOptions?.(col.key, row) ?? []}
                     columnKey={col.key}
                     cfg={editConfig}
                     onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv || null); }}
@@ -1293,8 +1295,9 @@ export function CollabTable({
                 ) : col.type === "multi_select" ? (
                   <CellMultiSelectEditor
                     value={String(v ?? "")}
-                    options={editConfig?.getOptions?.(col.key) ?? []}
+                    options={editConfig?.getOptions?.(col.key, row) ?? []}
                     columnKey={col.key}
+                    row={row}
                     cfg={editConfig}
                     onSave={(nv) => { setEditingCell(null); onCellEdit?.(row, col.key, nv || null); }}
                     onClose={() => setEditingCell(null)}

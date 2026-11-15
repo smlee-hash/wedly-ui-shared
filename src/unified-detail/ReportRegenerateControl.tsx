@@ -231,8 +231,11 @@ export default function ReportRegenerateControl({
         >
           리포트 최신 버전으로 재생성
         </button>
+        {/* 막힌 까닭이 있으면 남은 횟수를 빼고 까닭만 보인다 — 「2/2」가 함께 있으면 쓸 수 있는 것처럼 읽힌다. */}
         {status ? (
-          <span className="text-[12px] text-wedly-muted">오늘 남은 횟수 {status.remaining}/{status.limit}</span>
+          status.disabledReason ? null : (
+            <span className="text-[12px] text-wedly-muted">오늘 남은 횟수 {status.remaining}/{status.limit}</span>
+          )
         ) : loading ? (
           <span className="text-[12px] text-wedly-muted">불러오는 중…</span>
         ) : null}
