@@ -114,6 +114,8 @@ const optionBundle = {
   STATUS_COLORS: {}, SELECT_BADGE_COLORS: {}, OPTION_COLOR_FAMILIES: [],
   OPTION_COLOR_PALETTE: [{ name: "회색", bg: "bg-wedly-bg-gray", text: "text-wedly-t2", hex: "#eeeeee" }],
 };
+// 관리자 메뉴 시험은 색 고르기 판을 넘기는 앱(ERP·하이브)의 장면이다 — 다중선택 「색상 변경」 단추는 판이 있을 때만 그린다.
+const adminColorFamilies = [{ name: "파랑", shades: [{ shade: "보통", bg: "bg-blue-100", text: "text-blue-700", bgHex: "#DBEAFE" }] }];
 const indexModule = {
   ...sections, TextEditor, NumberEditor: inert, SectionAdminMenu: inert,
   EditableTitle: inert, DraggableFieldsSection: inert,
@@ -1936,7 +1938,7 @@ describe("review3dec 실제 다중 선택 콜백 추가 회귀", () => {
     const nextObservation = serialObservation(firstObservation, secondSourceRevision, secondCanonicalRevision);
     const first = deferred<ReturnType<typeof receipt>>(); const second = deferred<ReturnType<typeof receipt>>();
     const save = vi.fn<SaveOwnField>().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
-    const removeCustomOption = vi.fn(); Object.assign(optionBundle, { removeCustomOption });
+    const removeCustomOption = vi.fn(); Object.assign(optionBundle, { removeCustomOption, OPTION_COLOR_FAMILIES: adminColorFamilies });
     vi.stubGlobal("CustomEvent", class { constructor(public type: string) {} });
     try {
       const p = capabilityPanel({ loadAddressEdit: vi.fn<LoadAddressEdit>(async () => prepared), save });
@@ -1973,7 +1975,7 @@ describe("review3dec 실제 다중 선택 콜백 추가 회귀", () => {
     } finally {
       first.resolve(receipt("기존", { observation: firstObservation }));
       second.resolve(receipt("기존, B", { observation: nextObservation }));
-      Reflect.deleteProperty(optionBundle, "removeCustomOption");
+      Reflect.deleteProperty(optionBundle, "removeCustomOption"); Object.assign(optionBundle, { OPTION_COLOR_FAMILIES: [] });
     }
   });
 });
@@ -2099,7 +2101,7 @@ describe("review3dec 닫힘 초안과 옵션 삭제 경계 회귀", () => {
     const save = vi.fn<SaveOwnField>().mockReturnValueOnce(first.promise)
       .mockResolvedValueOnce(receipt("기존, C", { observation: secondObservation }))
       .mockResolvedValueOnce(receipt("기존, C, B", { observation: thirdObservation }));
-    const removeCustomOption = vi.fn(); Object.assign(optionBundle, { removeCustomOption });
+    const removeCustomOption = vi.fn(); Object.assign(optionBundle, { removeCustomOption, OPTION_COLOR_FAMILIES: adminColorFamilies });
     vi.stubGlobal("CustomEvent", class { constructor(public type: string) {} });
     try {
       const p = capabilityPanel({ loadAddressEdit: vi.fn<LoadAddressEdit>(async () => prepared), save });
@@ -2125,12 +2127,12 @@ describe("review3dec 닫힘 초안과 옵션 삭제 경계 회귀", () => {
       expect(p.cache()?.fields.사업장주소지.value).toBe("기존, C, B"); expect(multi.emitted()).toBeDefined();
       expect(p.adapter.unsaved.report).not.toHaveBeenCalled(); expect(p.api.saveBasicField).not.toHaveBeenCalled();
       expect(p.api.loadAddressEdit).toHaveBeenCalledOnce();
-    } finally { first.resolve(receipt("기존, A, C", { observation: firstObservation })); Reflect.deleteProperty(optionBundle, "removeCustomOption"); }
+    } finally { first.resolve(receipt("기존, A, C", { observation: firstObservation })); Reflect.deleteProperty(optionBundle, "removeCustomOption"); Object.assign(optionBundle, { OPTION_COLOR_FAMILIES: [] }); }
   });
 
   it("retainDraft=false의 관리자 삭제·다음 토글은 기존 부모값·즉시 저장·색상 이벤트를 유지", async () => {
     const save = vi.fn<SaveOwnField>(async (_id, _key, value) => receipt(String(value ?? "")));
-    const removeCustomOption = vi.fn(); Object.assign(optionBundle, { removeCustomOption });
+    const removeCustomOption = vi.fn(); Object.assign(optionBundle, { removeCustomOption, OPTION_COLOR_FAMILIES: adminColorFamilies });
     vi.stubGlobal("CustomEvent", class { constructor(public type: string) {} });
     try {
       const p = panel({ value: "기존, A", save }); await p.flush(); const multi = await actualMultiSelectEditor(p);
@@ -2150,7 +2152,7 @@ describe("review3dec 닫힘 초안과 옵션 삭제 경계 회귀", () => {
       expect(save.mock.calls).toEqual([["entry-a", addressKey, "기존"], ["entry-a", addressKey, "기존, B"]]);
       expect(multi.child.props.value).toBe("기존, B"); expect(multi.editor.confirmation()).toBeUndefined();
       expect(p.api.saveBasicField).not.toHaveBeenCalled(); dispatch.mockRestore();
-    } finally { Reflect.deleteProperty(optionBundle, "removeCustomOption"); }
+    } finally { Reflect.deleteProperty(optionBundle, "removeCustomOption"); Object.assign(optionBundle, { OPTION_COLOR_FAMILIES: [] }); }
   });
 
   it("미전송 초안과 대기 시도가 없는 성공 뒤 재개방은 기존 새 준비 동작", async () => {
