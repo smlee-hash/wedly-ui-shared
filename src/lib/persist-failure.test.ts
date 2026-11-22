@@ -174,4 +174,17 @@ describe("failureFromResponse — 403 에 서버가 실어 보낸 까닭 (하이
     expect(persistKindOf(failureFromResponse({ ok: false, status: 500 }, { success: false, error: "저장 실패" }))).toBe("server");
     expect(persistKindOf(failureFromResponse({ ok: true, status: 200 }, { success: false }))).toBe("server");
   });
+
+  it("★서버가 까닭을 실어 막은 저장은 「다시 시도해 주세요」를 붙이지 않는다 — 다시 해도 안 되는 일이다", () => {
+    const err = failureFromResponse({ ok: false, status: 403 }, { success: false, error: HIDDEN });
+    expect(saveFailureMessage(err, "정산정보")).toBe(`${HIDDEN}\n\n입력한 내용은 지우지 않았습니다.`);
+  });
+
+  it("로그인 만료·서버 오류·연결 끊김·어댑터 안내는 예전처럼 「다시 시도해 주세요」로 끝난다(다시 하면 될 수 있다)", () => {
+    const retry = "입력한 내용은 지우지 않았습니다. 다시 시도해 주세요.";
+    expect(saveFailureMessage(failureFromResponse({ ok: false, status: 403 }, null), "히스토리").endsWith(retry)).toBe(true);
+    expect(saveFailureMessage(failureFromResponse({ ok: false, status: 500 }, { success: false, error: "저장 실패" }), "히스토리").endsWith(retry)).toBe(true);
+    expect(saveFailureMessage(new TypeError("Failed to fetch"), "히스토리").endsWith(retry)).toBe(true);
+    expect(saveFailureMessage(new Error("이 앱에서는 정부지원금 히스토리를 작성할 수 없습니다."), "히스토리").endsWith(retry)).toBe(true);
+  });
 });
