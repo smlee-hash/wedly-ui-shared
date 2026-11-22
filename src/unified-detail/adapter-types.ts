@@ -205,6 +205,12 @@ export interface UnifiedDetailAdapter {
   ownColumns: ColumnDef[];
   configScope: string;  // ERP: "unified-collab" (탭/칸 설정 scope)
   domains: ColumnDef[] | unknown[]; // 보여줄 분야 탭 목록 — Phase 1A는 기존 DOMAIN_GROUPS 그대로
+  /**
+   * 이 앱에서 늘 숨기는 분야 탭 키(선택) — 하이브: 노무·기업인증·특허(NO.771, 서버도 그 분야 저장을 막는다).
+   * 위쪽 탭·탭 편집·기본정보 「전체 영역 현황」 표 어디에도 나오지 않고, 「보임」·「초기화」로도 되살아나지 않는다.
+   * 3앱 공통 순서·이름은 건드리지 않는다(순서를 바꿔도 그 분야는 제자리). 넘기지 않으면 동작이 예전과 같다.
+   */
+  lockedHiddenTabs?: readonly string[];
   api: UnifiedDetailApi;
 
   /** 저장 실패를 앱 보관함에 넘기는 통로(선택) — 없으면 예전처럼 되돌리기+경고창. */

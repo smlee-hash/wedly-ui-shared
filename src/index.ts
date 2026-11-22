@@ -166,6 +166,7 @@ export {
   failureReason,
   saveFailureMessage,
   loadFailureMessage,
+  failureFromResponse,
 } from "./lib/persist-failure";
 export type { PersistFailureKind, PersistError } from "./lib/persist-failure";
 export { DetailLoadStateProvider, useDetailLoadState } from "./unified-detail/detail-load-state";

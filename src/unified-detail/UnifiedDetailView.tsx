@@ -8,7 +8,7 @@ import {
   type CustomerDetailLite,
   type DomainRowLite,
 } from "./lib/customer-detail";
-import { checkApiResult, makePersistError, failureReason, saveFailureMessage } from "../lib/persist-failure";
+import { checkApiResult, makePersistError, failureReason, saveFailureMessage, failureFromResponse } from "../lib/persist-failure";
 import { DetailLoadStateProvider } from "./detail-load-state";
 import { DOMAIN_GROUPS, type DomainGroup } from "./lib/domain-config";
 import { getStatusDotClass } from "./lib/status-dot";
@@ -573,9 +573,10 @@ function SectionDetailPanel({
         throw makePersistError("network", failureReason("network"));
       }
       const j = await res.json().catch(() => null);
-      const bad = checkApiResult(res, j);
       // ★로그인 만료는 405 로도 온다(로그인 화면으로 넘겨져서) — 상태코드 한 곳에서 판정한다.
-      if (bad !== "none") throw makePersistError(bad, failureReason(bad));
+      //  403 에 서버가 까닭을 실어 보냈으면(앱이 막은 분야 등) 로그인 만료 대신 그 까닭을 안내한다.
+      const bad = failureFromResponse(res, j);
+      if (bad) throw bad;
       onSaved?.();
     },
     [bizno, sectionKey, onSaved],
@@ -658,8 +659,8 @@ function SectionDetailPanel({
       throw makePersistError("network", failureReason("network"));
     }
     const j = await res.json().catch(() => null);
-    const bad = checkApiResult(res, j);
-    if (bad !== "none") throw makePersistError(bad, failureReason(bad));
+    const bad = failureFromResponse(res, j);
+    if (bad) throw bad;
     const v = j?.data ?? null;
     // 값이 없으면 처음 불러올 때와 같은 규칙(옛 값 폴백)을 쓴다 — 다시 시도가 목록을 비우면 안 된다.
     const list = Array.isArray(v) ? (v as UnifiedComment[]) : historyInitial;
@@ -2606,17 +2607,25 @@ export default function UnifiedDetailView({
   const allGroups = useMemo(() => [...DOMAIN_GROUPS, ...customGroups], [customGroups]);
   // 저장된 순서·이름을 적용한 표시용 분야 탭 목록(기본정보는 별도 고정이라 제외)
   const orderedGroups = useMemo(() => applyTabConfig(allGroups, topOrder, topLabels), [allGroups, topOrder, topLabels]);
+  // 앱이 늘 숨기는 분야(하이브 NO.771: 노무·기업인증·특허)를 뺀 목록 — 탭 편집·「전체 영역 현황」에도 안 나온다.
+  //  관리자 숨김(topHidden)과 달리 「보임」·「초기화」로 되살릴 수 없다(서버도 그 분야 저장을 막는다).
+  const lockedTabSet = useMemo(() => new Set(adapter.lockedHiddenTabs ?? []), [adapter.lockedHiddenTabs]);
+  const shownGroups = useMemo(() => orderedGroups.filter((g) => !lockedTabSet.has(g.key)), [orderedGroups, lockedTabSet]);
   // 숨긴 분야를 뺀 실제 노출 목록(편집 모드에서는 숨긴 것도 보여줘 다시 켤 수 있게 함)
-  const visibleGroups = useMemo(() => orderedGroups.filter((g) => !topHidden.includes(g.key)), [orderedGroups, topHidden]);
+  const visibleGroups = useMemo(() => shownGroups.filter((g) => !topHidden.includes(g.key)), [shownGroups, topHidden]);
 
+  // idx 는 탭 편집에 보이는 목록(shownGroups) 안의 자리. 늘 숨기는 분야는 3앱 공통 순서의 제자리를 지키고
+  //  나머지끼리만 자리를 바꾼다 — 하이브에서 순서를 바꿔도 ERP 쪽 그 분야 자리가 밀리지 않게.
   const moveTopTab = useCallback((idx: number, dir: -1 | 1) => {
-    const keys = orderedGroups.map((g) => g.key);
+    const shown = shownGroups.map((g) => g.key);
     const j = idx + dir;
-    if (j < 0 || j >= keys.length) return;
-    [keys[idx], keys[j]] = [keys[j], keys[idx]];
+    if (j < 0 || j >= shown.length) return;
+    [shown[idx], shown[j]] = [shown[j], shown[idx]];
+    let next = 0;
+    const keys = orderedGroups.map((g) => (lockedTabSet.has(g.key) ? g.key : shown[next++]));
     setTopOrder(keys);
     saveTopTabConfig({ op: "order", which: "top", order: keys });
-  }, [orderedGroups, saveTopTabConfig]);
+  }, [orderedGroups, shownGroups, lockedTabSet, saveTopTabConfig]);
 
   // 분야 탭 숨김/보임 토글
   const toggleHideTopTab = useCallback((key: string) => {
@@ -2662,7 +2671,7 @@ export default function UnifiedDetailView({
   }, []);
 
   // 현재 그룹 탭에 해당하는 도메인 행들
-  const currentGroup = orderedGroups.find((g) => g.key === activeTab) ?? null;
+  const currentGroup = shownGroups.find((g) => g.key === activeTab) ?? null;
   const currentRows = currentGroup ? rowsOfGroup(detail, currentGroup) : [];
 
   // 창을 닫기 직전, 입력 중이던 칸의 포커스를 풀어 그 칸의 자동 저장(포커스가 빠질 때 실행)이
@@ -2867,7 +2876,7 @@ export default function UnifiedDetailView({
             </button>
 
             {/* 분야 그룹 탭 — 저장된 순서·이름 반영. 관리자 편집 모드면 순서(◀▶)·이름 변경. */}
-            {(isAdmin && topTabEditMode ? orderedGroups : visibleGroups).map((group, gi) => {
+            {(isAdmin && topTabEditMode ? shownGroups : visibleGroups).map((group, gi) => {
               const rows = rowsOfGroup(detail, group);
               const status = firstNonEmpty(rows, (r) => r.status ?? null);
               const hasData = rows.length > 0;
@@ -2888,7 +2897,7 @@ export default function UnifiedDetailView({
                       title="이름 변경"
                       className="w-[72px] text-[13px] font-semibold text-wedly-t1 bg-transparent outline-none text-center"
                     />
-                    <button type="button" onClick={() => moveTopTab(gi, 1)} disabled={gi === orderedGroups.length - 1} title="오른쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">▶</button>
+                    <button type="button" onClick={() => moveTopTab(gi, 1)} disabled={gi === shownGroups.length - 1} title="오른쪽으로" className="px-1 text-[12px] text-wedly-muted disabled:opacity-30 hover:text-wedly-accent">▶</button>
                     <button type="button" onClick={() => toggleHideTopTab(group.key)} title={hidden ? "다시 보이기" : "이 탭 숨기기"} className="ml-0.5 pl-1 text-[11px] text-wedly-muted hover:text-wedly-accent border-l border-wedly-bd/60 whitespace-nowrap">{hidden ? "보임" : "숨김"}</button>
                     {customIdSet.has(group.key) && (
                       <button type="button" onClick={() => removeCustomDomain(group.key)} title="이 분야 삭제" className="ml-0.5 pl-1 text-[11px] text-wedly-red hover:text-wedly-red/80 border-l border-wedly-bd/60 whitespace-nowrap">삭제</button>
@@ -2973,7 +2982,7 @@ export default function UnifiedDetailView({
               onOpenTab={openGroupTab}
               onSaved={handleSaved}
               isAdmin={isAdmin}
-              orderedGroups={orderedGroups}
+              orderedGroups={shownGroups}
               extraBasicColumns={extraBasicColumns}
               hiddenColumnKeys={hiddenColumnKeys}
               saveOwnField={adapter.api.saveOwnField}
