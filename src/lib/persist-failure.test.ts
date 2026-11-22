@@ -7,6 +7,7 @@ import {
   failureReason,
   saveFailureMessage,
   loadFailureMessage,
+  failureFromResponse,
 } from "./persist-failure";
 
 describe("classifyHttpStatus", () => {
@@ -134,5 +135,43 @@ describe("saveFailureMessage — 브라우저가 만든 영어 오류 (2026-08-2
 describe("loadFailureMessage — 같은 규칙", () => {
   it("브라우저 영어 문구가 불러오기 안내로도 새지 않는다", () => {
     expect(loadFailureMessage(new TypeError("Failed to fetch"))).not.toContain("Failed to fetch");
+  });
+});
+
+describe("failureFromResponse — 403 에 서버가 실어 보낸 까닭 (하이브 숨긴 분야 NO.771 후속)", () => {
+  const HIDDEN = "하이브에서는 이 분야를 보거나 고칠 수 없습니다.";
+
+  it("성공 응답이면 오류가 없다", () => {
+    expect(failureFromResponse({ ok: true, status: 200 }, { success: true, data: null })).toBeNull();
+  });
+
+  it("★403 에 한국어 까닭(error 글자)이 오면 「로그인이 풀렸습니다」 대신 그 까닭을 안내한다", () => {
+    const err = failureFromResponse({ ok: false, status: 403 }, { success: false, error: HIDDEN });
+    const msg = saveFailureMessage(err, "정산정보");
+    expect(msg).toContain(HIDDEN);
+    expect(msg).not.toContain("로그인이 풀렸습니다");
+    // 로그인 만료가 아니라 서버가 거절한 것 — 종류도 그렇게 남는다.
+    expect(persistKindOf(err)).toBe("server");
+    expect(loadFailureMessage(err)).toBe(HIDDEN);
+  });
+
+  it("403 의 까닭이 { message } 모양이어도(하이브 미들웨어 FORBIDDEN) 그 까닭을 쓴다", () => {
+    const err = failureFromResponse({ ok: false, status: 403 }, { success: false, error: { code: "FORBIDDEN", message: "관리자만 쓸 수 있습니다." } });
+    expect(saveFailureMessage(err, "히스토리")).toContain("관리자만 쓸 수 있습니다.");
+  });
+
+  it("403 인데 까닭이 없거나 한글이 아니면 예전처럼 로그인 만료로 안내한다", () => {
+    expect(saveFailureMessage(failureFromResponse({ ok: false, status: 403 }, null), "히스토리")).toContain("로그인이 풀렸습니다");
+    expect(saveFailureMessage(failureFromResponse({ ok: false, status: 403 }, { success: false, error: "Forbidden" }), "히스토리")).toContain("로그인이 풀렸습니다");
+  });
+
+  it("401·405 는 본문 까닭과 상관없이 로그인 만료로 안내한다(세션이 풀린 것)", () => {
+    expect(saveFailureMessage(failureFromResponse({ ok: false, status: 401 }, { success: false, error: "인증 필요" }), "히스토리")).toContain("로그인이 풀렸습니다");
+    expect(persistKindOf(failureFromResponse({ ok: false, status: 405 }, null))).toBe("auth");
+  });
+
+  it("그 밖의 실패는 예전 판정(서버 거절) 그대로다", () => {
+    expect(persistKindOf(failureFromResponse({ ok: false, status: 500 }, { success: false, error: "저장 실패" }))).toBe("server");
+    expect(persistKindOf(failureFromResponse({ ok: true, status: 200 }, { success: false }))).toBe("server");
   });
 });

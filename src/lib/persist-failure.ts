@@ -14,8 +14,11 @@ export type PersistFailureKind = "auth" | "server" | "network" | "none";
 /** 로그인이 풀렸다고 볼 상태코드. */
 const AUTH_STATUSES: readonly number[] = [401, 403, 405];
 
-/** 우리가 만든 오류 — 종류 꼬리표가 붙어 있다. */
-export type PersistError = Error & { persistKind: PersistFailureKind };
+/**
+ * 우리가 만든 오류 — 종류 꼬리표가 붙어 있다.
+ * `serverSaid` 가 있으면 문구가 서버가 직접 알려 준 까닭이다(그대로 안내한다).
+ */
+export type PersistError = Error & { persistKind: PersistFailureKind; serverSaid?: true };
 
 export function makePersistError(kind: PersistFailureKind, message: string): PersistError {
   const e = new Error(message) as PersistError;
@@ -54,6 +57,40 @@ export function checkApiResult(
   return "none";
 }
 
+/** 응답 본문에서 서버가 알려 준 까닭(한글이 든 글자만). `{ error: "…" }`·`{ error: { message: "…" } }` 두 모양을 읽는다. */
+function serverReason(json: unknown): string {
+  const e = (json as { error?: unknown } | null | undefined)?.error;
+  const m = typeof e === "string" ? e : (e as { message?: unknown } | null | undefined)?.message;
+  if (typeof m !== "string") return "";
+  const t = m.trim();
+  return /[가-힣]/.test(t) ? t : "";
+}
+
+/**
+ * 응답 하나를 판정해 실패면 안내 오류를 만든다. 성공이면 null.
+ *
+ * ★403 은 로그인이 풀린 경우도 있지만 "로그인은 됐는데 이 일은 못 한다"(권한·앱별로 막은 분야)도 있다.
+ *   서버가 한국어 까닭을 실어 보냈으면 「로그인이 풀렸습니다」 대신 그 까닭을 그대로 안내한다
+ *   (하이브 숨긴 분야 NO.771 — 「하이브에서는 이 분야를 보거나 고칠 수 없습니다.」).
+ *   까닭이 없거나 영어뿐이면 예전처럼 로그인 만료로 본다. 401·405 는 본문과 상관없이 로그인 만료다.
+ */
+export function failureFromResponse(
+  res: { ok: boolean; status: number },
+  json: unknown,
+): PersistError | null {
+  const kind = checkApiResult(res, json);
+  if (kind === "none") return null;
+  if (res.status === 403) {
+    const reason = serverReason(json);
+    if (reason) {
+      const e = makePersistError("server", reason);
+      e.serverSaid = true;
+      return e;
+    }
+  }
+  return makePersistError(kind, failureReason(kind));
+}
+
 /** 종류별 이유 한 문장. */
 export function failureReason(kind: PersistFailureKind): string {
   switch (kind) {
@@ -77,7 +114,8 @@ export function failureReason(kind: PersistFailureKind): string {
  */
 function ownMessage(err: unknown): string {
   const kind = (err as { persistKind?: unknown } | null | undefined)?.persistKind;
-  if (kind === "auth" || kind === "server" || kind === "network") return "";
+  const serverSaid = (err as { serverSaid?: unknown } | null | undefined)?.serverSaid === true;
+  if ((kind === "auth" || kind === "server" || kind === "network") && !serverSaid) return "";
   const name = (err as { name?: unknown } | null | undefined)?.name;
   if (name === "TypeError" || name === "AbortError" || name === "NetworkError") return "";
   const m = (err as { message?: unknown } | null | undefined)?.message;
