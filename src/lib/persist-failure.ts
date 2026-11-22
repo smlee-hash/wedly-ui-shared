@@ -126,11 +126,17 @@ function ownMessage(err: unknown): string {
   return t;
 }
 
-/** 저장 실패 안내. `label` 은 무엇을 저장하려 했는지("히스토리"·"정산정보"). */
+/**
+ * 저장 실패 안내. `label` 은 무엇을 저장하려 했는지("히스토리"·"정산정보").
+ *
+ * ★서버가 까닭을 실어 막은 저장(serverSaid — 권한·앱별로 막은 분야)은 다시 해도 똑같이 막히므로
+ *   「다시 시도해 주세요」를 붙이지 않는다. 로그인 만료·서버 오류·연결 끊김은 다시 하면 될 수 있어 그대로 붙인다.
+ */
 export function saveFailureMessage(err: unknown, label: string): string {
   const own = ownMessage(err);
   const head = own || `${label} 저장에 실패했습니다.\n\n${failureReason(persistKindOf(err))}`;
-  return `${head}\n\n입력한 내용은 지우지 않았습니다. 다시 시도해 주세요.`;
+  const refused = (err as { serverSaid?: unknown } | null | undefined)?.serverSaid === true;
+  return `${head}\n\n입력한 내용은 지우지 않았습니다.${refused ? "" : " 다시 시도해 주세요."}`;
 }
 
 /** 불러오기 실패 안내. 입력칸 얘기가 아니므로 "지우지 않았습니다" 를 붙이지 않는다. */

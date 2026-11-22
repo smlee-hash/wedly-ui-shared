@@ -8,7 +8,7 @@ import {
   type CustomerDetailLite,
   type DomainRowLite,
 } from "./lib/customer-detail";
-import { checkApiResult, makePersistError, failureReason, saveFailureMessage, failureFromResponse } from "../lib/persist-failure";
+import { makePersistError, failureReason, saveFailureMessage, loadFailureMessage, failureFromResponse } from "../lib/persist-failure";
 import { DetailLoadStateProvider } from "./detail-load-state";
 import { DOMAIN_GROUPS, type DomainGroup } from "./lib/domain-config";
 import { getStatusDotClass } from "./lib/status-dot";
@@ -535,10 +535,11 @@ function SectionDetailPanel({
       .then(async (r) => {
         const j = await r.json().catch(() => null);
         if (!alive) return;
-        const kind = checkApiResult(r, j);
-        if (kind !== "none") {
+        // 다시 읽기(reloadHistory)와 같은 판정 — 403 에 서버가 까닭을 실어 보냈으면 로그인 만료 대신 그 까닭을 안내한다.
+        const bad = failureFromResponse(r, j);
+        if (bad) {
           // 못 불러왔다 — 옛 값으로 위장하지 않는다. 부품이 입력을 잠그고 다시 시도를 띄운다.
-          setSecHistoryError(failureReason(kind));
+          setSecHistoryError(loadFailureMessage(bad));
           setSecHistory([]);
           return;
         }
