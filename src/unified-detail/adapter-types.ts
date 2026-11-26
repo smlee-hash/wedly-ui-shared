@@ -441,6 +441,16 @@ export interface UnifiedDetailAdapter {
       row: Record<string, unknown>,
     ) => Promise<{ ok: true; status: ReportRegenStatus } | { ok: false; message: string; status?: ReportRegenStatus }>;
   };
+
+  /**
+   * NO.818: 「리포트」 칸 아래 「기업인증 리포트」 PDF 내려받기 (선택 — 미주입 시 단추 없음).
+   * download  사업자번호로 PDF 를 받아 온다. 실패는 throw 대신 { ok: false, message }.
+   */
+  certReport?: {
+    download: (
+      row: Record<string, unknown>,
+    ) => Promise<{ ok: true; blob: Blob; filename: string } | { ok: false; message: string }>;
+  };
 }
 
 /** 어댑터가 분야 그룹별로 주입하는 커스텀 편집기 패널의 props (components.sectionPanels 값). */
