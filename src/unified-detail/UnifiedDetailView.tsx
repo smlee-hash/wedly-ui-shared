@@ -19,6 +19,7 @@ import SectionHistoryPanel from "./SectionHistoryPanel";
 import { EditableFieldRow, BasicScopeBadge } from "./editors";
 import BasicFilesField from "./BasicFilesField";
 import ReportRegenerateControl, { isReportRegenerateColumn } from "./ReportRegenerateControl";
+import CertReportButton from "./CertReportButton";
 import NewEntryReportUpload, { type DraftFile } from "./NewEntryReportUpload";
 import { CommonFieldsLauncher } from "./CommonFieldsLauncher";
 import { UNIFIED_TYPE_OPTIONS } from "./lib/column-type-options";
@@ -1873,15 +1874,29 @@ function BasicInfoPanel({
                           onSaved={onSaved}
                         />
                         {/* NO.611: 「리포트」 칸 아래의 「리포트 최신 버전으로 재생성」 — 어댑터가 통로를 줄 때만(신규 등록은 위에서 이미 제외). */}
-                        {adapter.reportRegenerate && isReportRegenerateColumn(col) && (
-                          <div className="mt-2">
-                            <ReportRegenerateControl
-                              key={String(r["_id"] ?? "")}
-                              row={r}
-                              adapter={adapter.reportRegenerate}
-                              onSaved={onSaved}
-                            />
-                          </div>
+                        {(adapter.reportRegenerate || adapter.certReport) && isReportRegenerateColumn(col) && (
+                          <>
+                            {adapter.reportRegenerate && (
+                              <div className="mt-2">
+                                <ReportRegenerateControl
+                                  key={String(r["_id"] ?? "")}
+                                  row={r}
+                                  adapter={adapter.reportRegenerate}
+                                  onSaved={onSaved}
+                                />
+                              </div>
+                            )}
+                            {/* NO.818: 재생성 아래의 「기업인증 리포트」 PDF 내려받기 — 어댑터가 통로를 줄 때만. */}
+                            {adapter.certReport && (
+                              <div className="mt-2">
+                                <CertReportButton
+                                  key={String(r["_id"] ?? "")}
+                                  row={r}
+                                  adapter={adapter.certReport}
+                                />
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
