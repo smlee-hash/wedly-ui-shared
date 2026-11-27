@@ -2971,13 +2971,14 @@ function BasicInfoPanel({
                                 />
                               </div>
                             )}
-                            {/* NO.818: 재생성 아래의 「기업인증 리포트」 PDF 내려받기 — 어댑터가 통로를 줄 때만. */}
+                            {/* NO.818: 재생성 아래의 「기업인증 리포트 생성」 — 어댑터가 통로를 줄 때만. */}
                             {adapter.certReport && (
                               <div className="mt-2">
                                 <CertReportButton
                                   key={String(r["_id"] ?? "")}
                                   row={r}
                                   adapter={adapter.certReport}
+                                  onSaved={onSaved}
                                 />
                               </div>
                             )}
