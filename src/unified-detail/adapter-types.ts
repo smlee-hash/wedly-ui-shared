@@ -298,13 +298,14 @@ export interface UnifiedDetailAdapter {
   };
 
   /**
-   * NO.818: 「리포트」 칸 아래 「기업인증 리포트」 PDF 내려받기 (선택 — 미주입 시 단추 없음).
-   * download  사업자번호로 PDF 를 받아 온다. 실패는 throw 대신 { ok: false, message }.
+   * NO.818: 「리포트」 칸 아래 「기업인증 리포트 생성」 (선택 — 미주입 시 단추 없음).
+   * generate  사업자번호로 기업인증 리포트 PDF 를 만들어 해당 고객 DB 상세창 첨부 파일에 바로 올린다.
+   *           실패는 throw 대신 { ok: false, message }.
    */
   certReport?: {
-    download: (
+    generate: (
       row: Record<string, unknown>,
-    ) => Promise<{ ok: true; blob: Blob; filename: string } | { ok: false; message: string }>;
+    ) => Promise<{ ok: true; fileName: string } | { ok: false; message: string }>;
   };
 }
 

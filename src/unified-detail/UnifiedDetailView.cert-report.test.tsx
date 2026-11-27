@@ -51,7 +51,7 @@ vi.mock("./HistoryPanel", () => ({ default: () => null }));
 vi.mock("./SectionHistoryPanel", () => ({ default: () => null }));
 vi.mock("./CommonFieldsLauncher", () => ({ CommonFieldsLauncher: () => null }));
 
-const CERT_TEXT = "기업인증 리포트";
+const CERT_TEXT = "기업인증 리포트 생성";
 const REGEN_TEXT = "리포트 최신 버전으로 재생성";
 const OTHER_FILE = "서류";
 
@@ -77,8 +77,8 @@ const idleStatus = (): ReportRegenStatus => ({
   disabledReason: null,
 });
 
-const okDownload = (): CertAdapter["download"] =>
-  vi.fn(async () => ({ ok: true as const, blob: new Blob(["%PDF-1.4"]), filename: "기업인증리포트_가상 주식회사.pdf" }));
+const okGenerate = (): CertAdapter["generate"] =>
+  vi.fn(async () => ({ ok: true as const, fileName: "기업인증리포트_가상 주식회사.pdf" }));
 
 function makeRow(): RowData {
   return { _id: "row-1", "02상호명": "가상 주식회사", "03대표자명": "가상 대표", 리포트: [] } as unknown as RowData;
@@ -211,14 +211,14 @@ describe("UnifiedDetailView — 기업인증 리포트 단추 자리", () => {
     expect(buttonsOf(container, CERT_TEXT).length).toBe(0);
   });
 
-  it("adapter.certReport 가 있으면 「리포트」 칸 파일 목록 바로 아래에 한 번 그려지고, 누르기 전엔 받지 않는다", async () => {
-    const download = okDownload();
-    const container = await mountView(buildAdapter({ certReport: { download } }));
+  it("adapter.certReport 가 있으면 「리포트」 칸 파일 목록 바로 아래에 한 번 그려지고, 누르기 전엔 부르지 않는다", async () => {
+    const generate = okGenerate();
+    const container = await mountView(buildAdapter({ certReport: { generate } }));
 
     const buttons = buttonsOf(container, CERT_TEXT);
     expect(buttons.length).toBe(1);
     expect(buttons[0].disabled).toBe(false);
-    expect(download).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
 
     // 같은 칸(값 쪽 세로 묶음) 안에서 파일 목록 뒤에 온다.
     const files = container.querySelector('[data-probe="files"]') as HTMLElement;
@@ -232,7 +232,7 @@ describe("UnifiedDetailView — 기업인증 리포트 단추 자리", () => {
     const container = await mountView(
       buildAdapter({
         reportRegenerate: { load: vi.fn(async () => idleStatus()), start: vi.fn() },
-        certReport: { download: okDownload() },
+        certReport: { generate: okGenerate() },
       }),
     );
 
@@ -244,26 +244,25 @@ describe("UnifiedDetailView — 기업인증 리포트 단추 자리", () => {
   });
 
   it("「리포트」가 아닌 다른 파일 칸 아래에는 붙지 않는다", async () => {
-    const container = await mountView(buildAdapter({ certReport: { download: okDownload() } }, true));
+    const container = await mountView(buildAdapter({ certReport: { generate: okGenerate() } }, true));
 
     expect(container.querySelectorAll('[data-probe="files"]').length).toBe(2); // 리포트 칸 + 서류 칸
     expect(buttonsOf(container, CERT_TEXT).length).toBe(1);
   });
 
   it("신규 등록 화면에는 붙지 않는다", async () => {
-    const container = await mountView(buildAdapter({ certReport: { download: okDownload() } }), { isNew: true });
+    const container = await mountView(buildAdapter({ certReport: { generate: okGenerate() } }), { isNew: true });
 
     expect(buttonsOf(container, CERT_TEXT).length).toBe(0);
   });
 
-  it("누르면 그 줄(row)로 download 가 한 번 불린다", async () => {
-    const download = okDownload();
-    const container = await mountView(buildAdapter({ certReport: { download } }));
-    const createObjectURL = vi.fn(() => "blob:cert");
-    const savedCreate = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
-    const savedRevoke = Object.getOwnPropertyDescriptor(URL, "revokeObjectURL");
-    Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true, value: createObjectURL });
-    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: vi.fn() });
+  it("누르면 그 줄(row)로 generate 가 한 번 불리고 상세창을 새로 읽는다(다운로드 없음)", async () => {
+    const generate = okGenerate();
+    const loadDomainRows = vi.fn(async () => syntheticDetail());
+    const adapter = buildAdapter({ certReport: { generate } });
+    adapter.api.loadDomainRows = loadDomainRows;
+    const container = await mountView(adapter);
+    const callsBefore = loadDomainRows.mock.calls.length;
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     try {
       await act(async () => {
@@ -271,15 +270,12 @@ describe("UnifiedDetailView — 기업인증 리포트 단추 자리", () => {
       });
       await settle();
 
-      expect(download).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(download).mock.calls[0]?.[0]).toMatchObject({ _id: "row-1" });
-      expect(click).toHaveBeenCalledTimes(1);
+      expect(generate).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(generate).mock.calls[0]?.[0]).toMatchObject({ _id: "row-1" });
+      expect(click).not.toHaveBeenCalled();
+      expect(loadDomainRows.mock.calls.length).toBeGreaterThan(callsBefore);
     } finally {
       click.mockRestore();
-      if (savedCreate) Object.defineProperty(URL, "createObjectURL", savedCreate);
-      else delete (URL as { createObjectURL?: unknown }).createObjectURL;
-      if (savedRevoke) Object.defineProperty(URL, "revokeObjectURL", savedRevoke);
-      else delete (URL as { revokeObjectURL?: unknown }).revokeObjectURL;
     }
   });
 });
